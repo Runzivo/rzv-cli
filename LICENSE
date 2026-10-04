@@ -1,0 +1,36 @@
+Runzivo rzv License
+
+Copyright (c) 2026 Runzivo Technologies Inc. All rights reserved.
+
+The rzv executables, the installer script and the other files published in
+this repository (the "Software") are licensed, not sold.
+
+1. Permission. You may download, install and run the Software, in unmodified
+   form, to use Runzivo services in accordance with the Runzivo Terms of
+   Service (https://runzivo.dev/legal/terms).
+
+2. Restrictions. You may not, except as the law expressly allows: (a) sell,
+   sublicense, rent or redistribute the Software, other than by linking to
+   this repository or https://runzivo.dev/downloads/rzv/; (b) modify the
+   Software or create derivative works of it; (c) reverse engineer, decompile
+   or disassemble the Software; or (d) remove or alter any notice in it.
+
+3. Third-party components. Each rzv executable bundles open-source
+   components, including the Node.js runtime, under their own licenses. They
+   are listed in THIRD_PARTY_NOTICES.md. Nothing in this license limits your
+   rights under those licenses.
+
+4. Termination. This license ends automatically if you breach it or when
+   your right to use Runzivo services ends. You must then stop using and
+   delete the Software.
+
+5. No warranty. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A
+   PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+
+6. Limitation of liability. TO THE EXTENT THE LAW ALLOWS, RUNZIVO
+   TECHNOLOGIES INC. IS NOT LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY
+   ARISING FROM THE SOFTWARE OR ITS USE.
+
+7. Governing law. This license is governed by the laws of the Province of
+   Ontario and the federal laws of Canada that apply there.
