@@ -1,0 +1,5 @@
+/dist/
+/rzv
+/rzv.exe
+*.test
+*.out
