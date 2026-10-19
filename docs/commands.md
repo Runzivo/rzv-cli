@@ -20,6 +20,10 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 `rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <id>` (or the older `--account <id>`) to override the selection.
 
+## Workspace commands
+
+`jobs`, `usage`, `billing`, `github`, `repositories`, `runner-profiles` and `api-keys` act on the selected workspace: see [Workspace commands](workspace-commands.md).
+
 ## Other
 
 | Command       | What it does                                      |
@@ -27,7 +31,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | `rzv version` | The rzv version, commit, build date and platform. |
 | `rzv help`    | All commands; `rzv help <command>` for one.       |
 
-Staff commands are not part of `rzv`.
+Not in `rzv`: staff commands (staff console), and support tickets, workspace settings, members, invitations and buying minutes (Runzivo portal).
 
 ## Exit codes
 
