@@ -2,6 +2,19 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased (rzv 0.9.0)
+
+### Changed
+
+- `rzv` is rewritten in Go and its source code is now in this repository. Each executable is one static file with no runtime dependencies; Linux no longer needs `libatomic1`.
+- `rzv accounts` is now `rzv workspaces`; the old name still works. `--workspace` replaces `--account`, which still works.
+
+### Added
+
+- `rzv whoami`: the signed-in identity, environment, session expiry and selected workspace.
+- `rzv login --env prd|shared` and `--no-browser`. Production is the default, with no other options needed.
+- `rzv version`.
+
 ## release-2026-10-04-161209 (rzv 0.1.0), 2026-10-04
 
 ### Fixed

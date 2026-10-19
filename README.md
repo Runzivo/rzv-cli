@@ -1,8 +1,8 @@
 # rzv
 
-`rzv` is the Runzivo command-line tool. It signs you in, lists the Runzivo accounts you belong to and shows the status of your jobs.
+`rzv` is the Runzivo command-line tool. It signs you in, lists your Runzivo workspaces and shows the status of your jobs.
 
-This repository publishes the official `rzv` executables and their release notes. It does not hold the source code.
+This repository holds the source code of `rzv` (Go), its release notes and its releases. It is public so you can read the code you run; it does not accept outside contributions.
 
 ## Install
 
@@ -10,38 +10,30 @@ This repository publishes the official `rzv` executables and their release notes
 curl -fsSL https://runzivo.dev/downloads/rzv/install.sh | sh
 ```
 
-The installer downloads the latest release, checks its SHA-256 checksum and puts `rzv` in `$RZV_INSTALL_DIR` (default `~/.local/bin`). `rzv` is a single program with its runtime built in, so you do not install Node.js or anything else.
-
-| Platform | Status |
-| --- | --- |
-| macOS, Apple Silicon (arm64) | Supported |
-| Linux, x86-64 | Supported |
-| macOS Intel, Windows, Linux arm64 | Not available yet |
-
-On minimal Linux images, `rzv` needs `libatomic1`. The installer tells you if it is missing and prints the command to install it, for example `sudo apt-get install -y libatomic1`.
-
-Other options:
-
-- A specific release: `curl -fsSL https://runzivo.dev/downloads/rzv/install.sh | sh -s -- --version=release-2026-10-04-161209`
-- Another directory: `curl -fsSL https://runzivo.dev/downloads/rzv/install.sh | RZV_INSTALL_DIR=/opt/rzv/bin sh`
-- Uninstall: `curl -fsSL https://runzivo.dev/downloads/rzv/install.sh | sh -s -- --uninstall`
-
-You can also download the files from [Releases](https://github.com/Runzivo/rzv-cli/releases) and check them against `SHA256SUMS`.
+The installer downloads the latest release, checks its SHA-256 checksum and puts `rzv` in `$RZV_INSTALL_DIR` (default `~/.local/bin`). `rzv` is one static executable with no runtime dependencies. More options, platforms and manual downloads: [docs/install.md](docs/install.md).
 
 ## Use
 
 ```sh
-rzv login                          # sign in through your browser
-rzv accounts list                  # accounts you can use
-rzv accounts select <account-id>   # choose one for later commands
-rzv jobs list                      # jobs for the selected account
-rzv jobs get <job-id>              # one job's status
-rzv logout                         # remove the stored sign-in
+rzv login                              # sign in through your browser
+rzv whoami                             # who you are signed in as
+rzv workspaces list                    # workspaces you belong to
+rzv workspaces select <workspace-id>   # choose one for later commands
+rzv logout                             # remove the stored sign-in
 ```
 
-Add `--json` to any command for machine-readable output. `rzv` never prints your password or access token.
+Add `--json` to any command for machine-readable output. `rzv` never prints your access token. Run `rzv help` for every command.
 
 Runzivo is in Early Access. You need an approved Runzivo account to sign in. See the [CLI guide](https://runzivo.dev/docs/cli) and [getting started](https://runzivo.dev/docs/getting-started).
+
+**Staff commands are not included.** Runzivo staff work stays in the staff console; `rzv` covers the customer API only.
+
+## Documentation
+
+- [docs/README.md](docs/README.md): index of the guides below
+- [Sign-in and credentials](docs/login.md)
+- [Commands](docs/commands.md)
+- [Development](docs/development.md)
 
 ## Releases and changes
 
@@ -55,4 +47,4 @@ Runzivo is in Early Access. You need an approved Runzivo account to sign in. See
 
 ## License
 
-Proprietary. See [LICENSE](LICENSE). Bundled open-source components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Proprietary. See [LICENSE](LICENSE). Open-source components: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
