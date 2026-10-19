@@ -25,6 +25,8 @@ The API client follows the Runzivo customer API contract (`api/customer.openapi.
 
 ## CI
 
-`.github/workflows/ci.yml` checks formatting, vets, runs the tests with the race detector and cross-compiles every release target. Linux jobs run on Runzivo's own microVM runners (`runs-on: rzv-ubuntu-24.04-x64-2vcpu-8gb`). macOS and Windows builds are cross-compiled only; smoke tests on those systems come later. Third-party actions are pinned to full commit SHAs.
+`.github/workflows/ci.yml` checks formatting, vets, runs the tests with the race detector, builds every release file (`scripts/build.sh`) and runs the installer against them (`scripts/test-install.sh`). Linux jobs run on Runzivo's own microVM runners (`runs-on: rzv-ubuntu-24.04-x64-2vcpu-8gb`). macOS and Windows builds are cross-compiled only; smoke tests on those systems come later. Third-party actions are pinned to full commit SHAs.
+
+Releases: [Releasing](releasing.md).
 
 Back to the [documentation index](README.md).

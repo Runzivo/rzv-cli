@@ -11,6 +11,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Added
 
+- Executables for Linux arm64, macOS Intel and Windows x86-64, next to Linux x86-64 and macOS Apple Silicon. Builds are reproducible from the tagged commit.
 - `rzv whoami`: the signed-in identity, environment, session expiry and selected workspace.
 - `rzv login --env prd|shared` and `--no-browser`. Production is the default, with no other options needed.
 - `rzv version`.
