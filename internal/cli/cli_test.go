@@ -59,10 +59,19 @@ func (h *harness) run(args ...string) (int, string, string) {
 	code := Run(context.Background(), args, Deps{
 		Stdout: &stdout, Stderr: &stderr, Store: h.store,
 		Getenv:       func(k string) string { return h.env[k] },
-		OpenBrowser:  h.provider.Browser("good-code", false),
+		OpenBrowser:  h.openBrowser,
 		CallbackPort: -1, LoginTimeout: 5 * time.Second,
 	})
 	return code, stdout.String(), stderr.String()
+}
+
+// openBrowser completes sign-in for the fake provider and ignores any other
+// URL (such as GitHub's device page).
+func (h *harness) openBrowser(u string) error {
+	if strings.HasPrefix(u, h.provider.Issuer()) {
+		return h.provider.Browser("good-code", false)(u)
+	}
+	return nil
 }
 
 func (h *harness) login() string {

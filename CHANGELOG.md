@@ -14,6 +14,8 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 - `rzv whoami`: the signed-in identity, environment, session expiry and selected workspace.
 - `rzv login --env prd|shared` and `--no-browser`. Production is the default, with no other options needed.
 - `rzv version`.
+- Workspace commands at parity with the 0.8.0 CLI: `rzv jobs list|get|status`, `rzv usage`, `rzv billing` and `rzv billing purchases`, `rzv github status|connect|authorize`, `rzv runner-profiles`, `rzv api-keys list|create|rename|revoke`, and the new `rzv repositories list`.
+- `RZV_API_KEY` works without a stored sign-in: pass `--workspace`, and `RZV_API_URL` or `RZV_ENV` picks the API.
 
 ## release-2026-10-04-161209 (rzv 0.1.0), 2026-10-04
 

@@ -19,6 +19,8 @@ rzv login                              # sign in through your browser
 rzv whoami                             # who you are signed in as
 rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands
+rzv jobs list                          # jobs for the selected workspace
+rzv jobs get <job-id>                  # one job's status
 rzv logout                             # remove the stored sign-in
 ```
 
@@ -32,7 +34,7 @@ Runzivo is in Early Access. You need an approved Runzivo account to sign in. See
 
 - [docs/README.md](docs/README.md): index of the guides below
 - [Sign-in and credentials](docs/login.md)
-- [Commands](docs/commands.md)
+- [Commands](docs/commands.md) and [workspace commands](docs/workspace-commands.md)
 - [Development](docs/development.md)
 
 ## Releases and changes
