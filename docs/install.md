@@ -22,7 +22,7 @@ Options:
 | macOS, Intel         | `rzv-darwin-x64`    |
 | Windows, x86-64      | `rzv-win32-x64.exe` |
 
-Every file is a static executable with no runtime dependencies. On Windows, download `rzv-win32-x64.exe` from [Releases](https://github.com/Runzivo/rzv-cli/releases), check it as below and put it on your `PATH`.
+Every file is a static executable with no runtime dependencies. macOS executables are not notarized yet: a browser download needs `xattr -d com.apple.quarantine rzv` before it runs (the installer avoids this). On Windows, download `rzv-win32-x64.exe` from [Releases](https://github.com/Runzivo/rzv-cli/releases), check it as below and put it on your `PATH`.
 
 ## Check a download by hand
 

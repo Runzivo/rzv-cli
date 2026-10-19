@@ -1,0 +1,4 @@
+self-hosted-runner:
+  # Runzivo microVM runner labels used by this repository.
+  labels:
+    - rzv-ubuntu-24.04-x64-2vcpu-8gb
