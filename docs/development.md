@@ -10,15 +10,16 @@ gofmt -l . && go vet ./...  # formatting and static checks
 
 ## Layout
 
-| Path                | Contents                                                     |
-| ------------------- | ------------------------------------------------------------ |
-| `cmd/rzv`           | Entry point                                                  |
-| `internal/cli`      | Argument parsing, commands and output                        |
-| `internal/api`      | Typed client for the customer API                            |
-| `internal/oidc`     | Browser sign-in: PKCE, loopback callback, token verification |
-| `internal/config`   | Environment presets and the credential store                 |
-| `internal/oidctest` | Fake identity provider used by the tests                     |
-| `internal/version`  | Build metadata, set at release time with `-ldflags`          |
+| Path                  | Contents                                                     |
+| --------------------- | ------------------------------------------------------------ |
+| `cmd/rzv`             | Entry point                                                  |
+| `internal/cli`        | Argument parsing, commands and output                        |
+| `internal/api`        | Typed client for the customer API                            |
+| `internal/oidc`       | Browser sign-in: PKCE, loopback callback, token verification |
+| `internal/config`     | Environment presets and the credential store                 |
+| `internal/githubauth` | GitHub device flow for `rzv github authorize`                |
+| `internal/oidctest`   | Fake identity provider used by the tests                     |
+| `internal/version`    | Build metadata, set at release time with `-ldflags`          |
 
 The API client follows the Runzivo customer API contract (`api/customer.openapi.yaml` in the Runzivo service). It is written by hand against that contract and covers only the operations `rzv` calls. Tests use local fake servers and throwaway keys; they never reach Runzivo or use real credentials.
 
