@@ -220,6 +220,91 @@ func TestGitHubConnectAndAuthorize(t *testing.T) {
 	}
 }
 
+func TestGitHubInstallationsAndWorkspaceOnboarding(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("GET /v1/customer/tenants/t-1/github-installations", 200, `{"installations":[{"installation_id":"9","state":"active","account_name":"acme","manage_url":"https://manage.example.test/9","runner_permission_missing":true,"setup_state":"permissions_pending","next_retry_at":"2026-10-22T00:00:00Z","account_archived":true,"account_archived_at":"2026-10-21T00:00:00Z","repositories":[{"repository_id":"100","name":"acme/app","authorized":true,"archived":true,"archived_at":"2026-10-20T00:00:00Z"}]},{"installation_id":"10","state":"pending","account_name":null,"manage_url":null,"repositories":[]}]}`)
+	code, out, _ := h.run("github", "installations")
+	lines := strings.Split(out, "\n")
+	if code != 0 || len(lines) < 4 || !strings.Contains(lines[1], "MANAGE URL") || !strings.Contains(out, "runner permission required") || !strings.Contains(out, "acme/app") || !strings.Contains(out, "authorized, archived") || !strings.Contains(out, "https://manage.example.test/9") || !strings.Contains(out, "2026-10-21T00:00:00Z") || strings.Contains(lines[1], "\t") || strings.Index(lines[1], "STATE") != strings.Index(lines[2], "active") || strings.Index(lines[1], "ACCOUNT") != strings.Index(lines[2], "acme") {
+		t.Fatalf("installations: %d %q", code, out)
+	}
+	code, out, _ = h.run("github", "installations", "--json")
+	if code != 0 || !strings.Contains(out, `"installation_id":"9"`) || !strings.Contains(out, `"account_archived":true`) || !strings.Contains(out, `"repositories":[]`) {
+		t.Fatalf("installations json: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/github-installations", 200, `{"installations":[]}`)
+	if code, out, _ := h.run("github", "installations"); code != 0 || !strings.Contains(out, "No GitHub App installations") {
+		t.Fatalf("empty installations: %d %q", code, out)
+	}
+
+	h.json("POST /v1/customer/github/workspaces/start", 201, `{"state":"workspace-state","expires_at":"2026-10-22T00:00:00Z"}`)
+	code, out, _ = h.run("github", "workspaces", "start")
+	if code != 0 || !strings.Contains(out, "Started GitHub-backed workspace onboarding") || !strings.Contains(out, "State: workspace-state") {
+		t.Fatalf("workspace start: %d %q", code, out)
+	}
+
+	var gh *httptest.Server
+	gh = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/login/device/code" {
+			_, _ = w.Write([]byte(`{"device_code":"dc","user_code":"WXYZ","verification_uri":"` + gh.URL + `/login/device","expires_in":900,"interval":1}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"access_token":"workspace-user-token"}`))
+	}))
+	t.Cleanup(gh.Close)
+	githubBaseURL = gh.URL
+	t.Cleanup(func() { githubBaseURL = "https://github.com" })
+	var sent map[string]any
+	h.routes["POST /v1/customer/github/workspaces/complete"] = func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(data, &sent)
+		_, _ = w.Write([]byte(`{"outcome":"created","account_login":"acme","account_type":"Organization","notice":"Install runners next.","workspace":{"tenant_id":"t-3","tenant_slug":"acme","tenant_name":"Acme","role":"owner"}}`))
+	}
+	code, out, errOut := h.run("github", "workspaces", "complete", "--state", "workspace-state", "--installation-id", "9", "--github-client-id", "Iv1.test")
+	if code != 0 || !strings.Contains(out, "Outcome: created") || !strings.Contains(out, "Workspace: Acme [t-3] (selected)") || !strings.Contains(errOut, "enter this code: WXYZ") {
+		t.Fatalf("workspace complete: %d %q %q", code, out, errOut)
+	}
+	if sent["user_access_token"] != "workspace-user-token" || sent["state"] != "workspace-state" || sent["installation_id"] != float64(9) || strings.Contains(out+errOut, "workspace-user-token") {
+		t.Fatalf("workspace complete safety: body=%v output=%q %q", sent, out, errOut)
+	}
+	if creds, _ := h.store.Read(); creds.SelectedWorkspace != "t-3" {
+		t.Fatalf("workspace was not selected: %+v", creds)
+	}
+
+	h.routes["POST /v1/customer/github/workspaces/complete"] = func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"outcome":"access_required","account_login":"acme","account_type":"Organization"}`))
+	}
+	code, out, _ = h.run("github", "workspaces", "complete", "--state", "workspace-state", "--installation-id", "9", "--github-client-id", "Iv1.test", "--json")
+	if code != 0 || !strings.Contains(out, `"outcome":"access_required"`) {
+		t.Fatalf("workspace access required: %d %q", code, out)
+	}
+	if creds, _ := h.store.Read(); creds.SelectedWorkspace != "t-3" {
+		t.Fatal("access-required result changed selected workspace")
+	}
+}
+
+func TestGitHubWorkspaceOnboardingValidationAndErrors(t *testing.T) {
+	h := selectedHarness(t)
+	if code, _, _ := h.run("github", "installations", "--workspace", ""); code != exitUsage {
+		t.Fatalf("empty workspace option: %d", code)
+	}
+	if code, _, _ := h.run("github", "workspaces", "complete", "--state", "s", "--installation-id", "zero", "--github-client-id", "id"); code != exitUsage {
+		t.Fatalf("invalid installation id: %d", code)
+	}
+	if code, out, _ := h.run("help", "github"); code != 0 || !strings.Contains(out, "github workspaces complete") || !strings.Contains(out, "github installations") {
+		t.Fatalf("github help: %d %q", code, out)
+	}
+	h.env["RZV_API_KEY"] = "test-key"
+	if code, _, errOut := h.run("github", "workspaces", "start"); code != exitAccessDenied || !strings.Contains(errOut, "RZV_API_KEY") {
+		t.Fatalf("workspace start api key: %d %q", code, errOut)
+	}
+	h.env["RZV_API_KEY"] = ""
+	h.json("POST /v1/customer/github/workspaces/start", 503, `{"error":{"code":"workspace_creation_unavailable"}}`)
+	if code, _, _ := h.run("github", "workspaces", "start"); code != exitUnavailable {
+		t.Fatalf("workspace start unavailable: %d", code)
+	}
+}
+
 func TestAPIKeys(t *testing.T) {
 	h := selectedHarness(t)
 	h.json("GET /v1/customer/tenants/t-1/api-keys", 200, `{"api_keys":[{"id":"k1","name":"ci","prefix":"rzv_ab","scopes":["jobs:read"],"permissions":["jobs:read","logs:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":"2027-10-18T00:00:00Z"}],"allowed_scopes":["jobs:read"],"capabilities":{"can_create":true,"can_rename":true,"can_revoke":true}}`)

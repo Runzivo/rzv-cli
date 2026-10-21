@@ -20,12 +20,14 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | `rzv workspaces settings ...`                 | Read or update workspace name and logo. See [Workspace commands](workspace-commands.md).                    |
 | `rzv workspaces members ...`                  | List members and manage roles or removal. See [Workspace commands](workspace-commands.md).                  |
 | `rzv workspaces invitations ...`              | List, send, change, resend, revoke, or accept invitations. See [Workspace commands](workspace-commands.md). |
+| `rzv github workspaces start`                 | Start GitHub-backed workspace onboarding.                               |
+| `rzv github workspaces complete ...`          | Complete GitHub-backed workspace onboarding.                            |
 
 `rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <id>` (or the older `--account <id>`) to override the selection.
 
 ## Workspace commands
 
-`jobs`, `usage`, `insights`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions`, `api-keys`, `notifications`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace.
+`jobs`, `usage`, `insights`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions`, `api-keys`, `notifications`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace. GitHub-backed workspace onboarding uses your own sign-in before a workspace is selected.
 
 ## Support tickets
 
