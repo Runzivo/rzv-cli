@@ -21,6 +21,7 @@ var booleanOptions = map[string]bool{
 	"no-browser":              true,
 	"version":                 true,
 	"allow-insecure-loopback": true,
+	"personal":                true,
 }
 
 func parse(argv []string) (*command, error) {
