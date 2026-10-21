@@ -1,6 +1,28 @@
 # Workspace commands
 
-These commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. They also work with a workspace API key in `RZV_API_KEY` (see [Sign-in and credentials](login.md)), within the key's scopes.
+Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using a workspace API key, settings, members, and invitations commands require the `all:all` scope. `rzv workspaces invitations accept` always needs your own sign-in. Other workspace commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`.
+
+## Workspace access
+
+| Command | What it does |
+| --- | --- |
+| `rzv workspaces settings show` | Workspace name, logo state, and update capability. |
+| `rzv workspaces settings update --name <name>` | Change the workspace name. |
+| `rzv workspaces settings update --logo <path>` | Upload a PNG or JPEG logo up to 192 KiB, with width and height each at most 512 pixels. The encoded settings request must fit within 256 KiB. |
+| `rzv workspaces settings update --remove-logo` | Remove the current logo. |
+| `rzv workspaces members list` | Members and the allowed actions and roles for each member. |
+| `rzv workspaces members role <identity-id> --role <role>` | Change a member's role. |
+| `rzv workspaces members remove <identity-id>` | Remove a member. |
+| `rzv workspaces invitations list` | Pending and prior invitations, teams, and allowed actions. |
+| `rzv workspaces invitations invite --email <email> --role <role> [--team-ids <id,...>]` | Invite a person, optionally assigning known custom team IDs. |
+| `rzv workspaces invitations resend <invitation-id>` | Resend a pending invitation. |
+| `rzv workspaces invitations revoke <invitation-id>` | Revoke an invitation. |
+| `rzv workspaces invitations teams <invitation-id> --team-ids <id,...>` | Replace custom teams. Pass an empty value to clear them. |
+| `rzv workspaces invitations accept (--token <token> \| --token-file <path>)` | Accept an invitation with your own sign-in. Your identity needs a verified email matching the invitation recipient. |
+
+The service enforces the final permission, role, grant ceiling, self-removal, and last-owner checks. Invitation acceptance does not need a selected workspace and never saves or prints the acceptance token.
+
+There is no public custom-team discovery command. Supply IDs you already have with `--team-ids`; `teams --team-ids=` clears the list.
 
 ## Jobs and usage
 
