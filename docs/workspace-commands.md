@@ -121,6 +121,18 @@ or requires access. A returned workspace becomes the selected workspace.
 
 Changing teams needs the Manage members permission, and you can only grant permissions you hold yourself. The system teams (Owners, Admins, Members) cannot be renamed, deleted or given other permissions, and only an owner can change who is in Owners. With an API key, `rzv teams` and `rzv permissions` need a key with the `all:all` scope. Every change is recorded in the workspace activity log.
 
+## Workspace closure requests
+
+`rzv workspaces closures list` shows requests. `request` asks staff to close a workspace and `cancel` withdraws a pending request with its expected version. Neither command deletes a workspace immediately.
+
+List returns the newest 20 requests and has no cursor. List requires an owner or admin. Request and cancel use the current owner's `workspace:delete` permission. API-key access requires `all:all`.
+
+| Command | What it does |
+| --- | --- |
+| `rzv workspaces closures list` | List closure requests and their decision metadata. |
+| `rzv workspaces closures request --reason <text> --idempotency-key <key>` | Request closure for staff handling. |
+| `rzv workspaces closures cancel <request-id> --expected-version <n>` | Cancel a pending request. |
+
 ## API keys
 
 Managing keys needs your own sign-in, not `RZV_API_KEY`.
