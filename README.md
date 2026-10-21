@@ -28,7 +28,7 @@ rzv logout                             # remove the stored sign-in
 
 Add `--json` to any command for machine-readable output. `rzv` never prints your access token. Run `rzv help` for every command.
 
-Runzivo is in Early Access. You need an approved Runzivo account to sign in. See the [CLI guide](https://runzivo.dev/docs/cli) and [getting started](https://runzivo.dev/docs/getting-started).
+Runzivo is in Early Access. Sign in with your Runzivo account, then select a workspace you belong to. Runzivo runs jobs for repositories owned by GitHub organizations, including GitHub Free organizations. Personal repositories are unsupported. See the [CLI guide](https://runzivo.dev/docs/cli) and [getting started](https://runzivo.dev/docs/getting-started).
 
 **Staff commands are not included.** Runzivo staff work stays in the staff console; `rzv` covers the customer API only.
 
