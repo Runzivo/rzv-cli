@@ -25,7 +25,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 ## Workspace commands
 
-`jobs`, `usage`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions`, `api-keys`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace.
+`jobs`, `usage`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions`, `api-keys`, `notifications`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace.
 
 ## Support tickets
 
@@ -34,6 +34,10 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 ## Activity
 
 `rzv activity list` reads workspace activity (50 rows by default), `rzv activity export` writes matching CSV to stdout, and `rzv activity status` shows current audit signals and execution evidence (30 days by default). With `--json`, export returns `{workspace_id,csv}`. List output includes scope, retention and the next cursor. CSV exports contain at most 10,000 server-selected rows.
+
+## Notifications
+
+`rzv notifications` lists workspace notifications, marks them read, and reads or updates notification settings. These commands require your own sign-in; API keys are not accepted. See [Notifications](notifications.md).
 
 ## Other
 
