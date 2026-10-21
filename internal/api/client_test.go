@@ -104,3 +104,28 @@ func TestTenantPathEscapes(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestBillingCheckoutAndPortal(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.EscapedPath() == "/v1/customer/tenants/t%2F1/billing/checkout" {
+			var body map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["pack_id"] != "pack" || body["client_operation_id"] != "operation" {
+				t.Errorf("checkout body: %#v", body)
+			}
+			_, _ = w.Write([]byte(`{"order_reference":"order","checkout_url":"https://checkout.example.test/path","payment_mode":"test"}`))
+			return
+		}
+		if r.Method == http.MethodPost && r.URL.EscapedPath() == "/v1/customer/tenants/t%2F1/billing/purchases/order%2F1/portal" {
+			_, _ = w.Write([]byte(`{"customer_portal_link":"https://portal.example.test/path"}`))
+			return
+		}
+		t.Errorf("unexpected %s %s", r.Method, r.URL.EscapedPath())
+	})
+	if value, err := client.Checkout(context.Background(), "t/1", CheckoutInput{PackID: "pack", ClientOperationID: "operation"}); err != nil || value.OrderReference != "order" {
+		t.Fatalf("checkout: %#v %v", value, err)
+	}
+	if value, err := client.BillingPortal(context.Background(), "t/1", "order/1"); err != nil || value.CustomerPortalLink == "" {
+		t.Fatalf("portal: %#v %v", value, err)
+	}
+}

@@ -19,6 +19,7 @@ rzv login                              # sign in through your browser
 rzv whoami                             # who you are signed in as
 rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands
+rzv billing checkout --pack <pack-id>  # start hosted checkout
 rzv jobs list                          # jobs for the selected workspace
 rzv jobs get <job-id>                  # one job's status
 rzv tickets list                       # support tickets for the selected workspace

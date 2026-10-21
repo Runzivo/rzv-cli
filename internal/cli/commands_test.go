@@ -83,6 +83,46 @@ func TestBilling(t *testing.T) {
 	if code, _, _ := h.run("billing", "checkout"); code != exitUsage {
 		t.Fatalf("checkout should be a usage error: %d", code)
 	}
+	h.routes["POST /v1/customer/tenants/t-1/billing/checkout"] = func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["pack_id"] != "p1" || body["client_operation_id"] != "op-1" {
+			t.Errorf("checkout: %#v", body)
+		}
+		_, _ = w.Write([]byte(`{"order_reference":"o1","checkout_url":"https://checkout.example.test/path","payment_mode":"routed"}`))
+	}
+	opened := 0
+	h.browser = func(string) error { opened++; return nil }
+	if code, out, _ := h.run("billing", "checkout", "--pack", "p1", "--operation-id", "op-1"); code != 0 || opened != 1 || !strings.Contains(out, "Operation ID: op-1") {
+		t.Fatalf("checkout: %d %q", code, out)
+	}
+	if code, _, _ := h.run("billing", "checkout", "--pack", "p1", "--operation-id", "op-1", "--json"); code != 0 || opened != 1 {
+		t.Fatalf("checkout json browser: %d", code)
+	}
+	h.routes["POST /v1/customer/tenants/t-1/billing/purchases/o1/portal"] = func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"customer_portal_link":"https://portal.example.test/path"}`))
+	}
+	if code, out, _ := h.run("billing", "portal", "o1", "--json"); code != 0 || !strings.Contains(out, "customer_portal_link") {
+		t.Fatalf("portal json: %d %q", code, out)
+	}
+}
+
+func TestHostedURLValidation(t *testing.T) {
+	cases := []struct {
+		raw   string
+		valid bool
+	}{
+		{"https://checkout.example.test/path", true},
+		{"http://checkout.example.test", false}, {"https://user@checkout.example.test", false},
+		{"https://checkout.example.test:443", false}, {"https://127.0.0.1", false},
+		{"https://127.1", false}, {"https://foo.localhost", false}, {"https://bad-.example.test", false},
+		{"https://checkout.example.1", false}, {"https://checkout.example.test\n", false},
+	}
+	for _, tc := range cases {
+		if err := hostedURL(tc.raw); (err == nil) != tc.valid {
+			t.Errorf("hostedURL(%q) = %v", tc.raw, err)
+		}
+	}
 }
 
 func TestGitHubStatusRepositoriesAndProfiles(t *testing.T) {
