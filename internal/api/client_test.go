@@ -99,6 +99,38 @@ func TestCreateWorkspaceBody(t *testing.T) {
 	}
 }
 
+func TestRedeemCodeBodyAndResponse(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/customer/tenants/t/billing/codes/redeem" || body["code"] != "input-code" {
+			t.Errorf("unexpected request %s %s %v", r.Method, r.URL.Path, body)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"redemption":{"id":"r1","kind":"voucher","code":"1234","status":"credited","equivalent_minutes":1,"credit_expires_at":null},"replayed":false}`))
+	})
+	result, err := client.RedeemCode(context.Background(), "t", "input-code")
+	if err != nil || result.Redemption.ID != "r1" || result.Redemption.EquivalentMinutes != 1 || result.Redemption.CreditExpiresAt != nil || result.Replayed {
+		t.Fatalf("got %+v, %v", result, err)
+	}
+}
+
+func TestRedeemCodeRejectsInvalidEquivalentMinutes(t *testing.T) {
+	cases := map[string]string{
+		"missing": `{"redemption":{"id":"r1","kind":"promo","code":"SAFE","status":"credited","credit_expires_at":null},"replayed":false}`,
+		"null":    `{"redemption":{"id":"r1","kind":"promo","code":"SAFE","status":"credited","equivalent_minutes":null,"credit_expires_at":null},"replayed":false}`,
+		"zero":    `{"redemption":{"id":"r1","kind":"promo","code":"SAFE","status":"credited","equivalent_minutes":0,"credit_expires_at":null},"replayed":false}`,
+	}
+	for name, body := range cases {
+		client := newTestClient(t, respond(http.StatusCreated, body))
+		if _, err := client.RedeemCode(context.Background(), "t", "input-code"); err == nil {
+			t.Errorf("equivalent_minutes %s accepted", name)
+		}
+	}
+}
+
 func TestTenantPathEscapes(t *testing.T) {
 	if got := tenantPath("a/b c", "/jobs"); got != "/v1/customer/tenants/a%2Fb%20c/jobs" {
 		t.Fatalf("got %q", got)

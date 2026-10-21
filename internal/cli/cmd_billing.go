@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -11,21 +13,24 @@ import (
 const billingUsage = `Usage:
   rzv billing [--workspace <id>] [--json]             Minute balance and packs
   rzv billing purchases [--workspace <id>] [--json]   Recent minute-pack orders
+  rzv billing codes redeem --code-file <path> [--workspace <id>] [--json]
 
 Buying minutes and the payment provider's billing portal are in the
 Runzivo portal.`
 
+const maxRedeemCodeBytes = 64
+
 func init() {
-	register("billing", "Show the minute balance and recent purchases", runBilling)
+	register("billing", "Show billing, purchases, or redeem a code", runBilling)
 	commandUsage["billing"] = billingUsage
 }
 
 func runBilling(a *app, cmd *command) error {
-	if err := cmd.allow("workspace", "account"); err != nil {
-		return err
-	}
 	switch {
 	case len(cmd.args) == 0:
+		if err := cmd.allow("workspace", "account"); err != nil {
+			return err
+		}
 		id, client, err := a.workspaceClient(cmd)
 		if err != nil {
 			return err
@@ -37,6 +42,9 @@ func runBilling(a *app, cmd *command) error {
 		a.output(cmd, map[string]any{"workspace_id": id, "billing": billing}, renderBilling(id, billing))
 		return nil
 	case cmd.args[0] == "purchases":
+		if err := cmd.allow("workspace", "account"); err != nil {
+			return err
+		}
 		if err := cmd.expectArgs(1, "rzv billing purchases [--workspace <id>] [--json]"); err != nil {
 			return err
 		}
@@ -50,9 +58,81 @@ func runBilling(a *app, cmd *command) error {
 		}
 		a.output(cmd, map[string]any{"workspace_id": id, "purchases": purchases.Purchases, "limit": purchases.Limit}, renderPurchases(id, purchases.Purchases))
 		return nil
+	case len(cmd.args) > 1 && cmd.args[0] == "codes" && cmd.args[1] == "redeem":
+		return billingCodesRedeem(a, cmd)
 	default:
 		return usageError("%s", billingUsage)
 	}
+}
+
+func billingCodesRedeem(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account", "code-file"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv billing codes redeem --code-file <path> [--workspace <id>] [--json]"); err != nil {
+		return err
+	}
+	path, err := cmd.required("code-file")
+	if err != nil {
+		return err
+	}
+	code, err := readRedeemCode(path)
+	if err != nil {
+		return err
+	}
+	id, client, err := a.workspaceClient(cmd)
+	if err != nil {
+		return err
+	}
+	result, err := client.RedeemCode(a.ctx, id, code)
+	if err != nil {
+		return apiError(err, "")
+	}
+	a.output(cmd, map[string]any{"workspace_id": id, "redemption": result.Redemption, "replayed": result.Replayed}, renderRedemption(id, result))
+	return nil
+}
+
+func readRedeemCode(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", usageError("--code-file could not be read.")
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, maxRedeemCodeBytes+3))
+	if err != nil {
+		return "", usageError("--code-file could not be read.")
+	}
+	if len(data) > maxRedeemCodeBytes+2 {
+		return "", usageError("--code-file must contain one non-empty code of at most 64 bytes.")
+	}
+	if strings.HasSuffix(string(data), "\r\n") {
+		data = data[:len(data)-2]
+	} else if strings.HasSuffix(string(data), "\n") {
+		data = data[:len(data)-1]
+	}
+	code := string(data)
+	if code == "" || strings.TrimSpace(code) == "" || strings.ContainsAny(code, "\r\n") || len(code) > maxRedeemCodeBytes {
+		return "", usageError("--code-file must contain one non-empty code of at most 64 bytes.")
+	}
+	return code, nil
+}
+
+func renderRedemption(id string, result *api.RedemptionResult) string {
+	redemption := result.Redemption
+	replayed := "no"
+	if result.Replayed {
+		replayed = "yes"
+	}
+	return strings.Join([]string{
+		"Code redeemed for workspace " + display(id) + ":",
+		"ID: " + display(redemption.ID),
+		"Kind: " + display(redemption.Kind),
+		"Code: " + display(redemption.Code),
+		"Status: " + display(redemption.Status),
+		fmt.Sprintf("Equivalent minutes: %d", redemption.EquivalentMinutes),
+		"Credit expires: " + displayOrDash(redemption.CreditExpiresAt),
+		"Replayed: " + replayed,
+	}, "\n")
 }
 
 func minutes(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) }

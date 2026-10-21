@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 )
@@ -82,6 +83,114 @@ func TestBilling(t *testing.T) {
 	}
 	if code, _, _ := h.run("billing", "checkout"); code != exitUsage {
 		t.Fatalf("checkout should be a usage error: %d", code)
+	}
+}
+
+func TestBillingCodesRedeem(t *testing.T) {
+	h := selectedHarness(t)
+	codeFile := h.t.TempDir() + "/code"
+	if err := os.WriteFile(codeFile, []byte("input-code\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]string
+	status := http.StatusCreated
+	h.routes["POST /v1/customer/tenants/t-1/billing/codes/redeem"] = func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"redemption":{"id":"r1","kind":"voucher","code":"1234","status":"credited","equivalent_minutes":1,"credit_expires_at":null},"replayed":false}`))
+	}
+	code, out, errOut := h.run("billing", "codes", "redeem", "--code-file", codeFile)
+	if code != 0 || errOut != "" || !strings.Contains(out, "ID: r1") || !strings.Contains(out, "Equivalent minutes: 1") || !strings.Contains(out, "Credit expires: -") || strings.Contains(out, "input-code") || body["code"] != "input-code" {
+		t.Fatalf("redeem: %d %q %q %v", code, out, errOut, body)
+	}
+	status = http.StatusOK
+	h.routes["POST /v1/customer/tenants/t-1/billing/codes/redeem"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(`{"redemption":{"id":"r2","kind":"promo","code":"SAFE","status":"pending_eligibility","equivalent_minutes":10,"credit_expires_at":"2027-01-01T00:00:00Z"},"replayed":true}`))
+	}
+	code, out, _ = h.run("billing", "codes", "redeem", "--code-file", codeFile, "--json")
+	if code != 0 || !strings.Contains(out, `"replayed":true`) || !strings.Contains(out, `"credit_expires_at":"2027-01-01T00:00:00Z"`) {
+		t.Fatalf("replay: %d %q", code, out)
+	}
+	for _, errorCase := range []struct {
+		status int
+		code   string
+		exit   int
+	}{
+		{http.StatusForbidden, "insufficient_role", exitAccessDenied},
+		{http.StatusNotFound, "code_not_found", exitFailure},
+		{http.StatusConflict, "code_already_redeemed", exitFailure},
+		{http.StatusGone, "code_expired", exitFailure},
+		{http.StatusTooManyRequests, "code_redeem_rate_limited", exitFailure},
+		{http.StatusServiceUnavailable, "promo_policy_not_configured", exitUnavailable},
+	} {
+		h.json("POST /v1/customer/tenants/t-1/billing/codes/redeem", errorCase.status, `{"error":{"code":"`+errorCase.code+`"}}`)
+		code, out, errOut = h.run("billing", "codes", "redeem", "--code-file", codeFile)
+		if code != errorCase.exit || out != "" || strings.Contains(errOut, "input-code") {
+			t.Errorf("error %s: %d %q %q", errorCase.code, code, out, errOut)
+		}
+	}
+	for _, input := range []struct {
+		path string
+		data string
+	}{
+		{path: "missing"},
+		{path: "empty", data: "\n"},
+		{path: "long", data: strings.Repeat("x", maxRedeemCodeBytes+1)},
+		{path: "embedded-newline", data: "input\ncode"},
+	} {
+		path := input.path
+		if input.data != "" {
+			path = h.t.TempDir() + "/" + input.path
+			if err := os.WriteFile(path, []byte(input.data), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		calls := len(h.seenAuth)
+		code, out, errOut = h.run("billing", "codes", "redeem", "--code-file", path)
+		if code != exitUsage || out != "" || len(h.seenAuth) != calls || (strings.TrimSpace(input.data) != "" && strings.Contains(errOut, strings.TrimSpace(input.data))) {
+			t.Errorf("input %s: %d %q %q", input.path, code, out, errOut)
+		}
+	}
+	h.json("POST /v1/customer/tenants/t-1/billing/codes/redeem", http.StatusForbidden, `{"error":{"code":"code_not_eligible"}}`)
+	code, out, errOut = h.run("billing", "codes", "redeem", "--code-file", codeFile)
+	if code != exitAccessDenied || out != "" || !strings.Contains(errOut, "not eligible") || strings.Contains(errOut, "input-code") {
+		t.Fatalf("code eligibility: %d %q %q", code, out, errOut)
+	}
+	code, out, errOut = h.run("billing", "codes", "redeem", "--code-file", codeFile, "--json")
+	if code != exitAccessDenied || out != "" || !strings.Contains(errOut, `"error":"code_not_eligible"`) || strings.Contains(errOut, "input-code") {
+		t.Fatalf("code eligibility json: %d %q %q", code, out, errOut)
+	}
+	maxCode := strings.Repeat("x", maxRedeemCodeBytes)
+	for _, ending := range []string{"\n", "\r\n"} {
+		path := h.t.TempDir() + "/max-code"
+		if err := os.WriteFile(path, []byte(maxCode+ending), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if read, err := readRedeemCode(path); err != nil || read != maxCode {
+			t.Errorf("64-byte code with %q: %q %v", ending, read, err)
+		}
+	}
+	h.json("POST /v1/customer/tenants/t-1/billing/codes/redeem", http.StatusCreated, `{}`)
+	code, out, errOut = h.run("billing", "codes", "redeem", "--code-file", codeFile)
+	if code != exitFailure || out != "" || strings.Contains(errOut, "input-code") {
+		t.Fatalf("malformed response: %d %q %q", code, out, errOut)
+	}
+	keyHarness := newHarness(t)
+	keyHarness.env["RZV_API_KEY"] = "key-credential"
+	keyHarness.env["RZV_API_URL"] = keyHarness.api.URL
+	keyHarness.routes["POST /v1/customer/tenants/t-5/billing/codes/redeem"] = func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer key-credential" {
+			t.Errorf("unexpected API-key authorization %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"redemption":{"id":"r3","kind":"promo","code":"SAFE","status":"credited","equivalent_minutes":1,"credit_expires_at":null},"replayed":false}`))
+	}
+	code, out, errOut = keyHarness.run("billing", "codes", "redeem", "--workspace", "t-5", "--code-file", codeFile)
+	if code != 0 || errOut != "" || !strings.Contains(out, "ID: r3") {
+		t.Fatalf("API-key redeem: %d %q %q", code, out, errOut)
 	}
 }
 
