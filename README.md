@@ -21,6 +21,7 @@ rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands
 rzv jobs list                          # jobs for the selected workspace
 rzv jobs get <job-id>                  # one job's status
+rzv billing codes redeem --code-file <path>
 rzv tickets list                       # support tickets for the selected workspace
 rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
 rzv logout                             # remove the stored sign-in

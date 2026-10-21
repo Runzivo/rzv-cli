@@ -11,8 +11,13 @@ These commands act on the workspace chosen with `rzv workspaces select`, or on `
 | `rzv usage`             | Recorded billable minutes and job count.                           |
 | `rzv billing`           | Minute balance for the period and the packs on sale.               |
 | `rzv billing purchases` | Recent minute-pack orders.                                         |
+| `rzv billing codes redeem --code-file <path>` | Redeem a promo code or prepaid voucher. |
 
 A job's `status` is Runzivo's view of the run; only `conclusion` `success` means the GitHub workflow job succeeded.
+
+Save a redemption code in a file and pass its path with `--code-file`. The code may contain at most 64 bytes. The command does not store the input and only displays the safe code representation returned by the service.
+
+Code redemption requires the workspace's `billing:write` permission. It works with a human sign-in or with an API key that has the `all:all` scope and whose creator still has that permission.
 
 ## GitHub
 

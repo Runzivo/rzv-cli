@@ -174,6 +174,8 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "Only a workspace owner can create an all:all API key.")
 	case apiErr.Status == 403 && apiErr.Code == "api_key_scope_required":
 		return newError(apiErr.Code, exitAccessDenied, "This API key's scope does not allow this command.")
+	case apiErr.Status == 403 && apiErr.Code == "code_not_eligible":
+		return newError(apiErr.Code, exitAccessDenied, "This code is not eligible for this account.")
 	case apiErr.Status == 403 && apiErr.Code == "insufficient_role":
 		return newError(apiErr.Code, exitAccessDenied, "Your workspace role does not allow this command.")
 	case apiErr.Status == 403 && (apiErr.Code == "workspace_blocked" || apiErr.Code == "workspace_closed"):

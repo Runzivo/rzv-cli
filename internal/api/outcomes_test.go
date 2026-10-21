@@ -76,6 +76,9 @@ func TestMalformedBodiesAreRejected(t *testing.T) {
 	if _, err := c.CreateAPIKey(ctx, "t", CreateAPIKeyInput{}); err == nil {
 		t.Error("create api key")
 	}
+	if _, err := c.RedeemCode(ctx, "t", "code"); err == nil {
+		t.Error("redeem code")
+	}
 	if _, err := c.StartInstallationLink(ctx, "t"); err == nil {
 		t.Error("start link")
 	}
