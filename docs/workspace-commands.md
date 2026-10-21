@@ -1,6 +1,6 @@
 # Workspace commands
 
-These commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. They also work with a workspace API key in `RZV_API_KEY` (see [Sign-in and credentials](login.md)), within the key's scopes.
+These commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. They also work with a workspace API key in `RZV_API_KEY` (see [Sign-in and credentials](login.md)), within the key's scopes, except notification commands, which require your own sign-in.
 
 ## Jobs and usage
 
@@ -13,6 +13,18 @@ These commands act on the workspace chosen with `rzv workspaces select`, or on `
 | `rzv billing purchases` | Recent minute-pack orders.                                         |
 
 A job's `status` is Runzivo's view of the run; only `conclusion` `success` means the GitHub workflow job succeeded.
+
+## Notifications
+
+| Command | What it does |
+| --- | --- |
+| `rzv notifications list [--category <c>] [--unread true\|false] [--limit <1-100>] [--cursor <cursor>]` | List one page and its unread count. |
+| `rzv notifications read <id...>` | Mark up to 100 listed notifications read. |
+| `rzv notifications read --all` | Mark every notification read. |
+| `rzv notifications settings show` | Read the category delivery settings. |
+| `rzv notifications settings update --category <c> --in-app true\|false --email true\|false` | Update one category with both channel values. |
+
+Categories are `billing`, `jobs`, `account`, `support`, and `system`. The response may mark an email setting locked. The server applies that policy, and the CLI shows the returned setting.
 
 ## GitHub
 

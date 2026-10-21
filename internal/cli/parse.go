@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -22,6 +23,7 @@ var booleanOptions = map[string]bool{
 	"version":                 true,
 	"allow-insecure-loopback": true,
 	"personal":                true,
+	"all":                     true,
 }
 
 func parse(argv []string) (*command, error) {
@@ -117,6 +119,19 @@ func (c *command) required(name string) (string, error) {
 		return "", usageError("--%s is required.", name)
 	}
 	return value, nil
+}
+
+// boolOption returns an explicitly supplied true or false option.
+func (c *command) boolOption(name string) (bool, error) {
+	value, err := c.required(name)
+	if err != nil {
+		return false, err
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil || (value != "true" && value != "false") {
+		return false, usageError("--%s must be true or false.", name)
+	}
+	return parsed, nil
 }
 
 // expectArgs checks the number of positional arguments after the command name.

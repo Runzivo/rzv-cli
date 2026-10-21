@@ -22,11 +22,15 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 ## Workspace commands
 
-`jobs`, `usage`, `billing`, `github`, `repositories`, `runner-profiles` and `api-keys` act on the selected workspace: see [Workspace commands](workspace-commands.md).
+`jobs`, `usage`, `billing`, `github`, `repositories`, `runner-profiles`, `api-keys` and `notifications` act on the selected workspace: see [Workspace commands](workspace-commands.md).
 
 ## Support tickets
 
 `rzv tickets` lists, opens, shows and replies to support tickets. Commands use the selected workspace by default. Pass `--personal` for tickets outside a workspace. See [Support tickets](tickets.md).
+
+## Notifications
+
+`rzv notifications` lists workspace notifications, marks them read, and reads or updates notification settings. These commands require your own sign-in; API keys are not accepted. See [Notifications](notifications.md).
 
 ## Other
 
