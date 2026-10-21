@@ -13,14 +13,15 @@ var APIKeyScopes = []string{"all:all", "audit:read", "jobs:read", "logs:read", "
 // APIKey is a workspace API key's metadata. The secret is never returned
 // after creation.
 type APIKey struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Prefix     string   `json:"prefix"`
-	Scopes     []string `json:"scopes"`
-	CreatedAt  string   `json:"created_at"`
-	LastUsedAt *string  `json:"last_used_at"`
-	RevokedAt  *string  `json:"revoked_at"`
-	ExpiresAt  *string  `json:"expires_at"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Prefix      string   `json:"prefix"`
+	Scopes      []string `json:"scopes"`
+	Permissions []string `json:"permissions"`
+	CreatedAt   string   `json:"created_at"`
+	LastUsedAt  *string  `json:"last_used_at"`
+	RevokedAt   *string  `json:"revoked_at"`
+	ExpiresAt   *string  `json:"expires_at"`
 }
 
 // APIKeys is listCustomerAPIKeys' result.
@@ -54,7 +55,8 @@ func (c *Client) APIKeys(ctx context.Context, tenantID string) (*APIKeys, error)
 // RFC 3339; empty means 365 days, the longest allowed.
 type CreateAPIKeyInput struct {
 	Name           string   `json:"name"`
-	Scopes         []string `json:"scopes"`
+	Scopes         []string `json:"scopes,omitempty"`
+	Permissions    []string `json:"permissions,omitempty"`
 	ExpiresAt      string   `json:"expires_at,omitempty"`
 	IdempotencyKey string   `json:"idempotency_key"`
 }
