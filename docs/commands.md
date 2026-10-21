@@ -27,6 +27,10 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 `jobs`, `usage`, `billing`, `github`, `repositories`, `runner-profiles`, `api-keys`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace.
 
+## Support tickets
+
+`rzv tickets` lists, opens, shows and replies to support tickets. Commands use the selected workspace by default. Pass `--personal` for tickets outside a workspace. See [Support tickets](tickets.md).
+
 ## Other
 
 | Command       | What it does                                      |
@@ -34,7 +38,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | `rzv version` | The rzv version, commit, build date and platform. |
 | `rzv help`    | All commands; `rzv help <command>` for one.       |
 
-Not in `rzv`: staff commands (staff console), support tickets, and buying minutes (Runzivo portal).
+Not in `rzv`: staff commands (staff console) and buying minutes (Runzivo portal). The customer API does not provide close or reopen operations for tickets.
 
 ## Exit codes
 

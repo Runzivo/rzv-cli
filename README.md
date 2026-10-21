@@ -24,6 +24,8 @@ rzv workspaces members list             # members and permitted actions
 rzv workspaces invitations list         # invitations and permitted actions
 rzv jobs list                          # jobs for the selected workspace
 rzv jobs get <job-id>                  # one job's status
+rzv tickets list                       # support tickets for the selected workspace
+rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
 rzv logout                             # remove the stored sign-in
 ```
 
@@ -37,7 +39,7 @@ Runzivo is in Early Access. You need an approved Runzivo account to sign in. See
 
 - [docs/README.md](docs/README.md): index of the guides below
 - [Sign-in and credentials](docs/login.md)
-- [Commands](docs/commands.md) and [workspace commands](docs/workspace-commands.md)
+- [Commands](docs/commands.md), [workspace commands](docs/workspace-commands.md), and [support tickets](docs/tickets.md)
 - [Development](docs/development.md)
 
 ## Releases and changes
