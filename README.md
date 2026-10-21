@@ -23,6 +23,8 @@ rzv jobs list                          # jobs for the selected workspace
 rzv jobs get <job-id>                  # one job's status
 rzv tickets list                       # support tickets for the selected workspace
 rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
+rzv jobs logs <job-id>                 # log text when available
+rzv insights summary                   # workspace job metrics
 rzv logout                             # remove the stored sign-in
 ```
 
