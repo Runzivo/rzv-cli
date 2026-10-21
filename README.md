@@ -19,6 +19,9 @@ rzv login                              # sign in through your browser
 rzv whoami                             # who you are signed in as
 rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands
+rzv workspaces settings show            # name, logo and update capability
+rzv workspaces members list             # members and permitted actions
+rzv workspaces invitations list         # invitations and permitted actions
 rzv jobs list                          # jobs for the selected workspace
 rzv jobs get <job-id>                  # one job's status
 rzv logout                             # remove the stored sign-in
