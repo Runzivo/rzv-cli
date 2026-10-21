@@ -21,6 +21,7 @@ rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands
 rzv jobs list                          # jobs for the selected workspace
 rzv jobs get <job-id>                  # one job's status
+rzv api-keys create --name ci --permissions jobs:read,logs:read --idempotency-key <key>
 rzv tickets list                       # support tickets for the selected workspace
 rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
 rzv logout                             # remove the stored sign-in

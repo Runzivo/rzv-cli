@@ -11,7 +11,7 @@ import (
 
 const apiKeysUsage = `Usage:
   rzv api-keys list [--workspace <id>] [--json]
-  rzv api-keys create --name <name> --scopes <scope,...> --idempotency-key <key>
+  rzv api-keys create --name <name> (--scopes <scope,...> | --permissions <permission,...>) --idempotency-key <key>
       [--expires-at <RFC 3339 time>] [--workspace <id>] [--json]
   rzv api-keys rename <key-id> --name <name> [--workspace <id>] [--json]
   rzv api-keys revoke <key-id> [--workspace <id>] [--json]
@@ -19,7 +19,8 @@ const apiKeysUsage = `Usage:
 Scopes: all:all on its own (full access, owners only), or any of audit:read,
 jobs:read, logs:read, usage:read, runners:read, integrations:read,
 billing:read. Without --expires-at a key expires in 365 days, the longest
-allowed. The secret is shown once, at creation. Use your own sign-in:
+allowed. Permissions are checked against your current grants by the service.
+The secret is shown once, at creation. Use your own sign-in:
 RZV_API_KEY cannot manage API keys.`
 
 func init() {
@@ -81,10 +82,38 @@ func renderAPIKeys(id string, keys []api.APIKey) string {
 		for i, s := range k.Scopes {
 			scopes[i] = display(s)
 		}
-		lines = append(lines, fmt.Sprintf("- %s [%s] %s… %s, scopes %s, expires %s, last used %s",
-			display(k.Name), display(k.ID), display(k.Prefix), state, strings.Join(scopes, ","), displayOrDash(k.ExpiresAt), displayOrDash(k.LastUsedAt)))
+		lines = append(lines, fmt.Sprintf("- %s [%s] %s… %s, scopes %s, permissions %s, expires %s, last used %s",
+			display(k.Name), display(k.ID), display(k.Prefix), state, strings.Join(scopes, ","), displayList(k.Permissions), displayOrDash(k.ExpiresAt), displayOrDash(k.LastUsedAt)))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func displayList(values []string) string {
+	displayed := make([]string, len(values))
+	for i, value := range values {
+		displayed[i] = display(value)
+	}
+	return strings.Join(displayed, ",")
+}
+
+func parsePermissions(raw string) ([]string, error) {
+	var permissions []string
+	seen := map[string]bool{}
+	for _, permission := range strings.Split(raw, ",") {
+		permission = strings.TrimSpace(permission)
+		if permission == "" {
+			continue
+		}
+		if seen[permission] {
+			return nil, usageError("--permissions must be a comma-separated list without repeats.")
+		}
+		seen[permission] = true
+		permissions = append(permissions, permission)
+	}
+	if len(permissions) == 0 {
+		return nil, usageError("--permissions must be a non-empty comma-separated list.")
+	}
+	return permissions, nil
 }
 
 func parseScopes(raw string) ([]string, error) {
@@ -109,23 +138,40 @@ func parseScopes(raw string) ([]string, error) {
 }
 
 func apiKeysCreate(a *app, cmd *command) error {
-	if err := cmd.allow("workspace", "account", "name", "scopes", "expires-at", "idempotency-key"); err != nil {
+	if err := cmd.allow("workspace", "account", "name", "scopes", "permissions", "expires-at", "idempotency-key"); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(1, "rzv api-keys create --name <name> --scopes <scope,...> --idempotency-key <key>"); err != nil {
+	if err := cmd.expectArgs(1, "rzv api-keys create --name <name> (--scopes <scope,...> | --permissions <permission,...>) --idempotency-key <key>"); err != nil {
 		return err
 	}
 	name, err := cmd.required("name")
 	if err != nil {
 		return err
 	}
-	rawScopes, err := cmd.required("scopes")
-	if err != nil {
-		return err
+	_, hasScopes := cmd.options["scopes"]
+	_, hasPermissions := cmd.options["permissions"]
+	if hasScopes == hasPermissions {
+		return usageError("Provide exactly one of --scopes or --permissions.")
 	}
-	scopes, err := parseScopes(rawScopes)
-	if err != nil {
-		return err
+	var scopes, permissions []string
+	if hasScopes {
+		rawScopes, err := cmd.required("scopes")
+		if err != nil {
+			return err
+		}
+		scopes, err = parseScopes(rawScopes)
+		if err != nil {
+			return err
+		}
+	} else {
+		rawPermissions, err := cmd.required("permissions")
+		if err != nil {
+			return err
+		}
+		permissions, err = parsePermissions(rawPermissions)
+		if err != nil {
+			return err
+		}
 	}
 	key, err := cmd.required("idempotency-key")
 	if err != nil {
@@ -144,12 +190,12 @@ func apiKeysCreate(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	created, err := client.CreateAPIKey(a.ctx, id, api.CreateAPIKeyInput{Name: name, Scopes: scopes, ExpiresAt: expires, IdempotencyKey: key})
+	created, err := client.CreateAPIKey(a.ctx, id, api.CreateAPIKeyInput{Name: name, Scopes: scopes, Permissions: permissions, ExpiresAt: expires, IdempotencyKey: key})
 	if err != nil {
 		return apiError(err, "")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "api_key": created.APIKey, "secret": created.Secret},
-		fmt.Sprintf("Created API key %s [%s]. Save this secret now; it cannot be shown again:\n%s", display(created.APIKey.Name), display(created.APIKey.ID), created.Secret))
+		fmt.Sprintf("Created API key %s [%s] with permissions %s. Save this secret now; it cannot be shown again:\n%s", display(created.APIKey.Name), display(created.APIKey.ID), displayList(created.APIKey.Permissions), created.Secret))
 	return nil
 }
 
@@ -172,7 +218,7 @@ func apiKeysRename(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "The API key was not found in this workspace.")
 	}
-	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, fmt.Sprintf("Renamed API key %s to %s.", display(key.ID), display(key.Name)))
+	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, fmt.Sprintf("Renamed API key %s to %s with permissions %s.", display(key.ID), display(key.Name), displayList(key.Permissions)))
 	return nil
 }
 
