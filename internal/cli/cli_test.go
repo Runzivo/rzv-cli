@@ -23,6 +23,7 @@ type harness struct {
 	store    *config.Store
 	env      map[string]string
 	seenAuth []string
+	browser  func(string) error
 }
 
 func newHarness(t *testing.T) *harness {
@@ -59,10 +60,17 @@ func (h *harness) run(args ...string) (int, string, string) {
 	code := Run(context.Background(), args, Deps{
 		Stdout: &stdout, Stderr: &stderr, Store: h.store,
 		Getenv:       func(k string) string { return h.env[k] },
-		OpenBrowser:  h.openBrowser,
+		OpenBrowser:  h.browserFunc(),
 		CallbackPort: -1, LoginTimeout: 5 * time.Second,
 	})
 	return code, stdout.String(), stderr.String()
+}
+
+func (h *harness) browserFunc() func(string) error {
+	if h.browser != nil {
+		return h.browser
+	}
+	return h.openBrowser
 }
 
 // openBrowser completes sign-in for the fake provider and ignores any other

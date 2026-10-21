@@ -11,6 +11,10 @@ These commands act on the workspace chosen with `rzv workspaces select`, or on `
 | `rzv usage`             | Recorded billable minutes and job count.                           |
 | `rzv billing`           | Minute balance for the period and the packs on sale.               |
 | `rzv billing purchases` | Recent minute-pack orders.                                         |
+| `rzv billing checkout --pack <id>` | Start a hosted checkout. The URL is transient navigation, not payment proof. |
+| `rzv billing portal <order-reference>` | Open a transient billing-management link for one purchase. |
+
+`checkout` accepts `--operation-id` to replay the same attempt after an ambiguous result. Without it, the CLI prints its generated ID. Use `--no-browser` for either hosted link; `--json` also suppresses browser launch. Refresh `rzv billing` or `rzv billing purchases` after navigation. Billing reads require `billing:read`. Checkout and purchase-portal requests require `billing:write`; workspace API keys need `all:all`. The purchase portal also requires a verified email matching the stored payer.
 
 A job's `status` is Runzivo's view of the run; only `conclusion` `success` means the GitHub workflow job succeeded.
 
