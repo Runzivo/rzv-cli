@@ -17,12 +17,14 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | `rzv workspaces list`                         | Workspaces you belong to, with your role.                              |
 | `rzv workspaces select <workspace-id\|slug>`  | Use this workspace for later commands.                                 |
 | `rzv workspaces create --slug <s> --name <n>` | Create a workspace and select it. Re-running the same command is safe. |
+| `rzv github workspaces start`                 | Start GitHub-backed workspace onboarding.                               |
+| `rzv github workspaces complete ...`          | Complete GitHub-backed workspace onboarding.                            |
 
 `rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <id>` (or the older `--account <id>`) to override the selection.
 
 ## Workspace commands
 
-`jobs`, `usage`, `billing`, `github`, `repositories`, `runner-profiles` and `api-keys` act on the selected workspace: see [Workspace commands](workspace-commands.md).
+`jobs`, `usage`, `billing`, `github`, `repositories`, `runner-profiles` and `api-keys` act on the selected workspace: see [Workspace commands](workspace-commands.md). GitHub-backed workspace onboarding uses your own sign-in before a workspace is selected.
 
 ## Support tickets
 

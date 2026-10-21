@@ -19,6 +19,8 @@ rzv login                              # sign in through your browser
 rzv whoami                             # who you are signed in as
 rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands
+rzv github installations                # linked installations and setup state
+rzv github workspaces start             # start GitHub-backed workspace onboarding
 rzv jobs list                          # jobs for the selected workspace
 rzv jobs get <job-id>                  # one job's status
 rzv tickets list                       # support tickets for the selected workspace
