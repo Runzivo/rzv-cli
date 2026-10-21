@@ -34,6 +34,8 @@ rzv notifications list                  # notifications for the selected workspa
 rzv notifications read --all            # mark every notification read
 rzv jobs logs <job-id>                 # log text when available
 rzv insights summary                   # workspace job metrics
+rzv ai settings show                   # AI configuration for the selected workspace
+rzv ai usage summary --group-by day    # workspace AI usage
 rzv logout                             # remove the stored sign-in
 ```
 
@@ -47,7 +49,7 @@ Runzivo is in Early Access. Sign in with your Runzivo account, then select a wor
 
 - [docs/README.md](docs/README.md): index of the guides below
 - [Sign-in and credentials](docs/login.md)
-- [Commands](docs/commands.md), [workspace commands](docs/workspace-commands.md), [support tickets](docs/tickets.md), and [notifications](docs/notifications.md)
+- [Commands](docs/commands.md), [workspace commands](docs/workspace-commands.md), [support tickets](docs/tickets.md), [notifications](docs/notifications.md), and [AI settings and usage](docs/ai.md)
 - [Development](docs/development.md)
 
 ## Releases and changes

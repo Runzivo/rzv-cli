@@ -26,6 +26,7 @@ var booleanOptions = map[string]bool{
 	"personal":                true,
 	"open":                    true,
 	"all":                     true,
+	"refresh":                 true,
 }
 
 func parse(argv []string) (*command, error) {
