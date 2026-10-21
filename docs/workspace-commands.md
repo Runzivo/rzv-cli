@@ -26,6 +26,18 @@ A job's `status` is Runzivo's view of the run; only `conclusion` `success` means
 
 `rzv github authorize --state <state> --installation-id <id> --github-client-id <id>` uses GitHub's device flow: it prints a code to enter at github.com, then sends the resulting GitHub token to Runzivo once to prove you control the installation. `rzv` does not store that token.
 
+## Workspace closure requests
+
+`rzv workspaces closures list` shows requests. `request` asks staff to close a workspace and `cancel` withdraws a pending request with its expected version. Neither command deletes a workspace immediately.
+
+List returns the newest 20 requests and has no cursor. List requires an owner or admin. Request and cancel use the current owner's `workspace:delete` permission. API-key access requires `all:all`.
+
+| Command | What it does |
+| --- | --- |
+| `rzv workspaces closures list` | List closure requests and their decision metadata. |
+| `rzv workspaces closures request --reason <text> --idempotency-key <key>` | Request closure for staff handling. |
+| `rzv workspaces closures cancel <request-id> --expected-version <n>` | Cancel a pending request. |
+
 ## API keys
 
 Managing keys needs your own sign-in, not `RZV_API_KEY`.
