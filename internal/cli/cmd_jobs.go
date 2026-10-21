@@ -11,12 +11,13 @@ import (
 const jobsUsage = `Usage:
   rzv jobs list [--workspace <id>] [--json]            Jobs, newest first
   rzv jobs get <job-id> [--workspace <id>] [--json]    One job's status
+  rzv jobs logs <job-id> [--workspace <id>] [--json]   Job log text when available
 
 "rzv jobs status <job-id>" is the same as "get". Status and conclusion are
 separate: only conclusion "success" means the workflow job succeeded.`
 
 func init() {
-	register("jobs", "List jobs or show one job's status", runJobs)
+	register("jobs", "List jobs or show job status and logs", runJobs)
 	commandUsage["jobs"] = jobsUsage
 	register("usage", "Show the workspace's recorded usage", runUsage)
 	commandUsage["usage"] = "Usage: rzv usage [--workspace <id>] [--json]"
@@ -58,9 +59,46 @@ func runJobs(a *app, cmd *command) error {
 		}
 		a.output(cmd, map[string]any{"workspace_id": id, "job": job}, renderJob(id, job))
 		return nil
+	case "logs":
+		if err := cmd.expectArgs(2, "rzv jobs logs <job-id> [--workspace <id>] [--json]"); err != nil {
+			return err
+		}
+		id, client, err := a.workspaceClient(cmd)
+		if err != nil {
+			return err
+		}
+		logs, err := client.JobLogs(a.ctx, id, cmd.args[1])
+		if err != nil {
+			return apiError(err, "The job logs were not found in this workspace.")
+		}
+		text := "Logs for job " + display(logs.JobID) + " (" + display(logs.State) + "):"
+		if logs.State == "available" {
+			text += "\n" + displayLog(*logs.Content)
+			if logs.Truncated {
+				text += "\n[log truncated]"
+			}
+		} else {
+			text += "\nLogs are not available."
+			if logs.Reason != nil {
+				text += " Reason: " + display(*logs.Reason)
+			}
+		}
+		if logs.GitHubURL != nil {
+			text += "\nFull log URL: " + display(*logs.GitHubURL)
+		}
+		a.output(cmd, map[string]any{"workspace_id": id, "logs": logs}, text)
+		return nil
 	default:
 		return usageError("%s", jobsUsage)
 	}
+}
+
+func displayLog(value string) string {
+	lines := strings.Split(value, "\n")
+	for index, line := range lines {
+		lines[index] = display(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func renderJobs(workspaceID string, jobs []api.Job) string {
