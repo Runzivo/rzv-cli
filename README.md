@@ -20,6 +20,9 @@ rzv whoami                             # who you are signed in as
 rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands
 rzv jobs list                          # jobs for the selected workspace
+rzv activity list                      # workspace activity log
+rzv activity export > activity.csv     # matching CSV export
+rzv activity status                    # audit signals and execution evidence
 rzv jobs get <job-id>                  # one job's status
 rzv tickets list                       # support tickets for the selected workspace
 rzv tickets open --kind technical_help --subject "Login issue" --body "Details"

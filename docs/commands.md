@@ -28,6 +28,10 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 `rzv tickets` lists, opens, shows and replies to support tickets. Commands use the selected workspace by default. Pass `--personal` for tickets outside a workspace. See [Support tickets](tickets.md).
 
+## Activity
+
+`rzv activity list` reads workspace activity (50 rows by default), `rzv activity export` writes matching CSV to stdout, and `rzv activity status` shows current audit signals and execution evidence (30 days by default). With `--json`, export returns `{workspace_id,csv}`. List output includes scope, retention and the next cursor. CSV exports contain at most 10,000 server-selected rows.
+
 ## Other
 
 | Command       | What it does                                      |
