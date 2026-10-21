@@ -5,7 +5,7 @@
 | [Install](install.md)                       | Installer options, platforms, manual download and checksums |
 | [Sign-in and credentials](login.md)         | `rzv login`, environments, where the token is stored        |
 | [Commands](commands.md)                     | Sign-in and workspace commands, output and exit codes       |
-| [Workspace commands](workspace-commands.md) | Jobs, usage, billing, GitHub, runner profiles, API keys     |
+| [Workspace commands](workspace-commands.md) | Jobs and logs, insights, usage, billing, GitHub, runner profiles, API keys |
 | [Support tickets](tickets.md)               | List, open, show and reply to support tickets               |
 | [Notifications](notifications.md)           | List, mark read and configure notifications                 |
 | [Development](development.md)               | Building, testing and the CI runner                         |

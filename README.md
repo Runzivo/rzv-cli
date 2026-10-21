@@ -32,6 +32,8 @@ rzv tickets list                       # support tickets for the selected worksp
 rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
 rzv notifications list                  # notifications for the selected workspace
 rzv notifications read --all            # mark every notification read
+rzv jobs logs <job-id>                 # log text when available
+rzv insights summary                   # workspace job metrics
 rzv logout                             # remove the stored sign-in
 ```
 

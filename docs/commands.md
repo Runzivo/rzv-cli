@@ -25,7 +25,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 ## Workspace commands
 
-`jobs`, `usage`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions`, `api-keys`, `notifications`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace.
+`jobs`, `usage`, `insights`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions`, `api-keys`, `notifications`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace.
 
 ## Support tickets
 
