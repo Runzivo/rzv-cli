@@ -28,6 +28,10 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 `rzv tickets` lists, opens, shows and replies to support tickets. Commands use the selected workspace by default. Pass `--personal` for tickets outside a workspace. See [Support tickets](tickets.md).
 
+## AI
+
+`rzv ai providers` lists, adds, updates, removes, tests, and lists models for workspace AI connections. `rzv ai settings` shows or updates configuration, and `rzv ai usage` reports summary, calls, and the current limit. See [AI settings and usage](ai.md). Provider credentials are accepted only through `--key-file` and are never displayed.
+
 ## Other
 
 | Command       | What it does                                      |
