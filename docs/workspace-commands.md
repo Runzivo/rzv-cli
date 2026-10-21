@@ -44,8 +44,13 @@ Find team IDs with `rzv teams list` and pass them with `--team-ids`; `teams --te
 | `rzv billing marketplace`   | The GitHub Marketplace plan for the workspace, if any.                                                                                                        |
 | `rzv billing checkout`      | Starts a hosted checkout: `--pack <id> --operation-id <id>`. Reuse the same `--operation-id` when retrying.                                                   |
 | `rzv billing portal`        | A link to the payment provider's billing portal. Do not store it.                                                                                             |
+| `rzv billing codes redeem --code-file <path>` | Redeem a promo code or prepaid voucher. |
 
 Checkout and portal links are sign-in capabilities. Live payments stay off until Runzivo enables them.
+
+Save a redemption code in a file and pass its path with `--code-file`. The code may contain at most 64 bytes. The command does not store the input and only displays the safe code representation returned by the service.
+
+Code redemption requires the workspace's `billing:write` permission. It works with a human sign-in or with an API key that has the `all:all` scope and whose creator still has that permission.
 
 `rzv concurrency` and `rzv runners` are read-only and need the `runners:read` scope when used with an API key. The limit is set by Runzivo for the workspace; `rzv` cannot change it. The running jobs on every listed size, plus the running jobs on the "no longer listed" line when `rzv runners` prints one, add up to the running count that `rzv concurrency` reports.
 

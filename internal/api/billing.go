@@ -2,8 +2,26 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 )
+
+// Redemption is a promo-code or voucher redemption. Code is the value the
+// service makes safe to return: a promo code or the final four voucher characters.
+type Redemption struct {
+	ID                string  `json:"id"`
+	Kind              string  `json:"kind"`
+	Code              string  `json:"code"`
+	Status            string  `json:"status"`
+	EquivalentMinutes int64   `json:"equivalent_minutes"`
+	CreditExpiresAt   *string `json:"credit_expires_at"`
+}
+
+// RedemptionResult is redeemCustomerCode's result.
+type RedemptionResult struct {
+	Redemption Redemption `json:"redemption"`
+	Replayed   bool       `json:"replayed"`
+}
 
 // Balance is the workspace's minute balance for the current period.
 type Balance struct {
@@ -81,4 +99,39 @@ func (c *Client) Purchases(ctx context.Context, tenantID string) (*Purchases, er
 		return nil, err
 	}
 	return &body, nil
+}
+
+// RedeemCode calls redeemCustomerCode.
+func (c *Client) RedeemCode(ctx context.Context, tenantID, code string) (*RedemptionResult, error) {
+	var body struct {
+		Redemption *struct {
+			ID                string          `json:"id"`
+			Kind              string          `json:"kind"`
+			Code              string          `json:"code"`
+			Status            string          `json:"status"`
+			EquivalentMinutes *int64          `json:"equivalent_minutes"`
+			CreditExpiresAt   json.RawMessage `json:"credit_expires_at"`
+		} `json:"redemption"`
+		Replayed *bool `json:"replayed"`
+	}
+	if err := c.do(ctx, http.MethodPost, tenantPath(tenantID, "/billing/codes/redeem"), nil, map[string]string{"code": code}, &body); err != nil {
+		return nil, err
+	}
+	if err := required(body.Redemption != nil && body.Replayed != nil && body.Redemption.EquivalentMinutes != nil && *body.Redemption.EquivalentMinutes >= 1 && len(body.Redemption.CreditExpiresAt) != 0 && nonEmpty(body.Redemption.ID, body.Redemption.Kind, body.Redemption.Code, body.Redemption.Status)); err != nil {
+		return nil, err
+	}
+	var expiresAt *string
+	if string(body.Redemption.CreditExpiresAt) != "null" {
+		if err := json.Unmarshal(body.Redemption.CreditExpiresAt, &expiresAt); err != nil || expiresAt == nil {
+			return nil, &Error{Status: http.StatusOK, Code: "malformed_response"}
+		}
+	}
+	return &RedemptionResult{Redemption: Redemption{
+		ID:                body.Redemption.ID,
+		Kind:              body.Redemption.Kind,
+		Code:              body.Redemption.Code,
+		Status:            body.Redemption.Status,
+		EquivalentMinutes: *body.Redemption.EquivalentMinutes,
+		CreditExpiresAt:   expiresAt,
+	}, Replayed: *body.Replayed}, nil
 }

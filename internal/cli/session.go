@@ -178,6 +178,8 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "You can only grant permissions you hold yourself.")
 	case apiErr.Status == 403 && apiErr.Code == "owner_required":
 		return newError(apiErr.Code, exitAccessDenied, "Only a workspace owner can change the Owners team.")
+	case apiErr.Status == 403 && apiErr.Code == "code_not_eligible":
+		return newError(apiErr.Code, exitAccessDenied, "This code is not eligible for this account.")
 	case apiErr.Status == 403 && apiErr.Code == "insufficient_role":
 		return newError(apiErr.Code, exitAccessDenied, "Your workspace role does not allow this command.")
 	case apiErr.Status == 409 && apiErr.Code == "billing_country_in_use":
