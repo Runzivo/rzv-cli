@@ -9,20 +9,24 @@ These commands act on the workspace chosen with `rzv workspaces select`, or on `
 | `rzv jobs list`         | Every job, newest first: status, conclusion, repository, workflow. |
 | `rzv jobs get <job-id>` | One job in detail. `rzv jobs status <job-id>` is the same.         |
 | `rzv usage`             | Recorded billable minutes and job count.                           |
+| `rzv concurrency`       | Concurrent-job limit, jobs running now and what is left.           |
 | `rzv billing`           | Minute balance for the period and the packs on sale.               |
 | `rzv billing purchases` | Recent minute-pack orders.                                         |
+
+`rzv concurrency` and `rzv runners` are read-only and need the `runners:read` scope when used with an API key. The limit is set by Runzivo for the workspace; `rzv` cannot change it. The running jobs on every listed size, plus the running jobs on the "no longer listed" line when `rzv runners` prints one, add up to the running count that `rzv concurrency` reports.
 
 A job's `status` is Runzivo's view of the run; only `conclusion` `success` means the GitHub workflow job succeeded.
 
 ## GitHub
 
-| Command                               | What it does                                                         |
-| ------------------------------------- | -------------------------------------------------------------------- |
-| `rzv github status`                   | The linked GitHub App installation and its repositories.             |
-| `rzv github connect`                  | Start linking an installation; prints a short-lived state.           |
-| `rzv github authorize ...`            | Finish the link. Needs your own sign-in.                             |
-| `rzv repositories list`               | Repositories every linked installation covers.                       |
-| `rzv runner-profiles <repository-id>` | Runner sizes the repository can use now, with their `runs-on` label. |
+| Command                               | What it does                                                           |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| `rzv github status`                   | The linked GitHub App installation and its repositories.               |
+| `rzv github connect`                  | Start linking an installation; prints a short-lived state.             |
+| `rzv github authorize ...`            | Finish the link. Needs your own sign-in.                               |
+| `rzv repositories list`               | Repositories every linked installation covers.                         |
+| `rzv runner-profiles <repository-id>` | Runner sizes the repository can use now, with their `runs-on` label.   |
+| `rzv runners <repository-id>`         | The same sizes, plus the workspace's running and waiting jobs on each. |
 
 `rzv github authorize --state <state> --installation-id <id> --github-client-id <id>` uses GitHub's device flow: it prints a code to enter at github.com, then sends the resulting GitHub token to Runzivo once to prove you control the installation. `rzv` does not store that token.
 
