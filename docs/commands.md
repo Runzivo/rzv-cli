@@ -22,7 +22,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 ## Workspace commands
 
-`jobs`, `usage`, `billing`, `github`, `repositories`, `runner-profiles` and `api-keys` act on the selected workspace: see [Workspace commands](workspace-commands.md).
+`jobs`, `usage`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners` and `api-keys` act on the selected workspace: see [Workspace commands](workspace-commands.md).
 
 ## Support tickets
 

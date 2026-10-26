@@ -68,6 +68,65 @@ func TestUsageOutcomes(t *testing.T) {
 	}
 }
 
+func TestConcurrency(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("GET /v1/customer/tenants/t-1/concurrency", 404, `{"error":{"code":"installation_not_linked"}}`)
+	if code, out, _ := h.run("concurrency"); code != 0 || !strings.Contains(out, "No GitHub App installation") {
+		t.Fatalf("not linked: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/concurrency", 200, `{"concurrency":{"limit":4,"used":4,"remaining":0,"admission":"full","reason":"organization_at_concurrency_limit"}}`)
+	code, out, _ := h.run("concurrency")
+	if code != 0 || !strings.Contains(out, "Running: 4 of 4 (0 remaining)") || !strings.Contains(out, "Admission: full") || !strings.Contains(out, "Reason: organization_at_concurrency_limit") {
+		t.Fatalf("configured: %d %q", code, out)
+	}
+	if code, out, _ := h.run("concurrency", "--json"); code != 0 || !strings.Contains(out, `"kind":"configured"`) || !strings.Contains(out, `"used":4`) {
+		t.Fatalf("json: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/concurrency", 200, `{"concurrency":{"limit":4}}`)
+	if code, _, _ := h.run("concurrency"); code == 0 {
+		t.Fatal("a response without admission must be rejected")
+	}
+	if code, _, _ := h.run("concurrency", "extra"); code != exitUsage {
+		t.Fatalf("extra argument: %d", code)
+	}
+}
+
+func TestRunners(t *testing.T) {
+	h := selectedHarness(t)
+	h.routes["GET /v1/customer/tenants/t-1/runner-inventory"] = func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("repository_id") != "100" {
+			w.WriteHeader(404)
+			_, _ = w.Write([]byte(`{"error":{"code":"repository_not_authorized"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"runner_inventory":{"profiles":[{"label":"rzv-ubuntu-24.04-x64-2vcpu-8gb","vcpu_count":2,"mem_size_mib":8192,"available":true,"reason":null,"running_jobs":2,"waiting_jobs":1},{"label":"rzv-ubuntu-24.04-x64-8vcpu-32gb","vcpu_count":8,"mem_size_mib":32768,"available":false,"reason":"no_host_large_enough","running_jobs":0,"waiting_jobs":0}],"unlisted":{"running_jobs":1,"waiting_jobs":0}}}`))
+	}
+	code, out, _ := h.run("runners", "100")
+	if code != 0 || !strings.Contains(out, "available: 2 vCPU, 8192 MiB, 2 running, 1 waiting, runs-on: rzv-ubuntu-24.04-x64-2vcpu-8gb") ||
+		!strings.Contains(out, "blocked (no_host_large_enough)") || !strings.Contains(out, "Other sizes no longer listed: 1 running, 0 waiting") {
+		t.Fatalf("runners: %d %q", code, out)
+	}
+	if code, out, _ := h.run("runners", "100", "--json"); code != 0 || !strings.Contains(out, `"kind":"available"`) || !strings.Contains(out, `"running_jobs":2`) {
+		t.Fatalf("json: %d %q", code, out)
+	}
+	if code, out, _ := h.run("runners", "101"); code != 0 || !strings.Contains(out, "not authorized") {
+		t.Fatalf("unauthorized repo: %d %q", code, out)
+	}
+	h.routes["GET /v1/customer/tenants/t-1/runner-inventory"] = func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(404)
+		_, _ = w.Write([]byte(`{"error":{"code":"installation_not_linked"}}`))
+	}
+	if code, out, _ := h.run("runners", "100"); code != 0 || !strings.Contains(out, "No GitHub App installation") {
+		t.Fatalf("not linked: %d %q", code, out)
+	}
+	if code, _, _ := h.run("runners", "acme/app"); code != exitUsage {
+		t.Fatalf("non-numeric repo: %d", code)
+	}
+	if code, _, _ := h.run("runners"); code != exitUsage {
+		t.Fatalf("missing repo: %d", code)
+	}
+}
+
 func TestBilling(t *testing.T) {
 	h := selectedHarness(t)
 	h.json("GET /v1/customer/tenants/t-1/billing", 200, `{"billing":{"allowance_configured":true,"checkout_available":true,"payment_mode":"test","live_payments_enabled":false,
