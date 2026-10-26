@@ -4,13 +4,21 @@ These commands act on the workspace chosen with `rzv workspaces select`, or on `
 
 ## Jobs and usage
 
-| Command                 | What it does                                                       |
-| ----------------------- | ------------------------------------------------------------------ |
-| `rzv jobs list`         | Every job, newest first: status, conclusion, repository, workflow. |
-| `rzv jobs get <job-id>` | One job in detail. `rzv jobs status <job-id>` is the same.         |
-| `rzv usage`             | Recorded billable minutes and job count.                           |
-| `rzv billing`           | Minute balance for the period and the packs on sale.               |
-| `rzv billing purchases` | Recent minute-pack orders.                                         |
+| Command                     | What it does                                                                                                          |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `rzv jobs list`             | Every job, newest first: status, conclusion, repository, workflow.                                                    |
+| `rzv jobs get <job-id>`     | One job in detail. `rzv jobs status <job-id>` is the same.                                                            |
+| `rzv usage`                 | Recorded billable minutes and job count.                                                                              |
+| `rzv billing`               | Minute balance for the period and the packs on sale.                                                                  |
+| `rzv billing purchases`     | Recent minute-pack orders.                                                                                            |
+| `rzv billing invoices`      | Receipts and invoices. `--json` for the full rows.                                                                    |
+| `rzv billing auto-recharge` | Auto-recharge settings. `set --enabled <true\|false> --threshold <minutes> --pack <id>` changes them (billing:write). |
+| `rzv billing country`       | The workspace billing country. `set <code>` changes it for future purchases (billing:write).                          |
+| `rzv billing marketplace`   | The GitHub Marketplace plan for the workspace, if any.                                                                |
+| `rzv billing checkout`      | Starts a hosted checkout: `--pack <id> --operation-id <id>`. Reuse the same `--operation-id` when retrying.           |
+| `rzv billing portal`        | A link to the payment provider's billing portal. Do not store it.                                                     |
+
+Checkout and portal links are sign-in capabilities. Live payments stay off until Runzivo enables them.
 
 A job's `status` is Runzivo's view of the run; only `conclusion` `success` means the GitHub workflow job succeeded.
 
