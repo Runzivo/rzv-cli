@@ -16,16 +16,17 @@ const ticketsUsage = `Usage:
       [--workspace <id> | --personal] [--json]
   rzv tickets show <reference> [--workspace <id> | --personal] [--json]
   rzv tickets reply <reference> --body <body> [--workspace <id> | --personal] [--json]
+  rzv tickets close <reference> [--workspace <id> | --personal] [--json]
 
 Kinds: technical_help, credit_request, professional_services, signup_help.
 Tickets use the selected workspace by default. Pass --personal for tickets
-outside a workspace. The customer API does not provide close or reopen
-operations for tickets.`
+outside a workspace. Only the person who opened a ticket can close it. The
+customer API does not provide a reopen operation.`
 
 const maxTicketRequestBytes = 16 << 10
 
 func init() {
-	register("tickets", "List, open, show or reply to support tickets", runTickets)
+	register("tickets", "List, open, show, reply to or close support tickets", runTickets)
 	commandUsage["tickets"] = ticketsUsage
 }
 
@@ -47,6 +48,8 @@ func runTickets(a *app, cmd *command) error {
 		return ticketsShow(a, cmd)
 	case "reply":
 		return ticketsReply(a, cmd)
+	case "close":
+		return ticketsClose(a, cmd)
 	default:
 		return usageError("%s", ticketsUsage)
 	}
@@ -173,6 +176,29 @@ func ticketsReply(a *app, cmd *command) error {
 		return apiError(err, "The ticket was not found in this scope.")
 	}
 	a.output(cmd, ticketMessageOutput(scope, reference, message), renderTicketMessage(scope, reference, message))
+	return nil
+}
+
+func ticketsClose(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account", "personal"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv tickets close <reference> [--workspace <id> | --personal] [--json]"); err != nil {
+		return err
+	}
+	reference, err := ticketReference(cmd.args[1])
+	if err != nil {
+		return err
+	}
+	scope, client, err := ticketClient(a, cmd)
+	if err != nil {
+		return err
+	}
+	ticket, err := client.CloseTicket(a.ctx, scope.workspaceID, reference)
+	if err != nil {
+		return apiError(err, "The ticket was not found in this scope, or you did not open it.")
+	}
+	a.output(cmd, ticketOutput(scope, ticket), fmt.Sprintf("Closed ticket %s for %s.", display(ticket.Reference), ticketScopeLabel(scope)))
 	return nil
 }
 

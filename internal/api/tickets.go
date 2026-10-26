@@ -148,6 +148,26 @@ func (c *Client) Ticket(ctx context.Context, tenantID, reference string) (*Ticke
 	return body.Ticket, nil
 }
 
+// CloseTicket closes a personal or workspace ticket the caller opened. It
+// answers with the closed ticket (status resolved) and its closing note.
+func (c *Client) CloseTicket(ctx context.Context, tenantID, reference string) (*Ticket, error) {
+	var body struct {
+		Ticket *Ticket `json:"ticket"`
+	}
+	if err := c.do(ctx, http.MethodPost, ticketPath(tenantID, "/ticket/close"), url.Values{"reference": {reference}}, nil, &body); err != nil {
+		return nil, err
+	}
+	if err := required(body.Ticket != nil && body.Ticket.valid() && body.Ticket.Status == "resolved"); err != nil {
+		return nil, err
+	}
+	for i := range body.Ticket.Messages {
+		if err := required(body.Ticket.Messages[i].valid()); err != nil {
+			return nil, err
+		}
+	}
+	return body.Ticket, nil
+}
+
 // ReplyTicket appends a customer message to one personal or workspace ticket.
 func (c *Client) ReplyTicket(ctx context.Context, tenantID, reference, reply string) (*TicketMessage, error) {
 	var body struct {
