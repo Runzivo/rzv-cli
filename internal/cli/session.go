@@ -190,6 +190,8 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "This workspace is %s.", strings.TrimPrefix(apiErr.Code, "workspace_"))
 	case apiErr.Status == 403:
 		return accessError("The requested workspace is not authorized for this account.")
+	case apiErr.Status == 404 && apiErr.Code == "not_a_member":
+		return notFoundError("That person is not a member of this workspace. Invite them first.")
 	case apiErr.Status == 404 && apiErr.Code == "not_found" && notFound != "":
 		return notFoundError("%s", notFound)
 	case apiErr.Status >= 500:

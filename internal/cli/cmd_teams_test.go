@@ -152,3 +152,11 @@ func TestTeamsRefusals(t *testing.T) {
 		}
 	}
 }
+
+func TestTeamsAddNonMember(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("POST /v1/customer/tenants/t-1/teams/team_1/members", 404, `{"error":{"code":"not_a_member"}}`)
+	if code, _, errOut := h.run("teams", "add-member", "team_1", "idn_x"); code != exitNotFound || !strings.Contains(errOut, "not a member of this workspace") {
+		t.Fatalf("non-member: %d %q", code, errOut)
+	}
+}
