@@ -2,6 +2,15 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-26-231251 (rzv 0.14.0), 2026-10-26
+
+### Added
+
+- `rzv workspaces settings show|update`: read and change the workspace name and logo.
+- `rzv workspaces members list|role|remove`: list workspace members, change a member's role, or remove a member.
+- `rzv workspaces invitations list|invite|resend|revoke|teams|accept`: manage invitations to a workspace, and accept one with a token.
+- `rzv billing country reset`: returns the workspace billing country to unset. Use it when the country was chosen in error. Future purchases then ask for a country again.
+
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 
 ### Changed
