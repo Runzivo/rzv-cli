@@ -19,7 +19,7 @@ const teamsUsage = `Usage:
   rzv teams delete <team-id> [--workspace <id>] [--json]
 
 Changing teams needs the Manage members permission, and you can only grant
-permissions you hold yourself. System teams (Owners, Admins, Members, Viewers)
+permissions you hold yourself. System teams (Owners, Admins, Members)
 cannot be renamed or deleted. Run rzv permissions to see the permission names.`
 
 const permissionsUsage = `Usage:

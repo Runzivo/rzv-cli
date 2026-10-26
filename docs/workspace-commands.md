@@ -74,7 +74,7 @@ A job's `status` is Runzivo's view of the run; only `conclusion` `success` means
 | `rzv teams remove-member <team-id> <identity-id>`                       | Remove a member from a team.                                 |
 | `rzv teams delete <team-id>`                                            | Delete a custom team.                                        |
 
-Changing teams needs the Manage members permission, and you can only grant permissions you hold yourself. The system teams (Owners, Admins, Members, Viewers) cannot be renamed, deleted or given other permissions, and only an owner can change who is in Owners. With an API key, `rzv teams` and `rzv permissions` need a key with the `all:all` scope. Every change is recorded in the workspace activity log.
+Changing teams needs the Manage members permission, and you can only grant permissions you hold yourself. The system teams (Owners, Admins, Members) cannot be renamed, deleted or given other permissions, and only an owner can change who is in Owners. With an API key, `rzv teams` and `rzv permissions` need a key with the `all:all` scope. Every change is recorded in the workspace activity log.
 
 ## API keys
 
