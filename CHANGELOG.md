@@ -2,6 +2,13 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-26-235057 (rzv 0.15.0), 2026-10-26
+
+### Added
+
+- `rzv teams list|show|create|rename|permissions|add-member|remove-member|delete`: manage the teams of the selected workspace.
+- `rzv permissions`: your permissions in the workspace, with the permission catalogue and presets.
+
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 
 ### Changed
