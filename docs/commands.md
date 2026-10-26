@@ -38,7 +38,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | `rzv version` | The rzv version, commit, build date and platform. |
 | `rzv help`    | All commands; `rzv help <command>` for one.       |
 
-Not in `rzv`: staff commands (staff console). Minutes are bought with `rzv billing checkout`. The customer API does not provide close or reopen operations for tickets.
+Not in `rzv`: staff commands (staff console). Minutes are bought with `rzv billing checkout`. The customer API does not provide a reopen operation for tickets.
 
 ## Exit codes
 
