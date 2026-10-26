@@ -56,7 +56,7 @@ func TestTeamsReads(t *testing.T) {
 		t.Fatalf("missing team: %d %q", code, errOut)
 	}
 	h.json("GET /v1/customer/tenants/t-1/teams", 403, `{"error":{"code":"permission_required"}}`)
-	if code, _, errOut := h.run("teams", "list"); code != exitAccessDenied || !strings.Contains(errOut, "rzv permissions") {
+	if code, _, errOut := h.run("teams", "list"); code != exitAccessDenied || !strings.Contains(errOut, "does not allow this change") {
 		t.Fatalf("permission refusal: %d %q", code, errOut)
 	}
 }

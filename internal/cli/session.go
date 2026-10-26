@@ -174,8 +174,6 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "Only a workspace owner can create an all:all API key.")
 	case apiErr.Status == 403 && apiErr.Code == "api_key_scope_required":
 		return newError(apiErr.Code, exitAccessDenied, "This API key's scope does not allow this command.")
-	case apiErr.Status == 403 && apiErr.Code == "permission_required":
-		return newError(apiErr.Code, exitAccessDenied, "You do not hold the permission this command needs. Run `rzv permissions` to see yours.")
 	case apiErr.Status == 403 && apiErr.Code == "grant_ceiling":
 		return newError(apiErr.Code, exitAccessDenied, "You can only grant permissions you hold yourself.")
 	case apiErr.Status == 403 && apiErr.Code == "owner_required":
