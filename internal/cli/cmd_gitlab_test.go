@@ -30,7 +30,7 @@ func TestGitLabErrorsRenderPlainly(t *testing.T) {
 	h := selectedHarness(t)
 	h.json("GET /v1/customer/tenants/t-1/gitlab/connections", 404, `{"error":{"code":"integration_disabled"}}`)
 	code, _, errOut := h.run("gitlab", "connections")
-	if code == 0 || !strings.Contains(errOut, "integration_disabled") {
+	if code == 0 || !strings.Contains(errOut, "not enabled for your Runzivo account") {
 		t.Fatalf("disabled connections: %d %q", code, errOut)
 	}
 	h.json("GET /v1/customer/tenants/t-1/gitlab/connections", 403, `{"error":{"code":"api_key_scope_required"}}`)
