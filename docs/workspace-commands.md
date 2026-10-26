@@ -13,7 +13,7 @@ These commands act on the workspace chosen with `rzv workspaces select`, or on `
 | `rzv billing`           | Minute balance for the period and the packs on sale.               |
 | `rzv billing purchases` | Recent minute-pack orders.                                         |
 
-`rzv concurrency` and `rzv runners` are read-only and need the `runners:read` scope when used with an API key. The limit is set by Runzivo for the workspace; `rzv` cannot change it. Running jobs on all sizes add up to the running count that `rzv concurrency` reports.
+`rzv concurrency` and `rzv runners` are read-only and need the `runners:read` scope when used with an API key. The limit is set by Runzivo for the workspace; `rzv` cannot change it. The running jobs on every listed size, plus the running jobs on the "no longer listed" line when `rzv runners` prints one, add up to the running count that `rzv concurrency` reports.
 
 A job's `status` is Runzivo's view of the run; only `conclusion` `success` means the GitHub workflow job succeeded.
 
