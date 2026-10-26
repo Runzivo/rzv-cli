@@ -176,6 +176,8 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "This API key's scope does not allow this command.")
 	case apiErr.Status == 403 && apiErr.Code == "insufficient_role":
 		return newError(apiErr.Code, exitAccessDenied, "Your workspace role does not allow this command.")
+	case apiErr.Status == 409 && apiErr.Code == "billing_country_in_use":
+		return newError(apiErr.Code, exitFailure, "This workspace already has a credit purchase, so its billing country cannot be cleared. You can still change it with `rzv billing country set <code>`.")
 	case apiErr.Status == 403 && apiErr.Code == "auto_recharge_enable_requires_person":
 		return newError(apiErr.Code, exitAccessDenied, "Turning auto-recharge on needs a person signed in, not an API key.")
 	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
