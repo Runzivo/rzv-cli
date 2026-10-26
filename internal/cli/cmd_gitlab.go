@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
@@ -15,6 +16,9 @@ const gitlabUsage = `Usage:
 
 GitLab is connected in the portal. This command never handles GitLab
 credentials. Connecting from the terminal is not supported yet.`
+
+// gitlabConnectionIDPattern matches the server's connection id format.
+var gitlabConnectionIDPattern = regexp.MustCompile(`^glc_[0-9a-f]{24}$`)
 
 // gitlabIntegrationsPath is the settings tab that holds the GitLab panel.
 const gitlabIntegrationsPath = "/settings?tab=integrations"
@@ -54,8 +58,8 @@ func runGitLab(a *app, cmd *command) error {
 			return err
 		}
 		connectionID := strings.TrimSpace(cmd.args[1])
-		if connectionID == "" {
-			return usageError("connection id is required")
+		if !gitlabConnectionIDPattern.MatchString(connectionID) {
+			return usageError("connection id must look like glc_ followed by 24 lowercase hex characters (see rzv gitlab connections).")
 		}
 		id, client, err := a.workspaceClient(cmd)
 		if err != nil {

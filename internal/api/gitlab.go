@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -36,5 +37,5 @@ func (c *Client) GitLabConnections(ctx context.Context, tenantID string) ([]GitL
 // DisconnectGitLabConnection calls deleteCustomerGitLabConnection. The server
 // revokes the grant and erases local credentials; a 204 means it is done.
 func (c *Client) DisconnectGitLabConnection(ctx context.Context, tenantID, connectionID string) error {
-	return c.do(ctx, http.MethodDelete, tenantPath(tenantID, "/gitlab/connections/"+connectionID), nil, nil, nil)
+	return c.do(ctx, http.MethodDelete, tenantPath(tenantID, "/gitlab/connections/"+url.PathEscape(connectionID)), nil, nil, nil)
 }

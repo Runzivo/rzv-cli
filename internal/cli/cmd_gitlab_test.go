@@ -40,6 +40,11 @@ func TestGitLabErrorsRenderPlainly(t *testing.T) {
 	if code, _, _ := h.run("gitlab", "disconnect"); code == 0 {
 		t.Fatal("disconnect without an id must fail")
 	}
+	// A malformed id is refused before any request: no path traversal.
+	before := len(h.seenAuth)
+	if code, _, errOut := h.run("gitlab", "disconnect", "glc_../../tenants/t-2"); code == 0 || !strings.Contains(errOut, "connection id must look like") || len(h.seenAuth) != before {
+		t.Fatalf("malformed id: %d %q requests=%d", code, errOut, len(h.seenAuth)-before)
+	}
 }
 
 func TestGitLabConnectPrintsPortalURLAndOpensOnlyWithFlag(t *testing.T) {
