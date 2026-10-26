@@ -14,11 +14,16 @@ const workspacesUsage = `Usage:
   rzv workspaces list [--json]                         Workspaces you belong to
   rzv workspaces select <workspace-id> [--json]        Use one for later commands
   rzv workspaces create --slug <slug> --name <name>    Create a workspace and select it
+  rzv workspaces settings ...                           Read or update workspace settings
+  rzv workspaces members ...                            List or manage workspace members
+  rzv workspaces invitations ...                        Manage workspace invitations
 
-"rzv accounts ..." is accepted as an older name for "rzv workspaces ...".`
+"rzv accounts ..." is accepted as an older name for "rzv workspaces ...".
+
+` + workspaceAccessUsage
 
 func init() {
-	register("workspaces", "List, select or create workspaces", runWorkspaces)
+	register("workspaces", "Manage workspaces and workspace access", runWorkspaces)
 	commandUsage["workspaces"] = workspacesUsage
 }
 
@@ -33,6 +38,8 @@ func runWorkspaces(a *app, cmd *command) error {
 		return workspacesSelect(a, cmd)
 	case "create":
 		return workspacesCreate(a, cmd)
+	case "settings", "members", "invitations":
+		return workspaceAccess(a, cmd)
 	default:
 		return usageError("%s", workspacesUsage)
 	}
