@@ -12,17 +12,20 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 
 ## Workspaces
 
-| Command                                       | What it does                                                           |
-| --------------------------------------------- | ---------------------------------------------------------------------- |
-| `rzv workspaces list`                         | Workspaces you belong to, with your role.                              |
-| `rzv workspaces select <workspace-id\|slug>`  | Use this workspace for later commands.                                 |
-| `rzv workspaces create --slug <s> --name <n>` | Create a workspace and select it. Re-running the same command is safe. |
+| Command                                       | What it does                                                                                                |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `rzv workspaces list`                         | Workspaces you belong to, with your role.                                                                   |
+| `rzv workspaces select <workspace-id\|slug>`  | Use this workspace for later commands.                                                                      |
+| `rzv workspaces create --slug <s> --name <n>` | Create a workspace and select it. Re-running the same command is safe.                                      |
+| `rzv workspaces settings ...`                 | Read or update workspace name and logo. See [Workspace commands](workspace-commands.md).                    |
+| `rzv workspaces members ...`                  | List members and manage roles or removal. See [Workspace commands](workspace-commands.md).                  |
+| `rzv workspaces invitations ...`              | List, send, change, resend, revoke, or accept invitations. See [Workspace commands](workspace-commands.md). |
 
 `rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <id>` (or the older `--account <id>`) to override the selection.
 
 ## Workspace commands
 
-`jobs`, `usage`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions` and `api-keys` act on the selected workspace: see [Workspace commands](workspace-commands.md).
+`jobs`, `usage`, `concurrency`, `billing`, `github`, `repositories`, `runner-profiles`, `runners`, `teams`, `permissions`, `api-keys`, and the workspace access subcommands act on the selected workspace: see [Workspace commands](workspace-commands.md). Invitation acceptance is the exception: it uses your own sign-in and does not need a selected workspace.
 
 ## Support tickets
 
@@ -35,7 +38,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | `rzv version` | The rzv version, commit, build date and platform. |
 | `rzv help`    | All commands; `rzv help <command>` for one.       |
 
-Not in `rzv`: staff commands (staff console), workspace settings, members, invitations and buying minutes (Runzivo portal). The customer API does not provide close or reopen operations for tickets.
+Not in `rzv`: staff commands (staff console). Minutes are bought with `rzv billing checkout`. The customer API does not provide close or reopen operations for tickets.
 
 ## Exit codes
 
