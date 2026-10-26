@@ -441,7 +441,7 @@ func TestWorkspaceAccessValidationAndConflicts(t *testing.T) {
 		t.Fatalf("self removal: %d %q", code, errOut)
 	}
 	h.json("GET /v1/customer/tenants/t-1/invitations", 403, `{"error":{"code":"permission_required"}}`)
-	if code, _, errOut := h.run("workspaces", "invitations", "list"); code != exitAccessDenied || !strings.Contains(errOut, "not authorized") {
+	if code, _, errOut := h.run("workspaces", "invitations", "list"); code != exitAccessDenied || !strings.Contains(errOut, "does not allow this change") {
 		t.Fatalf("permission denied: %d %q", code, errOut)
 	}
 	h.json("GET /v1/customer/tenants/t-1/settings", 200, `{"name":"missing required fields"}`)
