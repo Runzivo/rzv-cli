@@ -2,6 +2,13 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-26-185254 (rzv 0.12.0), 2026-10-26
+
+### Added
+
+- `rzv concurrency`: the concurrent-job limit, jobs running now and what is left.
+- `rzv runners`: runner profiles and inventory for the workspace.
+
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 
 ### Changed
