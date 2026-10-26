@@ -16,6 +16,7 @@ const billingUsage = `Usage:
   rzv billing auto-recharge set --enabled <true|false> --threshold <minutes> --pack <id> [--workspace <id>] [--json]
   rzv billing country [--workspace <id>] [--json]               Workspace billing country
   rzv billing country set <code> [--workspace <id>] [--json]    Set the billing country (future purchases)
+  rzv billing country reset [--workspace <id>] [--json]         Clear an unused billing country
   rzv billing marketplace [--workspace <id>] [--json]           GitHub Marketplace plan, if any
   rzv billing checkout --pack <id> --operation-id <id> [--workspace <id>] [--json]
                                                                 Start a hosted checkout
@@ -157,6 +158,25 @@ func runBillingAutoRecharge(a *app, cmd *command) error {
 }
 
 func runBillingCountry(a *app, cmd *command) error {
+	if len(cmd.args) > 1 && cmd.args[1] == "reset" {
+		if err := cmd.allow("workspace", "account"); err != nil {
+			return err
+		}
+		if err := cmd.expectArgs(2, "rzv billing country reset [--workspace <id>] [--json]"); err != nil {
+			return err
+		}
+		id, client, err := a.workspaceClient(cmd)
+		if err != nil {
+			return err
+		}
+		country, err := client.ResetBillingCountry(a.ctx, id)
+		if err != nil {
+			return apiError(err, "")
+		}
+		a.output(cmd, map[string]any{"workspace_id": id, "billing_country": country},
+			"Billing country for workspace "+display(id)+" is now unset. Run `rzv billing country set <code>` before buying credit.")
+		return nil
+	}
 	if len(cmd.args) > 1 && cmd.args[1] == "set" {
 		if err := cmd.allow("workspace", "account"); err != nil {
 			return err
