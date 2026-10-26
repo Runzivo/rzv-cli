@@ -176,6 +176,12 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "This API key's scope does not allow this command.")
 	case apiErr.Status == 403 && apiErr.Code == "insufficient_role":
 		return newError(apiErr.Code, exitAccessDenied, "Your workspace role does not allow this command.")
+	case apiErr.Status == 403 && apiErr.Code == "auto_recharge_enable_requires_person":
+		return newError(apiErr.Code, exitAccessDenied, "Turning auto-recharge on needs a person signed in to the Runzivo portal, not an API key.")
+	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
+		return newError(apiErr.Code, exitAuth, "Sign in again with `rzv login`, then retry.")
+	case apiErr.Status == 403 && apiErr.Code == "permission_required":
+		return newError(apiErr.Code, exitAccessDenied, "Your workspace role does not allow this billing change.")
 	case apiErr.Status == 403 && (apiErr.Code == "workspace_blocked" || apiErr.Code == "workspace_closed"):
 		return newError(apiErr.Code, exitAccessDenied, "This workspace is %s.", strings.TrimPrefix(apiErr.Code, "workspace_"))
 	case apiErr.Status == 403:
