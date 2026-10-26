@@ -2,6 +2,16 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- `rzv tickets list|open|show|reply`: support tickets for the selected workspace. `--personal` works with your own tickets instead, and rejects `RZV_API_KEY`. Output supports `--json`.
+
+### Changed
+
+- The onboarding docs say Runzivo is for organizations only.
+
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 
 ### Changed
