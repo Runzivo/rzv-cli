@@ -93,7 +93,7 @@ func TestBillingCheckoutAndPortal(t *testing.T) {
 		t.Fatalf("portal: %d %q", code, out)
 	}
 	h.json("POST /v1/customer/tenants/t-1/billing/portal", 403, `{"error":{"code":"permission_required"}}`)
-	if code, _, errOut := h.run("billing", "portal"); code != exitAccessDenied || !strings.Contains(errOut, "Your workspace role does not allow this billing change.") {
+	if code, _, errOut := h.run("billing", "portal"); code != exitAccessDenied || !strings.Contains(errOut, "Your workspace role does not allow this change.") {
 		t.Fatalf("denied portal = %d %q; want the role message", code, errOut)
 	}
 	h.json("POST /v1/customer/tenants/t-1/billing/portal", 403, `{"error":{"code":"reauth_required"}}`)
@@ -101,7 +101,7 @@ func TestBillingCheckoutAndPortal(t *testing.T) {
 		t.Fatalf("stale sign-in portal = %d %q; want the sign-in message", code, errOut)
 	}
 	h.json("PUT /v1/customer/tenants/t-1/billing/auto-recharge", 403, `{"error":{"code":"auto_recharge_enable_requires_person"}}`)
-	if code, _, errOut := h.run("billing", "auto-recharge", "set", "--enabled", "true", "--threshold", "30", "--pack", "p1"); code != exitAccessDenied || !strings.Contains(errOut, "needs a person signed in to the Runzivo portal") {
+	if code, _, errOut := h.run("billing", "auto-recharge", "set", "--enabled", "true", "--threshold", "30", "--pack", "p1"); code != exitAccessDenied || !strings.Contains(errOut, "needs a person signed in, not an API key") {
 		t.Fatalf("api-key enable = %d %q; want the person-only message", code, errOut)
 	}
 	h.json("GET /v1/customer/tenants/t-1/billing/invoices", 403, `{"error":{"code":"unknown_code"}}`)
