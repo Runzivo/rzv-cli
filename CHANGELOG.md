@@ -2,6 +2,14 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-26-230022 (rzv 0.13.0), 2026-10-26
+
+### Added
+
+- `rzv billing invoices`, `rzv billing auto-recharge` (read and `set`), `rzv billing country` (read and `set`), `rzv billing marketplace`, `rzv billing checkout --pack --operation-id`, and `rzv billing portal`.
+- Turning auto-recharge on needs a person signed in, not an API key.
+- A refused change says why: a workspace role that does not allow it, or `rzv login` again when the sign-in is too old.
+
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 
 ### Changed
