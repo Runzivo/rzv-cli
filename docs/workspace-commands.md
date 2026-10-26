@@ -22,7 +22,7 @@ Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using
 
 The service enforces the final permission, role, grant ceiling, self-removal, and last-owner checks. Invitation acceptance does not need a selected workspace and never saves or prints the acceptance token.
 
-There is no public custom-team discovery command. Supply IDs you already have with `--team-ids`; `teams --team-ids=` clears the list.
+Find team IDs with `rzv teams list` and pass them with `--team-ids`; `teams --team-ids=` clears the list.
 
 ## Jobs and usage
 
@@ -59,6 +59,22 @@ A job's `status` is Runzivo's view of the run; only `conclusion` `success` means
 | `rzv runners <repository-id>`         | The same sizes, plus the workspace's running and waiting jobs on each. |
 
 `rzv github authorize --state <state> --installation-id <id> --github-client-id <id>` uses GitHub's device flow: it prints a code to enter at github.com, then sends the resulting GitHub token to Runzivo once to prove you control the installation. `rzv` does not store that token.
+
+## Teams and permissions
+
+| Command                                                                 | What it does                                                 |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `rzv permissions`                                                       | Your permissions here, and every permission a team can have. |
+| `rzv teams list`                                                        | Teams with their member counts.                              |
+| `rzv teams show <team-id>`                                              | One team: permissions and members.                           |
+| `rzv teams create --name <n> --permissions <p,...> [--description <t>]` | Create a custom team.                                        |
+| `rzv teams rename <team-id> [--name <n>] [--description <t>]`           | Rename a team or change its description.                     |
+| `rzv teams permissions <team-id> --permissions <p,...>`                 | Replace the team's permissions.                              |
+| `rzv teams add-member <team-id> <identity-id>`                          | Add a workspace member to a team.                            |
+| `rzv teams remove-member <team-id> <identity-id>`                       | Remove a member from a team.                                 |
+| `rzv teams delete <team-id>`                                            | Delete a custom team.                                        |
+
+Changing teams needs the Manage members permission, and you can only grant permissions you hold yourself. The system teams (Owners, Admins, Members) cannot be renamed, deleted or given other permissions, and only an owner can change who is in Owners. With an API key, `rzv teams` and `rzv permissions` need a key with the `all:all` scope. Every change is recorded in the workspace activity log.
 
 ## API keys
 
