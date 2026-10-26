@@ -2,6 +2,17 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-26-185007 (rzv 0.11.0), 2026-10-26
+
+### Added
+
+- `rzv gitlab connections`: the GitLab connections for the selected workspace.
+- `rzv gitlab connect` and `rzv gitlab disconnect`. A connection id must match `glc_` plus 24 lowercase hex digits.
+
+### Changed
+
+- When an integration is not enabled for the account, the command says so in plain words instead of printing the raw error code.
+
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 
 ### Changed
