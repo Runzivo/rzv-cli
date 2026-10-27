@@ -2,7 +2,7 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
-## release-2026-10-26-235057 (rzv 0.15.0), 2026-10-26
+## release-2026-10-26-235057 (rzv 0.15.0), 2026-10-27
 
 ### Added
 
