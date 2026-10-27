@@ -2,6 +2,36 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-27-000402 (rzv 0.16.0), 2026-10-27
+
+### Added
+
+- `rzv tickets close <reference> [--workspace <id> | --personal]`: close a support ticket you have open. The ticket is marked resolved. A ticket that is already closed says so.
+
+## release-2026-10-26-235057 (rzv 0.15.0), 2026-10-27
+
+### Added
+
+- `rzv teams list|show|create|rename|permissions|add-member|remove-member|delete`: manage the teams of the selected workspace.
+- `rzv permissions`: your permissions in the workspace, with the permission catalogue and presets.
+
+## release-2026-10-26-231251 (rzv 0.14.0), 2026-10-26
+
+### Added
+
+- `rzv workspaces settings show|update`: read and change the workspace name and logo.
+- `rzv workspaces members list|role|remove`: list workspace members, change a member's role, or remove a member.
+- `rzv workspaces invitations list|invite|resend|revoke|teams|accept`: manage invitations to a workspace, and accept one with a token.
+- `rzv billing country reset`: returns the workspace billing country to unset. Use it when the country was chosen in error. Future purchases then ask for a country again.
+
+## release-2026-10-26-230022 (rzv 0.13.0), 2026-10-26
+
+### Added
+
+- `rzv billing invoices`, `rzv billing auto-recharge` (read and `set`), `rzv billing country` (read and `set`), `rzv billing marketplace`, `rzv billing checkout --pack --operation-id`, and `rzv billing portal`.
+- Turning auto-recharge on needs a person signed in, not an API key.
+- A refused change says why: a workspace role that does not allow it, or `rzv login` again when the sign-in is too old.
+
 ## release-2026-10-26-185254 (rzv 0.12.0), 2026-10-26
 
 ### Added
