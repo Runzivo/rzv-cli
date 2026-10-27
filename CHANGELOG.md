@@ -9,6 +9,33 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 - `rzv billing invoices`, `rzv billing auto-recharge` (read and `set`), `rzv billing country` (read and `set`), `rzv billing marketplace`, `rzv billing checkout --pack --operation-id`, and `rzv billing portal`.
 - Turning auto-recharge on needs a person signed in, not an API key.
 - A refused change says why: a workspace role that does not allow it, or `rzv login` again when the sign-in is too old.
+## release-2026-10-26-185254 (rzv 0.12.0), 2026-10-26
+
+### Added
+
+- `rzv concurrency`: the concurrent-job limit, jobs running now and what is left.
+- `rzv runners`: runner profiles and inventory for the workspace.
+
+## release-2026-10-26-185007 (rzv 0.11.0), 2026-10-26
+
+### Added
+
+- `rzv gitlab connections`: the GitLab connections for the selected workspace.
+- `rzv gitlab connect` and `rzv gitlab disconnect`. A connection id must match `glc_` plus 24 lowercase hex digits.
+
+### Changed
+
+- When an integration is not enabled for the account, the command says so in plain words instead of printing the raw error code.
+
+## release-2026-10-26-181559 (rzv 0.10.0), 2026-10-26
+
+### Added
+
+- `rzv tickets list|open|show|reply`: support tickets for the selected workspace. `--personal` works with your own tickets instead, and rejects `RZV_API_KEY`. Output supports `--json`.
+
+### Changed
+
+- The onboarding docs say Runzivo is for organizations only.
 
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 

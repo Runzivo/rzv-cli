@@ -141,3 +141,54 @@ func TestTicketsInputValidation(t *testing.T) {
 		t.Fatalf("personal parse = %+v, %v", cmd, err)
 	}
 }
+
+const cliClosedTicketJSON = `{"reference":"sup_1","tenant_id":"t-1","kind":"technical_help","subject":"Login","body":"Details","status":"resolved","created_at":"2026-10-21T10:00:00Z","version":2,"messages":[{"kind":"customer","body":"Closed by the customer.","created_at":"2026-10-21T10:05:00Z"}]}`
+
+func TestTicketsClose(t *testing.T) {
+	h := selectedHarness(t)
+	var asked string
+	h.routes["POST /v1/customer/tenants/t-1/ticket/close"] = func(w http.ResponseWriter, r *http.Request) {
+		asked = r.URL.Query().Get("reference")
+		_, _ = w.Write([]byte(`{"ticket":` + cliClosedTicketJSON + `}`))
+	}
+	code, out, _ := h.run("tickets", "close", "sup_1")
+	if code != 0 || asked != "sup_1" || !strings.Contains(out, "Closed ticket sup_1 for workspace t-1.") {
+		t.Fatalf("close: %d %q asked %q", code, out, asked)
+	}
+	code, out, _ = h.run("tickets", "close", "sup_1", "--json")
+	if code != 0 || !strings.Contains(out, `"status":"resolved"`) || !strings.Contains(out, `"workspace_id":"t-1"`) {
+		t.Fatalf("close --json: %d %q", code, out)
+	}
+	h.routes["POST /v1/customer/ticket/close"] = func(w http.ResponseWriter, r *http.Request) {
+		asked = "personal:" + r.URL.Query().Get("reference")
+		_, _ = w.Write([]byte(`{"ticket":` + strings.Replace(cliClosedTicketJSON, `"tenant_id":"t-1",`, "", 1) + `}`))
+	}
+	if code, out, _ := h.run("tickets", "close", "sup_1", "--personal", "--json"); code != 0 || asked != "personal:sup_1" || !strings.Contains(out, `"scope":"personal"`) {
+		t.Fatalf("personal close: %d %q asked %q", code, out, asked)
+	}
+	// A response that is not a closed ticket is refused.
+	h.json("POST /v1/customer/tenants/t-1/ticket/close", 200, `{"ticket":`+cliTicketJSON+`}`)
+	if code, _, _ := h.run("tickets", "close", "sup_1"); code == 0 {
+		t.Fatal("a response with an open ticket was accepted as a close")
+	}
+	for _, check := range []struct {
+		status int
+		body   string
+		exit   int
+		want   string
+	}{
+		{409, `{"error":{"code":"ticket_already_closed"}}`, exitFailure, "already closed"},
+		{404, `{"error":{"code":"not_found"}}`, exitNotFound, "you did not open it"},
+		{403, `{"error":{"code":"tenant_membership_required"}}`, exitAccessDenied, ""},
+	} {
+		h.json("POST /v1/customer/tenants/t-1/ticket/close", check.status, check.body)
+		if code, _, errOut := h.run("tickets", "close", "sup_1"); code != check.exit || !strings.Contains(errOut, check.want) {
+			t.Errorf("%d: exit %d %q, want %d containing %q", check.status, code, errOut, check.exit, check.want)
+		}
+	}
+	for _, args := range [][]string{{"tickets", "close"}, {"tickets", "close", "a", "b"}, {"tickets", "close", " "}, {"tickets", "close", "sup_1", "--body", "x"}} {
+		if code, _, _ := h.run(args...); code != exitUsage {
+			t.Errorf("%v accepted: %d", args, code)
+		}
+	}
+}

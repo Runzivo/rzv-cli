@@ -62,6 +62,32 @@ func TestBillingControlsReadAndWrite(t *testing.T) {
 	if code, _, errOut := h.run("billing", "country", "set"); code != exitUsage {
 		t.Fatalf("country set without code = %d %q; want usage", code, errOut)
 	}
+	h.json("DELETE /v1/customer/tenants/t-1/billing/country", 200, `{"billing_country":""}`)
+	if code, out, _ := h.run("billing", "country", "reset"); code != 0 || !strings.Contains(out, "is now unset") {
+		t.Fatalf("country reset: %d %q", code, out)
+	}
+	if code, out, _ := h.run("billing", "country", "reset", "--json"); code != 0 || !strings.Contains(out, `"billing_country":""`) {
+		t.Fatalf("country reset --json: %d %q", code, out)
+	}
+	if code, _, _ := h.run("billing", "country", "reset", "extra"); code != exitUsage {
+		t.Fatalf("country reset with an argument = %d; want usage", code)
+	}
+	h.json("DELETE /v1/customer/tenants/t-1/billing/country", 200, `{}`)
+	if code, _, _ := h.run("billing", "country", "reset"); code == 0 {
+		t.Fatal("a response without billing_country was accepted")
+	}
+	h.json("DELETE /v1/customer/tenants/t-1/billing/country", 409, `{"error":{"code":"billing_country_in_use"}}`)
+	if code, _, errOut := h.run("billing", "country", "reset"); code != exitFailure || !strings.Contains(errOut, "already has a credit purchase") {
+		t.Fatalf("country in use = %d %q", code, errOut)
+	}
+	h.json("DELETE /v1/customer/tenants/t-1/billing/country", 403, `{"error":{"code":"reauth_required"}}`)
+	if code, _, errOut := h.run("billing", "country", "reset"); code != exitAuth || !strings.Contains(errOut, "rzv login") {
+		t.Fatalf("stale sign-in = %d %q", code, errOut)
+	}
+	h.json("DELETE /v1/customer/tenants/t-1/billing/country", 403, `{"error":{"code":"permission_required"}}`)
+	if code, _, _ := h.run("billing", "country", "reset"); code != exitAccessDenied {
+		t.Fatalf("permission refusal = %d", code)
+	}
 
 	h.json("GET /v1/customer/tenants/t-1/billing/marketplace", 200, `{"marketplace":{"status":"none"}}`)
 	if code, out, _ := h.run("billing", "marketplace"); code != 0 || !strings.Contains(out, "Marketplace plan for workspace t-1") {

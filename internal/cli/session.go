@@ -174,8 +174,16 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "Only a workspace owner can create an all:all API key.")
 	case apiErr.Status == 403 && apiErr.Code == "api_key_scope_required":
 		return newError(apiErr.Code, exitAccessDenied, "This API key's scope does not allow this command.")
+	case apiErr.Status == 403 && apiErr.Code == "grant_ceiling":
+		return newError(apiErr.Code, exitAccessDenied, "You can only grant permissions you hold yourself.")
+	case apiErr.Status == 403 && apiErr.Code == "owner_required":
+		return newError(apiErr.Code, exitAccessDenied, "Only a workspace owner can change the Owners team.")
 	case apiErr.Status == 403 && apiErr.Code == "insufficient_role":
 		return newError(apiErr.Code, exitAccessDenied, "Your workspace role does not allow this command.")
+	case apiErr.Status == 409 && apiErr.Code == "billing_country_in_use":
+		return newError(apiErr.Code, exitFailure, "This workspace already has a credit purchase, so its billing country cannot be cleared. You can still change it with `rzv billing country set <code>`.")
+	case apiErr.Status == 409 && apiErr.Code == "ticket_already_closed":
+		return newError(apiErr.Code, exitFailure, "That ticket is already closed.")
 	case apiErr.Status == 403 && apiErr.Code == "auto_recharge_enable_requires_person":
 		return newError(apiErr.Code, exitAccessDenied, "Turning auto-recharge on needs a person signed in, not an API key.")
 	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
@@ -186,6 +194,8 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "This workspace is %s.", strings.TrimPrefix(apiErr.Code, "workspace_"))
 	case apiErr.Status == 403:
 		return accessError("The requested workspace is not authorized for this account.")
+	case apiErr.Status == 404 && apiErr.Code == "not_a_member":
+		return notFoundError("That person is not a member of this workspace. Invite them first.")
 	case apiErr.Status == 404 && apiErr.Code == "not_found" && notFound != "":
 		return notFoundError("%s", notFound)
 	case apiErr.Status >= 500:

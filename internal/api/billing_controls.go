@@ -92,6 +92,23 @@ func (c *Client) BillingCountry(ctx context.Context, tenantID string) (string, e
 	return body.BillingCountry, nil
 }
 
+// ResetBillingCountry calls resetCustomerBillingCountry (billing:write): it
+// returns an unused billing profile to unset, and the API refuses with 409
+// billing_country_in_use once the workspace has a billing order. The result is
+// the country afterwards, empty when unset.
+func (c *Client) ResetBillingCountry(ctx context.Context, tenantID string) (string, error) {
+	var body struct {
+		BillingCountry *string `json:"billing_country"`
+	}
+	if err := c.do(ctx, http.MethodDelete, tenantPath(tenantID, "/billing/country"), nil, nil, &body); err != nil {
+		return "", err
+	}
+	if err := required(body.BillingCountry != nil); err != nil {
+		return "", err
+	}
+	return *body.BillingCountry, nil
+}
+
 // SetBillingCountry calls the workspace billing country write (billing:write).
 func (c *Client) SetBillingCountry(ctx context.Context, tenantID, country string) (string, error) {
 	var body struct {
