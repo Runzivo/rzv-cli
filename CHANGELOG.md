@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-27-000402 (rzv 0.16.0), 2026-10-26
+
+### Added
+
+- `rzv tickets close <reference> [--workspace <id> | --personal]`: close a support ticket you have open. The ticket is marked resolved. A ticket that is already closed says so.
+
 ## release-2026-10-19-122318 (rzv 0.9.0), 2026-10-19
 
 ### Changed
