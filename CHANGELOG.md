@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Changed
+
+- The prd sign-in moves to `https://id.runzivo.dev/realms/rzv-prd`. Run `rzv login` after upgrading; a sign-in made with an older rzv does not work with the new identity host.
+
 ## release-2026-10-28-202940 (rzv 0.18.0), 2026-10-28
 
 ### Added
