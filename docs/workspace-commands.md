@@ -1,6 +1,6 @@
 # Workspace commands
 
-Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using a workspace API key, settings, members, and invitations commands require the `all:all` scope. `rzv workspaces invitations accept` always needs your own sign-in. Other workspace commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`.
+Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using a workspace API key, settings, members, and invitations commands require the `all:all` scope. `rzv workspaces invitations accept` always needs your own sign-in. Other workspace commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. Notification commands always require your own sign-in.
 
 ## Workspace access
 
@@ -56,6 +56,18 @@ A job's `status` is Runzivo's view of the run; only `conclusion` `success` means
 | `rzv activity status` | Current component signals and execution evidence for 7, 30, or 60 days (30 by default). |
 
 List defaults to 50 rows. Its text and JSON output include the returned scope, retention period and next cursor for pagination.
+
+## Notifications
+
+| Command | What it does |
+| --- | --- |
+| `rzv notifications list [--category <c>] [--unread true\|false] [--limit <1-100>] [--cursor <cursor>]` | List one page and its unread count. |
+| `rzv notifications read <id...>` | Mark up to 100 listed notifications read. |
+| `rzv notifications read --all` | Mark every notification read. |
+| `rzv notifications settings show` | Read the category delivery settings. |
+| `rzv notifications settings update --category <c> --in-app true\|false --email true\|false` | Update one category with both channel values. |
+
+Categories are `billing`, `jobs`, `account`, `support`, and `system`. The response may mark an email setting locked. The server applies that policy, and the CLI shows the returned setting.
 
 ## GitHub
 

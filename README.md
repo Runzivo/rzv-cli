@@ -30,6 +30,8 @@ rzv jobs get <job-id>                  # one job's status
 rzv api-keys create --name ci --permissions jobs:read,logs:read --idempotency-key <key>
 rzv tickets list                       # support tickets for the selected workspace
 rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
+rzv notifications list                  # notifications for the selected workspace
+rzv notifications read --all            # mark every notification read
 rzv logout                             # remove the stored sign-in
 ```
 
@@ -43,7 +45,7 @@ Runzivo is in Early Access. Sign in with your Runzivo account, then select a wor
 
 - [docs/README.md](docs/README.md): index of the guides below
 - [Sign-in and credentials](docs/login.md)
-- [Commands](docs/commands.md), [workspace commands](docs/workspace-commands.md), and [support tickets](docs/tickets.md)
+- [Commands](docs/commands.md), [workspace commands](docs/workspace-commands.md), [support tickets](docs/tickets.md), and [notifications](docs/notifications.md)
 - [Development](docs/development.md)
 
 ## Releases and changes
