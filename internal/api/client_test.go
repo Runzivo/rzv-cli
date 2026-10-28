@@ -99,6 +99,28 @@ func TestCreateWorkspaceBody(t *testing.T) {
 	}
 }
 
+func TestAPIKeyPermissionsBodyAndResponse(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/customer/tenants/t/api-keys" || body["scopes"] != nil {
+			t.Errorf("unexpected request %s %s %v", r.Method, r.URL.Path, body)
+		}
+		permissions, ok := body["permissions"].([]any)
+		if !ok || len(permissions) != 2 || permissions[0] != "jobs:write" || permissions[1] != "logs:read" {
+			t.Errorf("unexpected permissions %v", body)
+		}
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"api_key":{"id":"k1","name":"deploy","prefix":"rzv_test","scopes":[],"permissions":["jobs:write","logs:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":null},"secret":"one-time-secret"}`))
+	})
+	created, err := client.CreateAPIKey(context.Background(), "t", CreateAPIKeyInput{Name: "deploy", Permissions: []string{"jobs:write", "logs:read"}, IdempotencyKey: "op"})
+	if err != nil || created.Secret != "one-time-secret" || len(created.APIKey.Permissions) != 2 || created.APIKey.Permissions[1] != "logs:read" {
+		t.Fatalf("got %+v, %v", created, err)
+	}
+}
+
 func TestTenantPathEscapes(t *testing.T) {
 	if got := tenantPath("a/b c", "/jobs"); got != "/v1/customer/tenants/a%2Fb%20c/jobs" {
 		t.Fatalf("got %q", got)

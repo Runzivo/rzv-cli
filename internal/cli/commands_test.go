@@ -222,33 +222,66 @@ func TestGitHubConnectAndAuthorize(t *testing.T) {
 
 func TestAPIKeys(t *testing.T) {
 	h := selectedHarness(t)
-	h.json("GET /v1/customer/tenants/t-1/api-keys", 200, `{"api_keys":[{"id":"k1","name":"ci","prefix":"rzv_ab","scopes":["jobs:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":"2027-10-18T00:00:00Z"}],"allowed_scopes":["jobs:read"],"capabilities":{"can_create":true,"can_rename":true,"can_revoke":true}}`)
-	if code, out, _ := h.run("api-keys", "list"); code != 0 || !strings.Contains(out, "- ci [k1] rzv_ab… active, scopes jobs:read") {
+	h.json("GET /v1/customer/tenants/t-1/api-keys", 200, `{"api_keys":[{"id":"k1","name":"ci","prefix":"rzv_ab","scopes":["jobs:read"],"permissions":["jobs:read","logs:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":"2027-10-18T00:00:00Z"}],"allowed_scopes":["jobs:read"],"capabilities":{"can_create":true,"can_rename":true,"can_revoke":true}}`)
+	if code, out, _ := h.run("api-keys", "list"); code != 0 || !strings.Contains(out, "- ci [k1] rzv_ab… active, scopes jobs:read, permissions jobs:read,logs:read") {
 		t.Fatalf("list: %d %q", code, out)
+	}
+	code, out, _ := h.run("api-keys", "list", "--json")
+	if code != 0 || !strings.Contains(out, `"permissions":["jobs:read","logs:read"]`) {
+		t.Fatalf("list json: %d %q", code, out)
 	}
 	var body map[string]any
 	h.routes["POST /v1/customer/tenants/t-1/api-keys"] = func(w http.ResponseWriter, r *http.Request) {
 		data, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(data, &body)
 		w.WriteHeader(201)
-		_, _ = w.Write([]byte(`{"api_key":{"id":"k2","name":"deploy","prefix":"rzv_cd","scopes":["jobs:read","usage:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":null},"secret":"one-time-secret"}`))
+		_, _ = w.Write([]byte(`{"api_key":{"id":"k2","name":"deploy","prefix":"rzv_cd","scopes":[],"permissions":["jobs:write","logs:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":null},"secret":"one-time-secret"}`))
 	}
-	code, out, _ := h.run("api-keys", "create", "--name", "deploy", "--scopes", "jobs:read, usage:read", "--idempotency-key", "op-1")
-	if code != 0 || !strings.Contains(out, "one-time-secret") || body["idempotency_key"] != "op-1" {
+	code, out, _ = h.run("api-keys", "create", "--name", "deploy", "--permissions", "jobs:write, logs:read", "--idempotency-key", "op-1", "--json")
+	if code != 0 || !strings.Contains(out, "one-time-secret") || body["idempotency_key"] != "op-1" || !strings.Contains(out, `"permissions":["jobs:write","logs:read"]`) {
 		t.Fatalf("create: %d %q %v", code, out, body)
+	}
+	permissions, ok := body["permissions"].([]any)
+	if !ok || len(permissions) != 2 || permissions[0] != "jobs:write" || permissions[1] != "logs:read" {
+		t.Fatalf("permissions body: %v", body)
+	}
+	if _, ok := body["scopes"]; ok {
+		t.Fatalf("permissions request included scopes: %v", body)
+	}
+	code, out, _ = h.run("api-keys", "create", "--name", "deploy", "--scopes", "jobs:read, usage:read", "--idempotency-key", "op-2")
+	if code != 0 || !strings.Contains(out, "permissions jobs:write,logs:read") || body["scopes"] == nil {
+		t.Fatalf("legacy create: %d %q %v", code, out, body)
 	}
 	for _, scopes := range []string{"all:all,jobs:read", "jobs:read,jobs:read", "admin:all", ""} {
 		if code, _, _ := h.run("api-keys", "create", "--name", "x", "--scopes="+scopes, "--idempotency-key", "op"); code != exitUsage {
 			t.Errorf("scopes %q accepted: %d", scopes, code)
 		}
 	}
+	for _, permissions := range []string{"", ",", "jobs:read,jobs:read"} {
+		calls := len(h.seenAuth)
+		if code, _, _ := h.run("api-keys", "create", "--name", "x", "--permissions="+permissions, "--idempotency-key", "op"); code != exitUsage || len(h.seenAuth) != calls {
+			t.Errorf("permissions %q accepted or made a request: %d", permissions, code)
+		}
+	}
+	calls := len(h.seenAuth)
+	if code, _, _ := h.run("api-keys", "create", "--name", "x", "--scopes", "jobs:read", "--permissions", "logs:read", "--idempotency-key", "op"); code != exitUsage || len(h.seenAuth) != calls {
+		t.Fatalf("mixed options accepted or made a request: %d", code)
+	}
+	h.json("POST /v1/customer/tenants/t-1/api-keys", 403, `{"error":{"code":"grant_ceiling"}}`)
+	if code, _, errOut := h.run("api-keys", "create", "--name", "denied", "--permissions", "billing:write", "--idempotency-key", "op-denied"); code != exitAccessDenied || !strings.Contains(errOut, "not authorized") {
+		t.Fatalf("grant ceiling: %d %q", code, errOut)
+	}
 	h.routes["DELETE /v1/customer/tenants/t-1/api-keys/k1"] = func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }
 	if code, out, _ := h.run("api-keys", "revoke", "k1", "--json"); code != 0 || !strings.Contains(out, `"revoked_api_key_id":"k1"`) {
 		t.Fatalf("revoke: %d %q", code, out)
 	}
-	h.json("PATCH /v1/customer/tenants/t-1/api-keys/k1", 200, `{"api_key":{"id":"k1","name":"renamed","prefix":"rzv_ab","scopes":["jobs:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":null}}`)
-	if code, out, _ := h.run("api-keys", "rename", "k1", "--name", "renamed"); code != 0 || !strings.Contains(out, "Renamed API key k1 to renamed.") {
+	h.json("PATCH /v1/customer/tenants/t-1/api-keys/k1", 200, `{"api_key":{"id":"k1","name":"renamed","prefix":"rzv_ab","scopes":["jobs:read"],"permissions":["jobs:read"],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":null}}`)
+	if code, out, _ := h.run("api-keys", "rename", "k1", "--name", "renamed"); code != 0 || !strings.Contains(out, "Renamed API key k1 to renamed with permissions jobs:read.") {
 		t.Fatalf("rename: %d %q", code, out)
+	}
+	code, out, _ = h.run("api-keys", "rename", "k1", "--name", "renamed", "--json")
+	if code != 0 || !strings.Contains(out, `"permissions":["jobs:read"]`) {
+		t.Fatalf("rename json: %d %q", code, out)
 	}
 	h.env["RZV_API_KEY"] = "rzv_test_key"
 	if code, _, _ := h.run("api-keys", "list"); code != exitAccessDenied {
