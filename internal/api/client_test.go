@@ -121,6 +121,76 @@ func TestAPIKeyPermissionsBodyAndResponse(t *testing.T) {
 	}
 }
 
+func TestGitHubInstallationsAndWorkspaceConnection(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/customer/tenants/t1/github-installations":
+			if r.Method != http.MethodGet {
+				t.Errorf("installations method = %s", r.Method)
+			}
+			_, _ = w.Write([]byte(`{"installations":[{"installation_id":"9","state":"active","account_name":"acme","manage_url":null,"runner_permission_missing":true,"setup_state":"permissions_pending","next_retry_at":null,"account_archived":true,"account_archived_at":"2026-10-20T00:00:00Z","repositories":[{"repository_id":"100","name":"acme/app","authorized":true,"archived":true,"archived_at":null}]}]}`))
+		case "/v1/customer/github/workspaces/start":
+			if r.Method != http.MethodPost {
+				t.Errorf("start method = %s", r.Method)
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"state":"s1","expires_at":"2026-10-22T00:00:00Z"}`))
+		case "/v1/customer/github/workspaces/complete":
+			var input CompleteWorkspaceConnectionInput
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input.State != "s1" || input.InstallationID != 9 || input.UserAccessToken != "token" {
+				t.Errorf("complete input = %+v, %v", input, err)
+			}
+			_, _ = w.Write([]byte(`{"outcome":"installation_pending","account_login":"acme","account_type":"Organization","workspace":{"tenant_id":"t1","tenant_slug":"acme","tenant_name":"Acme","role":"owner"}}`))
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	})
+	installations, err := client.Installations(context.Background(), "t1")
+	if err != nil || len(installations) != 1 || !installations[0].RunnerPermissionMissing || !installations[0].Repositories[0].Archived {
+		t.Fatalf("installations = %+v, %v", installations, err)
+	}
+	start, err := client.StartWorkspaceConnection(context.Background())
+	if err != nil || start.State != "s1" {
+		t.Fatalf("start = %+v, %v", start, err)
+	}
+	completed, err := client.CompleteWorkspaceConnection(context.Background(), CompleteWorkspaceConnectionInput{State: "s1", InstallationID: 9, UserAccessToken: "token"})
+	if err != nil || completed.Outcome != "installation_pending" || completed.Workspace == nil || completed.Workspace.TenantID != "t1" {
+		t.Fatalf("complete = %+v, %v", completed, err)
+	}
+}
+
+func TestGitHubWorkspaceConnectionRejectsMalformedDecision(t *testing.T) {
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"outcome":"created","account_login":"acme","account_type":"Organization"}`))
+	})
+	_, err := client.CompleteWorkspaceConnection(context.Background(), CompleteWorkspaceConnectionInput{State: "s", InstallationID: 1, UserAccessToken: "token"})
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Code != "malformed_response" {
+		t.Fatalf("want malformed response, got %v", err)
+	}
+}
+
+func TestGitHubInstallationsRejectMalformedIdentifiers(t *testing.T) {
+	for _, body := range []string{
+		`{"installations":[{"state":"active","account_name":null,"manage_url":null,"repositories":[]}]}`,
+		`{"installations":[{"installation_id":"9","state":"active","account_name":null,"manage_url":null,"repositories":[{"repository_id":"","name":null,"authorized":true}]}]}`,
+		`{"installations":[{"installation_id":"9","state":"active","manage_url":null,"repositories":[]}]}`,
+		`{"installations":[{"installation_id":"9","state":"active","account_name":null,"repositories":[]}]}`,
+		`{"installations":[{"installation_id":"9","state":"active","account_name":null,"manage_url":null,"repositories":[{"repository_id":"10","authorized":false}]}]}`,
+		`{"installations":[{"installation_id":"9","state":"active","account_name":null,"manage_url":null,"repositories":[{"repository_id":"10","name":null}]}]}`,
+		`{"installations":[{"installation_id":"9","state":"active","account_name":null,"manage_url":null,"repositories":[{"repository_id":"10","name":null,"authorized":null}]}]}`,
+	} {
+		client := newTestClient(t, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(body))
+		})
+		_, err := client.Installations(context.Background(), "t1")
+		var apiErr *Error
+		if !errors.As(err, &apiErr) || apiErr.Code != "malformed_response" {
+			t.Fatalf("body %s: want malformed response, got %v", body, err)
+		}
+	}
+}
+
 func TestTenantPathEscapes(t *testing.T) {
 	if got := tenantPath("a/b c", "/jobs"); got != "/v1/customer/tenants/a%2Fb%20c/jobs" {
 		t.Fatalf("got %q", got)

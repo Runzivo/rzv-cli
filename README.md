@@ -22,6 +22,8 @@ rzv workspaces select <workspace-id>   # choose one for later commands
 rzv workspaces settings show            # name, logo and update capability
 rzv workspaces members list             # members and permitted actions
 rzv workspaces invitations list         # invitations and permitted actions
+rzv github installations                # linked installations and setup state
+rzv github workspaces start             # start GitHub-backed workspace onboarding
 rzv jobs list                          # jobs for the selected workspace
 rzv activity list                      # workspace activity log
 rzv activity export > activity.csv     # matching CSV export

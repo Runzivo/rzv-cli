@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
 	"github.com/Runzivo/rzv-cli/internal/githubauth"
@@ -12,10 +14,16 @@ import (
 
 const githubUsage = `Usage:
   rzv github status [--workspace <id>] [--json]     The linked GitHub App installation
+  rzv github installations [--workspace <id>] [--json]
+                                                    Every linked installation and its status
   rzv github connect [--workspace <id>] [--json]    Start linking an installation
   rzv github authorize --state <state> --installation-id <id>
       --github-client-id <id> [--github-scope <scope>] [--workspace <id>] [--json]
-                                                    Finish the link with GitHub's device flow`
+                                                    Finish the link with GitHub's device flow
+  rzv github workspaces start [--json]              Start GitHub-backed workspace onboarding
+  rzv github workspaces complete --state <state> --installation-id <id>
+      --github-client-id <id> [--github-scope <scope>] [--json]
+                                                    Finish onboarding with GitHub's device flow`
 
 const repositoriesUsage = "Usage: rzv repositories list [--workspace <id>] [--json]"
 
@@ -28,7 +36,7 @@ Each available profile's label is the exact runs-on value for a workflow.`
 var githubBaseURL = githubauth.DefaultBaseURL
 
 func init() {
-	register("github", "Show or link the GitHub App installation", runGitHub)
+	register("github", "Show or link GitHub App installations and onboard a workspace", runGitHub)
 	commandUsage["github"] = githubUsage
 	register("repositories", "List repositories the GitHub App covers", runRepositories)
 	commandUsage["repositories"] = repositoriesUsage
@@ -85,11 +93,226 @@ func runGitHub(a *app, cmd *command) error {
 			"  rzv github authorize --state <this state> --installation-id <id from GitHub> --github-client-id <app client id>",
 		}, "\n"))
 		return nil
+	case "installations":
+		return githubInstallations(a, cmd)
+	case "workspaces":
+		return githubWorkspaces(a, cmd)
 	case "authorize":
 		return githubAuthorize(a, cmd)
 	default:
 		return usageError("%s", githubUsage)
 	}
+}
+
+func githubInstallations(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(1, "rzv github installations [--workspace <id>] [--json]"); err != nil {
+		return err
+	}
+	id, client, err := a.workspaceClient(cmd)
+	if err != nil {
+		return err
+	}
+	installations, err := client.Installations(a.ctx, id)
+	if err != nil {
+		return apiError(err, "")
+	}
+	a.output(cmd, map[string]any{"workspace_id": id, "installations": installations}, renderInstallations(id, installations))
+	return nil
+}
+
+func renderInstallations(id string, installations []api.Installation) string {
+	if len(installations) == 0 {
+		return "No GitHub App installations are linked to workspace " + display(id) + "."
+	}
+	var table bytes.Buffer
+	var details strings.Builder
+	w := tabwriter.NewWriter(&table, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "ID\tSTATE\tACCOUNT\tMANAGE URL\tSETUP\tRETRY\tACCOUNT ARCHIVED\tREPOSITORIES")
+	for _, inst := range installations {
+		archived := "-"
+		if inst.AccountArchived {
+			archived = displayOrDash(inst.AccountArchivedAt)
+		}
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", display(inst.InstallationID), display(inst.State), displayOrDash(inst.AccountName), displayOrDash(inst.ManageURL), displayOrDashString(inst.SetupState), displayOrDash(inst.NextRetryAt), archived, len(inst.Repositories))
+		if inst.RunnerPermissionMissing {
+			_, _ = fmt.Fprintln(&details, "  "+display(inst.InstallationID)+": runner permission required")
+		}
+		for _, repository := range inst.Repositories {
+			state := "not authorized"
+			if repository.Authorized {
+				state = "authorized"
+			}
+			archivedAt := "-"
+			if repository.Archived {
+				state += ", archived"
+				archivedAt = displayOrDash(repository.ArchivedAt)
+			}
+			_, _ = fmt.Fprintf(&details, "  - %s [%s] (%s; archived: %s)\n", displayOrDash(repository.Name), display(repository.RepositoryID), state, archivedAt)
+		}
+	}
+	_ = w.Flush()
+	return "GitHub installations for workspace " + display(id) + ":\n" + strings.TrimSuffix(table.String()+details.String(), "\n")
+}
+
+func displayOrDashString(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return display(value)
+}
+
+func githubWorkspaces(a *app, cmd *command) error {
+	if len(cmd.args) < 2 {
+		return usageError("%s", githubUsage)
+	}
+	switch cmd.args[1] {
+	case "start":
+		return githubWorkspaceStart(a, cmd)
+	case "complete":
+		return githubWorkspaceComplete(a, cmd)
+	default:
+		return usageError("%s", githubUsage)
+	}
+}
+
+func githubWorkspaceStart(a *app, cmd *command) error {
+	if err := cmd.allow(); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv github workspaces start [--json]"); err != nil {
+		return err
+	}
+	client, _, err := a.humanClient()
+	if err != nil {
+		return err
+	}
+	start, err := client.StartWorkspaceConnection(a.ctx)
+	if err != nil {
+		return githubWorkspaceError(err)
+	}
+	a.output(cmd, map[string]string{"state": start.State, "expires_at": start.ExpiresAt}, strings.Join([]string{
+		"Started GitHub-backed workspace onboarding.",
+		"State: " + display(start.State),
+		"Expires: " + display(start.ExpiresAt),
+		"Install the GitHub App, then before it expires run:",
+		"  rzv github workspaces complete --state <this state> --installation-id <id from GitHub> --github-client-id <app client id>",
+	}, "\n"))
+	return nil
+}
+
+func githubWorkspaceComplete(a *app, cmd *command) error {
+	if err := cmd.allow("state", "installation-id", "github-client-id", "github-scope"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv github workspaces complete --state <state> --installation-id <id> --github-client-id <id>"); err != nil {
+		return err
+	}
+	if err := a.requireHuman(); err != nil {
+		return err
+	}
+	state, err := cmd.required("state")
+	if err != nil {
+		return err
+	}
+	rawInstallation, err := cmd.required("installation-id")
+	if err != nil {
+		return err
+	}
+	installationID, err := strconv.ParseInt(rawInstallation, 10, 64)
+	if err != nil || installationID < 1 {
+		return usageError("--installation-id must be the GitHub installation's numeric id.")
+	}
+	clientID, err := cmd.required("github-client-id")
+	if err != nil {
+		return err
+	}
+	scope, err := cmd.option("github-scope")
+	if err != nil {
+		return err
+	}
+	client, creds, err := a.humanClient()
+	if err != nil {
+		return err
+	}
+	token, err := githubDeviceToken(a, clientID, scope)
+	if err != nil {
+		return err
+	}
+	connection, err := client.CompleteWorkspaceConnection(a.ctx, api.CompleteWorkspaceConnectionInput{State: state, InstallationID: installationID, UserAccessToken: token})
+	if err != nil {
+		return githubWorkspaceError(err)
+	}
+	if connection.Workspace != nil {
+		creds.SelectedWorkspace = connection.Workspace.TenantID
+		if err := a.Store.Write(creds); err != nil {
+			return err
+		}
+	}
+	a.output(cmd, connection, renderWorkspaceConnection(connection))
+	return nil
+}
+
+func githubDeviceToken(a *app, clientID, scope string) (string, error) {
+	token, err := githubauth.Authorize(a.ctx, githubauth.Options{
+		ClientID: clientID, Scope: scope, BaseURL: githubBaseURL, HTTPClient: a.HTTPClient,
+		OpenBrowser: a.OpenBrowser,
+		Prompt: func(uri, code string) {
+			fmt.Fprintf(a.Stderr, "Go to %s and enter this code: %s\n", display(uri), display(code))
+		},
+	})
+	if err == nil {
+		return token, nil
+	}
+	var ghErr *githubauth.Error
+	if errors.As(err, &ghErr) && (ghErr.Code == githubauth.CodeDenied || ghErr.Code == githubauth.CodeExpired) {
+		return "", accessError("%s", ghErr.Message)
+	}
+	return "", unavailableError("%s", err.Error())
+}
+
+func renderWorkspaceConnection(connection *api.WorkspaceConnection) string {
+	lines := []string{
+		"GitHub account: " + display(connection.AccountLogin) + " (" + display(connection.AccountType) + ")",
+		"Outcome: " + display(connection.Outcome),
+	}
+	if connection.Workspace != nil {
+		lines = append(lines, "Workspace: "+display(connection.Workspace.TenantName)+" ["+display(connection.Workspace.TenantID)+"] (selected)")
+	} else {
+		lines = append(lines, "Workspace access is required before this workspace can be selected.")
+	}
+	if connection.Notice != "" {
+		lines = append(lines, "Notice: "+display(connection.Notice))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func githubWorkspaceError(err error) error {
+	var apiErr *api.Error
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	switch {
+	case apiErr.Status == 403 && apiErr.Code == "signups_closed":
+		return newError(apiErr.Code, exitAccessDenied, "Self-service sign-up is closed. Existing customers can still sign in and use their workspaces.")
+	case apiErr.Status == 403 && apiErr.Code == "captcha_verification_failed":
+		return accessError("Workspace sign-up needs a CAPTCHA check. Complete workspace setup in the Runzivo portal.")
+	case apiErr.Status == 503 && apiErr.Code == "captcha_verification_unavailable":
+		return unavailableError("Workspace protection is temporarily unavailable. Try again shortly.")
+	case apiErr.Status == 503 && apiErr.Code == "installation_authority_unverified":
+		return unavailableError("GitHub's authority check could not complete. Try again.")
+	case apiErr.Status == 403 && apiErr.Code == "installation_authority_denied":
+		return accessError("GitHub denied authority over this installation: you must be an organization owner or the account owner.")
+	case apiErr.Status == 409 && apiErr.Code == "link_state_invalid":
+		return conflictError("The workspace link state is unknown, expired or already used. Run `rzv github workspaces start` again.")
+	case apiErr.Status == 409 && apiErr.Code == "github_workspace_connection_conflict":
+		return conflictError("This GitHub account or installation is already connected to a different workspace.")
+	case apiErr.Status == 409 && apiErr.Code == "github_account_archived":
+		return conflictError("GitHub reports this organization as archived, so a new workspace cannot be created.")
+	}
+	return apiError(err, "")
 }
 
 func githubAuthorize(a *app, cmd *command) error {
