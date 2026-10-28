@@ -2,6 +2,19 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-10-28-172656 (rzv 0.17.0), 2026-10-28
+
+### Added
+
+- `rzv activity list|export|status`: workspace activity with filters and paging, CSV export, and audit signals with execution evidence.
+- `rzv api-keys create --permissions <p,...>`: fine-grained API key permissions; list, create and rename show them.
+- `rzv notifications list|read|settings`: list and mark workspace notifications read, and read or change delivery settings. Needs your own sign-in.
+- `rzv jobs logs <job-id>` and `rzv insights summary|heatmap|slow-jobs`: job log text and workspace job metrics.
+- `rzv ai providers|settings|usage`: workspace AI provider connections, configuration and usage. Provider keys are read only from `--key-file`.
+- `rzv github installations` and `rzv github workspaces start|complete`: every linked installation with its setup state, and GitHub-backed workspace onboarding.
+- `rzv billing codes redeem --code-file <path>`: redeem a promo code or prepaid voucher.
+- `rzv workspaces closures list|request|cancel`: ask staff to close a workspace, or withdraw the request. Nothing is deleted immediately.
+
 ## release-2026-10-27-000402 (rzv 0.16.0), 2026-10-27
 
 ### Added
