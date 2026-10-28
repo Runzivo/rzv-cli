@@ -100,6 +100,9 @@ func Run(ctx context.Context, argv []string, deps Deps) int {
 }
 
 func (a *app) runHandler(cmd *command, h handler) int {
+	if err := a.selectProfile(cmd); err != nil {
+		return a.fail(cmd, err)
+	}
 	if err := h.run(a, cmd); err != nil {
 		return a.fail(cmd, err)
 	}

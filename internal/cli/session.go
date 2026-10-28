@@ -101,10 +101,13 @@ func (a *app) workspaceClient(cmd *command) (string, *api.Client, error) {
 		}
 		id := explicit
 		if id == "" {
+			id = a.defaultWorkspace()
+		}
+		if id == "" {
 			id = selected
 		}
 		if id == "" {
-			return "", nil, usageError("Pass --workspace <workspace-id> with RZV_API_KEY.")
+			return "", nil, usageError("Pass --workspace <workspace-id> with RZV_API_KEY, or set RZV_WORKSPACE to the id.")
 		}
 		client, err := a.client(baseURL, key)
 		return id, client, err
@@ -115,21 +118,40 @@ func (a *app) workspaceClient(cmd *command) (string, *api.Client, error) {
 	}
 	id := explicit
 	if id == "" {
+		id = a.defaultWorkspace()
+	}
+	if id == "" {
 		id = creds.SelectedWorkspace
 	}
 	if id == "" {
-		return "", nil, usageError("Select a workspace with `rzv workspaces select <workspace-id>` or pass --workspace.")
+		return "", nil, usageError("Select a workspace with `rzv workspaces select <workspace>`, pass --workspace, or set RZV_WORKSPACE.")
 	}
 	memberships, err := client.Memberships(a.ctx)
 	if err != nil {
 		return "", nil, apiError(err, "")
 	}
+	tenantID, found := matchWorkspace(memberships, id)
+	if !found {
+		return "", nil, accessError("You are not a member of workspace %s.", display(id))
+	}
+	return tenantID, client, nil
+}
+
+// defaultWorkspace is RZV_WORKSPACE: the workspace (slug or id) used when a
+// command names none.
+func (a *app) defaultWorkspace() string {
+	return strings.TrimSpace(a.Getenv("RZV_WORKSPACE"))
+}
+
+// matchWorkspace finds the membership whose id or slug is ref and returns
+// its id.
+func matchWorkspace(memberships []api.Membership, ref string) (string, bool) {
 	for _, m := range memberships {
-		if m.TenantID == id {
-			return id, client, nil
+		if m.TenantID == ref || m.TenantSlug == ref {
+			return m.TenantID, true
 		}
 	}
-	return "", nil, accessError("You are not a member of workspace %s.", display(id))
+	return "", false
 }
 
 // apiKeyTarget picks the API origin for RZV_API_KEY: RZV_API_URL, else the

@@ -16,6 +16,8 @@ The installer downloads the latest release, checks its SHA-256 checksum and puts
 
 ```sh
 rzv login                              # sign in through your browser
+rzv login -p work -w acme              # a second profile, with a workspace selected
+rzv profiles list                      # local profiles and which one is active
 rzv whoami                             # who you are signed in as
 rzv workspaces list                    # workspaces you belong to
 rzv workspaces select <workspace-id>   # choose one for later commands

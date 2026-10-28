@@ -2,6 +2,19 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- `rzv login -p <profile> [-w <slug|id>]`: one sign-in per profile, so a second sign-in no longer replaces the first. `-p`/`--profile` works on every command, and `RZV_PROFILE` sets the profile for a shell.
+- `rzv profiles list|use|remove`: list local profiles, switch the active one, or delete a profile's local sign-in. Tokens are never printed.
+- `RZV_WORKSPACE`: the default workspace (slug or id) when a command names none.
+- `rzv whoami` shows the profile in use.
+
+### Changed
+
+- `--workspace` (and `-w`) accepts a workspace slug as well as an id, on every workspace-scoped command. With `RZV_API_KEY`, pass the id.
+
 ## release-2026-10-28-172656 (rzv 0.17.0), 2026-10-28
 
 ### Added

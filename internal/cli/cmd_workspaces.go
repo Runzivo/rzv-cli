@@ -213,16 +213,10 @@ func workspacesSelect(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "")
 	}
-	found := false
-	for _, m := range memberships {
-		// Accept the slug too; store the id.
-		if m.TenantID == id || m.TenantSlug == id {
-			id, found = m.TenantID, true
-			break
-		}
-	}
+	// Accept the slug too; store the id.
+	id, found := matchWorkspace(memberships, id)
 	if !found {
-		return accessError("You are not a member of workspace %s.", display(id))
+		return accessError("You are not a member of workspace %s.", display(cmd.args[1]))
 	}
 	creds.SelectedWorkspace = id
 	if err := a.Store.Write(creds); err != nil {
