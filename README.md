@@ -30,6 +30,7 @@ rzv activity export > activity.csv     # matching CSV export
 rzv activity status                    # audit signals and execution evidence
 rzv jobs get <job-id>                  # one job's status
 rzv api-keys create --name ci --permissions jobs:read,logs:read --idempotency-key <key>
+rzv billing codes redeem --code-file <path>
 rzv tickets list                       # support tickets for the selected workspace
 rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
 rzv notifications list                  # notifications for the selected workspace
