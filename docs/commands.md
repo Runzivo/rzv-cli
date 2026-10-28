@@ -7,8 +7,15 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | Command      | What it does                                                                                                            |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | `rzv login`  | Sign in through the browser. See [Sign-in and credentials](login.md).                                                   |
-| `rzv logout` | Delete the stored sign-in.                                                                                              |
-| `rzv whoami` | Show the signed-in identity, environment, session expiry and selected workspace, and check the sign-in against the API. |
+| `rzv logout` | Delete the stored sign-in of the profile in use.                                                                        |
+| `rzv whoami` | Show the signed-in identity, profile, environment, session expiry and selected workspace, and check the sign-in against the API. |
+| `rzv profiles list` | List local profiles, the active one, and each profile's identity and workspace. Tokens are never printed.          |
+| `rzv profiles use <profile>` | Make a profile the active one for later commands.                                                              |
+| `rzv profiles remove <profile>` | Delete a profile's local sign-in. The session itself is not revoked.                                        |
+
+## Profiles
+
+A profile is one sign-in on this machine. `rzv login -p <profile>` signs in to a named profile without replacing the others. Every command accepts `-p <profile>` (or `--profile`) for one run, and `RZV_PROFILE` sets the profile for a shell. The profile in use is chosen in this order: `-p`, then `RZV_PROFILE`, then the active profile (set by `rzv profiles use` or by the last `rzv login`), then `default`. Profile names are lowercase letters, digits and hyphens, up to 32 characters. See [Sign-in and credentials](login.md).
 
 ## Workspaces
 
@@ -23,7 +30,7 @@ Every command accepts `--json` (one JSON object on stdout) and `--help`. Errors 
 | `rzv github workspaces start`                 | Start GitHub-backed workspace onboarding.                               |
 | `rzv github workspaces complete ...`          | Complete GitHub-backed workspace onboarding.                            |
 
-`rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <id>` (or the older `--account <id>`) to override the selection.
+`rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <slug or id>` (short `-w`, or the older `--account`) to override the selection. `RZV_WORKSPACE` sets the default workspace, and it is used when no `--workspace` is given. With `RZV_API_KEY`, pass the workspace id: a key cannot look up slugs.
 
 ## Workspace commands
 

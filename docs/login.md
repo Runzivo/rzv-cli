@@ -14,9 +14,15 @@
 
 `RZV_ENV` sets the default. The shared environment is only reachable from allowlisted networks. The sign-in remembers its environment; later commands use it.
 
+## Profiles
+
+Each profile holds one sign-in. `rzv login` signs in to the profile in use; `rzv login -p work` signs in to `work` and leaves the other profiles alone. `--workspace <slug or id>` (or `-w`) selects a workspace at sign-in; the sign-in is saved only if that workspace is one you belong to. Signing in makes its profile the active one.
+
+`rzv profiles list` shows the profiles, `rzv profiles use <profile>` switches the active one, and `rzv profiles remove <profile>` deletes a profile's local sign-in. Removing does not revoke the session; it expires as usual.
+
 ## Where the token is stored
 
-`credentials.json` in your user configuration directory, in a `runzivo` folder:
+The `default` profile is `credentials.json`; every other profile is `profiles/<name>.json`. The active profile is in `profile.json`. All are in your user configuration directory, in a `runzivo` folder:
 
 | OS      | Path                                              |
 | ------- | ------------------------------------------------- |
@@ -24,7 +30,7 @@
 | macOS   | `~/Library/Application Support/runzivo`           |
 | Windows | `%AppData%\runzivo`                               |
 
-`RZV_CONFIG_DIR` overrides the folder. On Linux and macOS the folder is `0700` and the file `0600`; on Windows the file inherits your profile's permissions. `rzv` refuses a credentials file that is a symbolic link. `rzv logout` deletes the file.
+`RZV_CONFIG_DIR` overrides the folder. On Linux and macOS the folder is `0700` and the file `0600`; on Windows the file inherits your profile's permissions. `rzv` refuses a credentials file that is a symbolic link. `rzv logout` deletes the profile in use's file.
 
 ## API keys
 

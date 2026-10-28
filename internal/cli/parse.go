@@ -13,7 +13,14 @@ type command struct {
 	args    []string
 	options map[string]string
 	flags   map[string]bool
+	// profile is the -p / --profile choice. It is read before any command
+	// runs, so commands never list it.
+	profile    string
+	hasProfile bool
 }
+
+// shortOptions are the one-letter spellings of --profile and --workspace.
+var shortOptions = map[string]string{"-p": "profile", "-w": "workspace"}
 
 // booleanOptions never consume the next argument as a value.
 var booleanOptions = map[string]bool{
@@ -36,6 +43,9 @@ func parse(argv []string) (*command, error) {
 	optionsEnded := false
 	for i := 0; i < len(argv); i++ {
 		value := argv[i]
+		if long, ok := shortOptions[value]; ok && !optionsEnded {
+			value = "--" + long
+		}
 		if optionsEnded || !strings.HasPrefix(value, "--") {
 			if !optionsEnded && (value == "-h") {
 				seen["help"] = true
@@ -78,6 +88,10 @@ func parse(argv []string) (*command, error) {
 	if len(positional) > 0 {
 		cmd.name = positional[0]
 		cmd.args = positional[1:]
+	}
+	if profile, ok := cmd.options["profile"]; ok {
+		cmd.profile, cmd.hasProfile = profile, true
+		delete(cmd.options, "profile")
 	}
 	return cmd, nil
 }

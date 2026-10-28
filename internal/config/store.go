@@ -11,7 +11,11 @@ import (
 	"strings"
 )
 
-const credentialsFile = "credentials.json"
+const (
+	credentialsFile = "credentials.json"
+	profilesDir     = "profiles"
+	activeFile      = "profile.json"
+)
 
 // Credentials is what `rzv login` stores. The access token is never
 // printed or logged.
@@ -45,9 +49,18 @@ func (e *StoreError) Error() string     { return e.Message }
 func (e *StoreError) ErrorCode() string { return e.Code }
 func (e *StoreError) ExitCode() int     { return 1 }
 
-// Store reads and writes the credentials file in one directory.
+// Store reads and writes the credentials of one profile in one directory.
+// The default profile keeps credentials.json in the directory itself; every
+// other profile keeps profiles/<name>.json.
 type Store struct {
 	Dir string
+	// Profile is "" or DefaultProfile for the default profile.
+	Profile string
+}
+
+// ForProfile returns a store for another profile in the same directory.
+func (s *Store) ForProfile(name string) *Store {
+	return &Store{Dir: s.Dir, Profile: name}
 }
 
 // Directory returns where rzv keeps its credentials: $RZV_CONFIG_DIR when
@@ -67,7 +80,12 @@ func Directory(getenv func(string) string) (string, error) {
 	return filepath.Join(base, "runzivo"), nil
 }
 
-func (s *Store) path() string { return filepath.Join(s.Dir, credentialsFile) }
+func (s *Store) path() string {
+	if s.Profile == "" || s.Profile == DefaultProfile {
+		return filepath.Join(s.Dir, credentialsFile)
+	}
+	return filepath.Join(s.Dir, profilesDir, s.Profile+".json")
+}
 
 // Read returns the stored credentials, or nil when there are none.
 func (s *Store) Read() (*Credentials, error) {
@@ -96,21 +114,29 @@ func (s *Store) Read() (*Credentials, error) {
 // directory is 0700 and the file 0600.
 func (s *Store) Write(creds *Credentials) error {
 	fail := &StoreError{"local_state_unavailable", "Unable to securely save local rzv credentials."}
-	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
-		return fail
-	}
-	if err := os.Chmod(s.Dir, 0o700); err != nil {
-		return fail
-	}
 	data, err := json.Marshal(creds)
 	if err != nil {
+		return fail
+	}
+	return writeAtomic(s.path(), data)
+}
+
+// writeAtomic replaces path with data through a temporary file in the same
+// directory. The directory is 0700 and the file 0600.
+func writeAtomic(path string, data []byte) error {
+	fail := &StoreError{"local_state_unavailable", "Unable to securely save local rzv credentials."}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fail
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
 		return fail
 	}
 	suffix := make([]byte, 12)
 	if _, err := rand.Read(suffix); err != nil {
 		return fail
 	}
-	tmp := filepath.Join(s.Dir, "."+credentialsFile+"."+hex.EncodeToString(suffix)+".tmp")
+	tmp := filepath.Join(dir, "."+filepath.Base(path)+"."+hex.EncodeToString(suffix)+".tmp")
 	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return fail
@@ -126,7 +152,7 @@ func (s *Store) Write(creds *Credentials) error {
 		_ = os.Remove(tmp)
 		return fail
 	}
-	if err := os.Rename(tmp, s.path()); err != nil {
+	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
 		return fail
 	}

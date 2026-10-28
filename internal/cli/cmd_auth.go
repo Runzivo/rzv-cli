@@ -16,20 +16,25 @@ func init() {
 	commandUsage["version"] = "Usage: rzv version [--json]"
 
 	register("login", "Sign in through your browser", runLogin)
-	commandUsage["login"] = `Usage: rzv login [--env prd|shared] [--no-browser] [--json]
+	commandUsage["login"] = `Usage: rzv login [-p <profile>] [--env prd|shared] [--workspace <slug|id>] [--no-browser] [--json]
 
 Signs in through your browser (GitHub via Runzivo's identity provider) and
 stores the access token in your user config directory, readable only by you.
 The token is never printed.
 
-  --env         Runzivo environment (default prd, or $RZV_ENV)
-  --no-browser  Print the sign-in URL without opening a browser
+Each profile holds one sign-in. -p / --profile picks the profile (default
+"default", or $RZV_PROFILE). Signing in makes that profile the active one.
+
+  -p, --profile  Profile to sign in to (lowercase letters, digits, hyphens)
+  -w, --workspace  Workspace to select, by slug or id; must be one you belong to
+  --env          Runzivo environment (default prd, or $RZV_ENV)
+  --no-browser   Print the sign-in URL without opening a browser
 
 Advanced overrides: --issuer, --client-id, --audience, --api-base-url,
 --github-broker-claim, --allow-insecure-loopback (loopback testing only).`
 
 	register("logout", "Remove the stored sign-in", runLogout)
-	commandUsage["logout"] = "Usage: rzv logout [--json]"
+	commandUsage["logout"] = "Usage: rzv logout [-p <profile>] [--json]"
 
 	register("whoami", "Show who you are signed in as", runWhoami)
 	commandUsage["whoami"] = `Usage: rzv whoami [--json]
@@ -53,10 +58,14 @@ func runVersion(a *app, cmd *command) error {
 }
 
 func runLogin(a *app, cmd *command) error {
-	if err := cmd.allow("env", "issuer", "client-id", "audience", "api-base-url", "github-broker-claim", "allow-insecure-loopback", "no-browser"); err != nil {
+	if err := cmd.allow("env", "workspace", "issuer", "client-id", "audience", "api-base-url", "github-broker-claim", "allow-insecure-loopback", "no-browser"); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(0, "rzv login [--env prd|shared] [--json]"); err != nil {
+	if err := cmd.expectArgs(0, "rzv login [-p <profile>] [--env prd|shared] [--workspace <slug|id>] [--json]"); err != nil {
+		return err
+	}
+	workspace, err := cmd.option("workspace")
+	if err != nil {
 		return err
 	}
 	envName, err := cmd.option("env")
@@ -109,17 +118,42 @@ func runLogin(a *app, cmd *command) error {
 	if a.Store == nil {
 		return newError("local_state_unavailable", exitFailure, "No credential store is available.")
 	}
-	who := identityLabel(result.Claims)
-	err = a.Store.Write(&config.Credentials{
-		Version: 1, Environment: env.Name, Identity: who, Issuer: result.Issuer, ClientID: env.ClientID,
+	creds := &config.Credentials{
+		Version: 1, Environment: env.Name, Identity: identityLabel(result.Claims), Issuer: result.Issuer, ClientID: env.ClientID,
 		Audience: env.Audience, GitHubBrokerClaim: env.BrokerClaim,
 		APIBaseURL: apiURL.Scheme + "://" + apiURL.Host, AccessToken: result.AccessToken,
-	})
-	if err != nil {
+	}
+	// The workspace is resolved before anything is saved, so a workspace that
+	// cannot be found leaves the profile's previous sign-in untouched.
+	if workspace != "" {
+		client, err := a.client(creds.APIBaseURL, creds.AccessToken)
+		if err != nil {
+			return err
+		}
+		memberships, err := client.Memberships(a.ctx)
+		if err != nil {
+			return apiError(err, "")
+		}
+		id, found := matchWorkspace(memberships, workspace)
+		if !found {
+			return accessError("You are not a member of workspace %s. Nothing was saved; run `rzv login` again with a workspace you belong to.", display(workspace))
+		}
+		creds.SelectedWorkspace = id
+	}
+	if err := a.Store.Write(creds); err != nil {
 		return err
 	}
-	a.output(cmd, map[string]any{"authenticated": true, "environment": env.Name, "selected_workspace_id": nil},
-		fmt.Sprintf("Signed in to %s as %s. No workspace is selected; run `rzv workspaces list`.", env.Name, display(who)))
+	profile := a.profileName()
+	if err := a.Store.SetActiveProfile(profile); err != nil {
+		return err
+	}
+	var selected any
+	text := fmt.Sprintf("Signed in to profile %s (%s) as %s. No workspace is selected; run `rzv workspaces list`.", display(profile), env.Name, display(creds.Identity))
+	if creds.SelectedWorkspace != "" {
+		selected = creds.SelectedWorkspace
+		text = fmt.Sprintf("Signed in to profile %s (%s) as %s. Selected workspace: %s.", display(profile), env.Name, display(creds.Identity), display(creds.SelectedWorkspace))
+	}
+	a.output(cmd, map[string]any{"authenticated": true, "profile": profile, "environment": env.Name, "selected_workspace_id": selected}, text)
 	return nil
 }
 
@@ -133,6 +167,15 @@ func runLogout(a *app, cmd *command) error {
 	if a.Store != nil {
 		if err := a.Store.Clear(); err != nil {
 			return err
+		}
+		active, err := a.Store.ActiveProfile()
+		if err != nil {
+			return err
+		}
+		if active == a.profileName() {
+			if err := a.Store.ClearActiveProfile(); err != nil {
+				return err
+			}
 		}
 	}
 	a.output(cmd, map[string]bool{"logged_out": true}, "Logged out.")
@@ -180,8 +223,9 @@ func runWhoami(a *app, cmd *command) error {
 		who = identityLabel(claims)
 	}
 	value["identity"] = who
+	value["profile"] = a.profileName()
 	lines := []string{
-		"Signed in as " + display(who),
+		"Signed in as " + display(who) + " (profile " + display(a.profileName()) + ")",
 		"Environment: " + display(envName) + " (" + display(creds.APIBaseURL) + ")",
 		"Subject: " + display(claims.String("sub")),
 		"Session expires: " + formatTime(expires),
