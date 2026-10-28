@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
 )
@@ -17,13 +19,16 @@ const workspacesUsage = `Usage:
   rzv workspaces settings ...                           Read or update workspace settings
   rzv workspaces members ...                            List or manage workspace members
   rzv workspaces invitations ...                        Manage workspace invitations
+  rzv workspaces closures list [--workspace <id>] [--json]
+  rzv workspaces closures request --reason <text> --idempotency-key <key> [--workspace <id>] [--json]
+  rzv workspaces closures cancel <request-id> --expected-version <n> [--workspace <id>] [--json]
 
 "rzv accounts ..." is accepted as an older name for "rzv workspaces ...".
 
 ` + workspaceAccessUsage
 
 func init() {
-	register("workspaces", "Manage workspaces and workspace access", runWorkspaces)
+	register("workspaces", "Manage workspaces, workspace access and closure requests", runWorkspaces)
 	commandUsage["workspaces"] = workspacesUsage
 }
 
@@ -40,9 +45,117 @@ func runWorkspaces(a *app, cmd *command) error {
 		return workspacesCreate(a, cmd)
 	case "settings", "members", "invitations":
 		return workspaceAccess(a, cmd)
+	case "closures":
+		return workspaceClosures(a, cmd)
 	default:
 		return usageError("%s", workspacesUsage)
 	}
+}
+
+func workspaceClosures(a *app, cmd *command) error {
+	if len(cmd.args) < 2 {
+		return usageError("%s", workspacesUsage)
+	}
+	switch cmd.args[1] {
+	case "list":
+		return closuresList(a, cmd)
+	case "request":
+		return closuresRequest(a, cmd)
+	case "cancel":
+		return closuresCancel(a, cmd)
+	}
+	return usageError("%s", workspacesUsage)
+}
+func closuresList(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv workspaces closures list [--workspace <id>] [--json]"); err != nil {
+		return err
+	}
+	id, c, err := a.workspaceClient(cmd)
+	if err != nil {
+		return err
+	}
+	values, err := c.ClosureRequests(a.ctx, id)
+	if err != nil {
+		return apiError(err, "The closure request was not found in this workspace.")
+	}
+	a.output(cmd, map[string]any{"workspace_id": id, "requests": values}, renderClosures(values))
+	return nil
+}
+func closuresRequest(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account", "reason", "idempotency-key"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv workspaces closures request --reason <text> --idempotency-key <key> [--workspace <id>] [--json]"); err != nil {
+		return err
+	}
+	reason, err := cmd.required("reason")
+	if err != nil {
+		return err
+	}
+	key, err := cmd.required("idempotency-key")
+	if err != nil {
+		return err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" || strings.TrimSpace(key) != key || len(reason) > 1000 || len(key) < 8 || len(key) > 200 {
+		return usageError("--reason must be 1 to 1000 bytes and --idempotency-key 8 to 200 bytes.")
+	}
+	id, c, err := a.workspaceClient(cmd)
+	if err != nil {
+		return err
+	}
+	value, err := c.RequestClosure(a.ctx, id, api.ClosureRequestInput{Reason: reason, IdempotencyKey: key})
+	if err != nil {
+		return apiError(err, "The closure request was not found in this workspace.")
+	}
+	a.output(cmd, map[string]any{"workspace_id": id, "request": value}, renderClosure(*value))
+	return nil
+}
+func closuresCancel(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account", "expected-version"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(3, "rzv workspaces closures cancel <request-id> --expected-version <n> [--workspace <id>] [--json]"); err != nil {
+		return err
+	}
+	requestID := strings.TrimSpace(cmd.args[2])
+	raw, err := cmd.required("expected-version")
+	if err != nil {
+		return err
+	}
+	version, err := strconv.ParseInt(raw, 10, 64)
+	if requestID == "" || len(requestID) > 64 || err != nil || version < 1 {
+		return usageError("<request-id> must be at most 64 bytes and --expected-version must be at least 1.")
+	}
+	id, c, err := a.workspaceClient(cmd)
+	if err != nil {
+		return err
+	}
+	value, err := c.CancelClosure(a.ctx, id, requestID, version)
+	if err != nil {
+		return apiError(err, "The closure request was not found in this workspace.")
+	}
+	a.output(cmd, map[string]any{"workspace_id": id, "request": value}, renderClosure(*value))
+	return nil
+}
+func renderClosures(values []api.ClosureRequest) string {
+	if len(values) == 0 {
+		return "No closure requests."
+	}
+	var table strings.Builder
+	w := tabwriter.NewWriter(&table, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "ID\tSTATUS\tVERSION\tREQUESTED BY\tREQUESTED\tDECIDED BY\tDECIDED\tNOTE\tREASON")
+	for _, v := range values {
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n", display(v.ID), display(v.Status), v.Version, displayOrDash(v.RequestedBy.Email), display(v.RequestedAt), displayOrDash(v.DecidedByType), displayOrDash(v.DecidedAt), displayOrDash(v.DecisionNote), display(v.Reason))
+	}
+	_ = w.Flush()
+	return "Closure requests:\n" + strings.TrimSuffix(table.String(), "\n")
+}
+func renderClosure(v api.ClosureRequest) string {
+	return fmt.Sprintf("- %s: %s (version %d), requested %s by %s, reason: %s, decided %s by %s, note: %s", display(v.ID), display(v.Status), v.Version, display(v.RequestedAt), displayOrDash(v.RequestedBy.Email), display(v.Reason), displayOrDash(v.DecidedAt), displayOrDash(v.DecidedByType), displayOrDash(v.DecisionNote))
 }
 
 func workspacesList(a *app, cmd *command) error {
