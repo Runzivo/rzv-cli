@@ -268,7 +268,7 @@ func TestAPIKeys(t *testing.T) {
 		t.Fatalf("mixed options accepted or made a request: %d", code)
 	}
 	h.json("POST /v1/customer/tenants/t-1/api-keys", 403, `{"error":{"code":"grant_ceiling"}}`)
-	if code, _, errOut := h.run("api-keys", "create", "--name", "denied", "--permissions", "billing:write", "--idempotency-key", "op-denied"); code != exitAccessDenied || !strings.Contains(errOut, "not authorized") {
+	if code, _, errOut := h.run("api-keys", "create", "--name", "denied", "--permissions", "billing:write", "--idempotency-key", "op-denied"); code != exitAccessDenied || !strings.Contains(errOut, "only grant permissions you hold") {
 		t.Fatalf("grant ceiling: %d %q", code, errOut)
 	}
 	h.routes["DELETE /v1/customer/tenants/t-1/api-keys/k1"] = func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }
