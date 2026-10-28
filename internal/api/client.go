@@ -6,19 +6,23 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
 
 const (
-	requestTimeout = 10 * time.Second
-	maxBodyBytes   = 8 << 20
+	requestTimeout  = 10 * time.Second
+	maxBodyBytes    = 8 << 20
+	maxCSVBodyBytes = 64 << 20
 )
 
 // Error is a failed API call. Status is 0 when no response arrived. Code is
@@ -117,6 +121,57 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		return &Error{Status: resp.StatusCode, Code: "malformed_response"}
 	}
 	return nil
+}
+
+// doCSV uses the same client policy as do while retaining the CSV bytes for
+// stdout. It rejects oversized or mislabeled successful responses.
+func (c *Client) doCSV(ctx context.Context, path string, query url.Values) ([]byte, error) {
+	target := c.baseURL + path
+	if len(query) > 0 {
+		target += "?" + query.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return nil, &Error{Status: 0, Code: "request_failed"}
+	}
+	req.Header.Set("Authorization", "Bearer "+c.credential)
+	req.Header.Set("Accept", "text/csv")
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, &Error{Status: 0, Code: "customer_api_unavailable"}
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxCSVBodyBytes+1))
+	if err != nil {
+		return nil, &Error{Status: 0, Code: "customer_api_unavailable"}
+	}
+	if len(data) > maxCSVBodyBytes {
+		return nil, &Error{Status: resp.StatusCode, Code: "response_too_large"}
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, decodeError(resp.StatusCode, data)
+	}
+	contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if err != nil || contentType != "text/csv" {
+		return nil, &Error{Status: resp.StatusCode, Code: "malformed_response"}
+	}
+	reader := csv.NewReader(bytes.NewReader(data))
+	header, err := reader.Read()
+	if err != nil || !slices.Equal(header, []string{"occurred_at", "category", "action", "description", "result", "error_code", "actor_type", "actor", "actor_email", "api_key_id", "auth_method", "target_type", "target_id", "ip", "user_agent", "request_id", "session_ref"}) {
+		return nil, &Error{Status: resp.StatusCode, Code: "malformed_response"}
+	}
+	reader.FieldsPerRecord = len(header)
+	for {
+		if _, err := reader.Read(); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, &Error{Status: resp.StatusCode, Code: "malformed_response"}
+		}
+	}
+	return data, nil
 }
 
 func decodeError(status int, data []byte) *Error {
