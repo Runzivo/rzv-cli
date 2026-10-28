@@ -30,6 +30,10 @@ Find team IDs with `rzv teams list` and pass them with `--team-ids`; `teams --te
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rzv jobs list`             | Every job, newest first: status, conclusion, repository, workflow.                                                                                            |
 | `rzv jobs get <job-id>`     | One job in detail. `rzv jobs status <job-id>` is the same.                                                                                                    |
+| `rzv jobs logs <job-id>` | Log text, or the API's reason it is unavailable. |
+| `rzv insights summary [--days <n>]` | Job and minute totals for 1 to 90 UTC days. |
+| `rzv insights heatmap [--days <n>]` | Queue activity by UTC weekday and hour. |
+| `rzv insights slow-jobs [--days <n>] [--limit <n>]` | Workflows ranked by P90 duration, with a limit from 1 to 25. |
 | `rzv usage`                 | Recorded billable minutes and job count.                                                                                                                      |
 | `rzv concurrency`           | Concurrent-job limit, jobs running now and what is left.                                                                                                      |
 | `rzv billing`               | Minute balance for the period and the packs on sale.                                                                                                          |
