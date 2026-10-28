@@ -83,12 +83,12 @@ func renderAPIKeys(id string, keys []api.APIKey) string {
 			scopes[i] = display(s)
 		}
 		lines = append(lines, fmt.Sprintf("- %s [%s] %s… %s, scopes %s, permissions %s, expires %s, last used %s",
-			display(k.Name), display(k.ID), display(k.Prefix), state, strings.Join(scopes, ","), displayList(k.Permissions), displayOrDash(k.ExpiresAt), displayOrDash(k.LastUsedAt)))
+			display(k.Name), display(k.ID), display(k.Prefix), state, strings.Join(scopes, ","), apiKeyPermissionList(k.Permissions), displayOrDash(k.ExpiresAt), displayOrDash(k.LastUsedAt)))
 	}
 	return strings.Join(lines, "\n")
 }
 
-func displayList(values []string) string {
+func apiKeyPermissionList(values []string) string {
 	displayed := make([]string, len(values))
 	for i, value := range values {
 		displayed[i] = display(value)
@@ -96,7 +96,7 @@ func displayList(values []string) string {
 	return strings.Join(displayed, ",")
 }
 
-func parsePermissions(raw string) ([]string, error) {
+func parseAPIKeyPermissions(raw string) ([]string, error) {
 	var permissions []string
 	seen := map[string]bool{}
 	for _, permission := range strings.Split(raw, ",") {
@@ -168,7 +168,7 @@ func apiKeysCreate(a *app, cmd *command) error {
 		if err != nil {
 			return err
 		}
-		permissions, err = parsePermissions(rawPermissions)
+		permissions, err = parseAPIKeyPermissions(rawPermissions)
 		if err != nil {
 			return err
 		}
@@ -195,7 +195,7 @@ func apiKeysCreate(a *app, cmd *command) error {
 		return apiError(err, "")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "api_key": created.APIKey, "secret": created.Secret},
-		fmt.Sprintf("Created API key %s [%s] with permissions %s. Save this secret now; it cannot be shown again:\n%s", display(created.APIKey.Name), display(created.APIKey.ID), displayList(created.APIKey.Permissions), created.Secret))
+		fmt.Sprintf("Created API key %s [%s] with permissions %s. Save this secret now; it cannot be shown again:\n%s", display(created.APIKey.Name), display(created.APIKey.ID), apiKeyPermissionList(created.APIKey.Permissions), created.Secret))
 	return nil
 }
 
@@ -218,7 +218,7 @@ func apiKeysRename(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "The API key was not found in this workspace.")
 	}
-	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, fmt.Sprintf("Renamed API key %s to %s with permissions %s.", display(key.ID), display(key.Name), displayList(key.Permissions)))
+	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, fmt.Sprintf("Renamed API key %s to %s with permissions %s.", display(key.ID), display(key.Name), apiKeyPermissionList(key.Permissions)))
 	return nil
 }
 
