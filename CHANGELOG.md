@@ -6,7 +6,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Added
 
-- `rzv sandboxes list|get|create|start|stop|delete|exec|ssh`: create sandboxes (Linux virtual machines that last eight hours from their first start), run commands in them with `exec` (streamed output, exit status passed through) and open an interactive terminal with `ssh` on macOS and Linux (your terminal is put back on exit, SIGTERM and SIGHUP). `--json` on every command except `ssh`. Needs a Runzivo environment with Sandboxes turned on.
+- `rzv sandboxes list|get|create|start|stop|delete|exec|ssh`: create sandboxes (Linux virtual machines that last eight hours from their first start), run commands in them with `exec` (streamed output, exit status passed through) and open an interactive terminal with `ssh` on macOS and Linux (your terminal is put back on exit, SIGTERM and SIGHUP). `--json` on every command except `ssh`; `list` shows the sizes the environment offers. Needs a Runzivo environment with Sandboxes turned on.
 
 ## release-2026-10-29-002253 (rzv 0.19.0), 2026-10-29
 
