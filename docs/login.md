@@ -9,7 +9,7 @@
 
 | `--env`         | API                              | Identity realm |
 | --------------- | -------------------------------- | -------------- |
-| `prd` (default) | `https://api.runzivo.dev`        | `rzv-prd`      |
+| `prd` (default) | `https://api.runzivo.dev`        | `id.runzivo.dev`, realm `rzv-prd` |
 | `shared`        | `https://shared-api.runzivo.dev` | `rzv-shrd`     |
 
 `RZV_ENV` sets the default. The shared environment is only reachable from allowlisted networks. The sign-in remembers its environment; later commands use it.

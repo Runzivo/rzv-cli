@@ -28,7 +28,7 @@ var environments = map[string]Environment{
 		Name:        "prd",
 		APIBaseURL:  "https://api.runzivo.dev",
 		PortalURL:   "https://app.runzivo.dev",
-		Issuer:      "https://shared-id.runzivo.dev/realms/rzv-prd",
+		Issuer:      "https://id.runzivo.dev/realms/rzv-prd",
 		ClientID:    "rzv-cli",
 		Audience:    "rzv-customer-api",
 		BrokerClaim: "identity_provider",
