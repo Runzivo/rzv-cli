@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- `rzv sandboxes list|get|create|start|stop|delete|exec|ssh`: create sandboxes (Linux virtual machines that last eight hours from their first start), run commands in them with `exec` (streamed output, exit status passed through) and open an interactive terminal with `ssh` on macOS and Linux. `--json` on every command except `ssh`. Needs a Runzivo environment with Sandboxes turned on.
+
 ## release-2026-10-29-002253 (rzv 0.19.0), 2026-10-29
 
 ### Changed

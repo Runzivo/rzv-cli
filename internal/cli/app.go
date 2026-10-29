@@ -19,6 +19,8 @@ import (
 // Deps are the process boundaries, injected so tests never touch the real
 // environment, home directory, network or browser.
 type Deps struct {
+	Stdin       io.Reader
+	Terminal    Terminal
 	Stdout      io.Writer
 	Stderr      io.Writer
 	Getenv      func(string) string

@@ -48,6 +48,8 @@ A profile is one sign-in on this machine. `rzv login -p <profile>` signs in to a
 
 `rzv notifications` lists workspace notifications, marks them read, and reads or updates notification settings. These commands require your own sign-in; API keys are not accepted. See [Notifications](notifications.md).
 
+`rzv sandboxes` creates sandboxes (virtual machines that last eight hours), runs commands in them and opens a terminal. See [Sandboxes](sandboxes.md).
+
 ## AI
 
 `rzv ai providers` lists, adds, updates, removes, tests, and lists models for workspace AI connections. `rzv ai settings` shows or updates configuration, and `rzv ai usage` reports summary, calls, and the current limit. See [AI settings and usage](ai.md). Provider credentials are accepted only through `--key-file` and are never displayed.

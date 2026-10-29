@@ -16,6 +16,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	deps := cli.Deps{
+		Stdin:       os.Stdin,
+		Terminal:    cli.SystemTerminal(),
 		Stdout:      os.Stdout,
 		Stderr:      os.Stderr,
 		Getenv:      os.Getenv,
