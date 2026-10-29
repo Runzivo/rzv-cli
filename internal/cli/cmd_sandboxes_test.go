@@ -27,21 +27,22 @@ func sandboxWith(status string) string {
 
 func TestSandboxesListAndGet(t *testing.T) {
 	h := selectedHarness(t)
-	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+sandboxJSON+`,`+strings.Replace(sandboxWith("stopped"), `"id":"sbx_0123456789abcdef01234567","name":"dev"`, `"id":"sbx_aaaaaaaaaaaaaaaaaaaaaaaa","name":"build"`, 1)+`],"max_running":2}`)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+sandboxJSON+`,`+strings.Replace(sandboxWith("stopped"), `"id":"sbx_0123456789abcdef01234567","name":"dev"`, `"id":"sbx_aaaaaaaaaaaaaaaaaaaaaaaa","name":"build"`, 1)+`],"max_running":2,"sizes":["2vcpu-8gb"]}`)
 	code, out, _ := h.run("sandboxes", "list")
-	if code != 0 || !strings.Contains(out, "ID") || !strings.Contains(out, sbxID) || !strings.Contains(out, "7h30m") || !strings.Contains(out, "20.5 min") || !strings.Contains(out, "This workspace can run 2 at once.") || !strings.Contains(out, "build") {
+	if code != 0 || !strings.Contains(out, "ID") || !strings.Contains(out, sbxID) || !strings.Contains(out, "7h30m") || !strings.Contains(out, "20.5 min") || !strings.Contains(out, "This workspace can run 2 at once.") || !strings.Contains(out, "Sizes on offer here: 2vcpu-8gb.") || !strings.Contains(out, "build") {
 		t.Fatalf("list: %d %q", code, out)
 	}
 	code, out, _ = h.run("sandboxes", "list", "--json")
 	var listed struct {
 		Sandboxes  []map[string]any `json:"sandboxes"`
 		MaxRunning int              `json:"max_running"`
+		Sizes      []string         `json:"sizes"`
 	}
-	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Sandboxes) != 2 || listed.MaxRunning != 2 || listed.Sandboxes[0]["id"] != sbxID {
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Sandboxes) != 2 || listed.MaxRunning != 2 || len(listed.Sizes) != 1 || listed.Sandboxes[0]["id"] != sbxID {
 		t.Fatalf("list --json: %d %q", code, out)
 	}
-	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[],"max_running":2}`)
-	if code, out, _ := h.run("sandboxes", "list"); code != 0 || !strings.Contains(out, "No sandboxes in workspace t-1") {
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[],"max_running":2,"sizes":["2vcpu-8gb","4vcpu-16gb"]}`)
+	if code, out, _ := h.run("sandboxes", "list"); code != 0 || !strings.Contains(out, "No sandboxes in workspace t-1") || !strings.Contains(out, "Sizes on offer here: 2vcpu-8gb, 4vcpu-16gb.") {
 		t.Fatalf("empty: %d %q", code, out)
 	}
 	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[{"id":"x"}],"max_running":2}`)
@@ -121,6 +122,7 @@ func TestSandboxesExplainRefusalsWithoutHostDetails(t *testing.T) {
 		{"stop", 409, "sandbox_wrong_state", exitFailure, "not in a state"},
 		{"start", 409, "sandbox_expired", exitFailure, "eight hour lifetime"},
 		{"start", 409, "no_capacity", exitFailure, "No capacity"},
+		{"start", 409, "size_unavailable", exitFailure, "not offered on this Runzivo environment"},
 		{"start", 409, "workspace_blocked", exitAccessDenied, "blocked"},
 		{"start", 503, "sandboxes_unavailable", exitUnavailable, "not available on this Runzivo environment"},
 		{"start", 403, "api_key_scope_required", exitAccessDenied, "scope does not allow"},

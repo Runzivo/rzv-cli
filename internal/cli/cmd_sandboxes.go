@@ -92,17 +92,26 @@ func sandboxesList(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	sandboxes, maxRunning, err := client.SandboxList(a.ctx, workspace)
+	listing, err := client.SandboxList(a.ctx, workspace)
 	if err != nil {
 		return apiError(err, "")
 	}
-	a.output(cmd, map[string]any{"workspace_id": workspace, "sandboxes": sandboxes, "max_running": maxRunning}, renderSandboxList(workspace, sandboxes, maxRunning))
+	a.output(cmd, map[string]any{"workspace_id": workspace, "sandboxes": listing.Sandboxes, "max_running": listing.MaxRunning, "sizes": listing.Sizes}, renderSandboxList(workspace, listing))
 	return nil
 }
 
-func renderSandboxList(workspace string, sandboxes []api.Sandbox, maxRunning int) string {
+func renderSandboxList(workspace string, listing *api.SandboxListing) string {
+	sandboxes, maxRunning := listing.Sandboxes, listing.MaxRunning
+	offered := ""
+	if len(listing.Sizes) > 0 {
+		offered = "Sizes on offer here: " + display(strings.Join(listing.Sizes, ", ")) + "."
+	}
 	if len(sandboxes) == 0 {
-		return "No sandboxes in workspace " + display(workspace) + ". Create one with `rzv sandboxes create --name <name>`."
+		text := "No sandboxes in workspace " + display(workspace) + ". Create one with `rzv sandboxes create --name <name>`."
+		if offered != "" {
+			text += "\n" + offered
+		}
+		return text
 	}
 	var out strings.Builder
 	table := tabwriter.NewWriter(&out, 0, 4, 2, ' ', 0)
@@ -113,6 +122,9 @@ func renderSandboxList(workspace string, sandboxes []api.Sandbox, maxRunning int
 	_ = table.Flush()
 	if maxRunning > 0 {
 		fmt.Fprintf(&out, "\nThis workspace can run %d at once.", maxRunning)
+	}
+	if offered != "" {
+		fmt.Fprintf(&out, "\n%s", offered)
 	}
 	return strings.TrimRight(out.String(), "\n")
 }

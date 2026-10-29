@@ -42,22 +42,30 @@ func (s *Sandbox) valid() bool {
 
 func sandboxPath(tenantID, rest string) string { return tenantPath(tenantID, "/sandboxes"+rest) }
 
-// SandboxList calls listCustomerSandboxes and returns the workspace's running
-// limit with the sandboxes.
-func (c *Client) SandboxList(ctx context.Context, tenantID string) ([]Sandbox, int, error) {
-	var body struct {
-		Sandboxes  []Sandbox `json:"sandboxes"`
-		MaxRunning int       `json:"max_running"`
-	}
+// SandboxListing is listCustomerSandboxes' result: the sandboxes, the number
+// the workspace may run at once, and the sizes this environment offers (a
+// server older than the sizes field sends none).
+type SandboxListing struct {
+	Sandboxes  []Sandbox `json:"sandboxes"`
+	MaxRunning int       `json:"max_running"`
+	Sizes      []string  `json:"sizes"`
+}
+
+// SandboxList calls listCustomerSandboxes.
+func (c *Client) SandboxList(ctx context.Context, tenantID string) (*SandboxListing, error) {
+	var body SandboxListing
 	if err := c.do(ctx, http.MethodGet, sandboxPath(tenantID, ""), nil, nil, &body); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	for i := range body.Sandboxes {
 		if err := required(body.Sandboxes[i].valid()); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 	}
-	return body.Sandboxes, body.MaxRunning, nil
+	if body.Sizes == nil {
+		body.Sizes = []string{}
+	}
+	return &body, nil
 }
 
 // SandboxGet calls getCustomerSandbox.
