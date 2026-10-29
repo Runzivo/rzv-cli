@@ -12,4 +12,8 @@ type Terminal interface {
 	Size() (cols, rows int, err error)
 	// OnResize calls fn whenever the window changes size, until stop is called.
 	OnResize(fn func()) (stop func())
+	// OnHangup calls fn once when the process is asked to end (SIGTERM, SIGHUP
+	// or a closed terminal window), until stop is called. A raw terminal has to
+	// be put back before the process goes.
+	OnHangup(fn func()) (stop func())
 }

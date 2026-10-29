@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"text/tabwriter"
 	"time"
 
@@ -371,11 +373,21 @@ func sandboxesSSH(a *app, cmd *command) error {
 	if err := socket.WriteText(api.ResizeMessage(cols, rows)); err != nil {
 		return unavailableError("The terminal connection failed.")
 	}
-	restore, err := terminal.MakeRaw()
+	rawRestore, err := terminal.MakeRaw()
 	if err != nil {
 		return newError("terminal_unavailable", exitFailure, "%s.", err.Error())
 	}
+	// The terminal goes back on a normal exit and when the process is asked to
+	// end (SIGTERM, SIGHUP), whichever comes first; restoring twice is harmless.
+	var restoreOnce sync.Once
+	restore := func() { restoreOnce.Do(rawRestore) }
 	defer restore()
+	var hungUp atomic.Bool
+	defer terminal.OnHangup(func() {
+		hungUp.Store(true)
+		restore()
+		_ = socket.Close()
+	})()
 	defer terminal.OnResize(func() {
 		if cols, rows, err := terminal.Size(); err == nil {
 			_ = socket.WriteText(api.ResizeMessage(cols, rows))
@@ -400,6 +412,9 @@ func sandboxesSSH(a *app, cmd *command) error {
 		case errors.As(err, &closed):
 			return sandboxTerminalEnded(closed)
 		case err != nil:
+			if hungUp.Load() {
+				return newError("terminal_closed", exitFailure, "The terminal was closed.")
+			}
 			if a.ctx.Err() != nil {
 				return nil
 			}

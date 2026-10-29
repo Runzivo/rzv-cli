@@ -81,3 +81,20 @@ func (unixTerminal) OnResize(fn func()) func() {
 		close(done)
 	}
 }
+
+func (unixTerminal) OnHangup(fn func()) func() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM, syscall.SIGHUP)
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-signals:
+			fn()
+		case <-done:
+		}
+	}()
+	return func() {
+		signal.Stop(signals)
+		close(done)
+	}
+}
