@@ -221,6 +221,8 @@ type fakeTerminal struct {
 	raw         bool
 	restored    bool
 	resize      func()
+	hangup      func()
+	restoreRuns int
 	cols, rows  int
 }
 
@@ -229,7 +231,13 @@ func (f *fakeTerminal) MakeRaw() (func(), error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.raw = true
-	return func() { f.mu.Lock(); f.restored = true; f.mu.Unlock() }, nil
+	return func() { f.mu.Lock(); f.restored = true; f.restoreRuns++; f.mu.Unlock() }, nil
+}
+func (f *fakeTerminal) OnHangup(fn func()) func() {
+	f.mu.Lock()
+	f.hangup = fn
+	f.mu.Unlock()
+	return func() {}
 }
 func (f *fakeTerminal) Size() (int, int, error) { return f.cols, f.rows, nil }
 func (f *fakeTerminal) OnResize(fn func()) func() {
@@ -389,5 +397,51 @@ func TestSandboxesSSHRefusesWhatCannotWork(t *testing.T) {
 	})
 	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "ssh", sbxID); code != exitUnavailable || !strings.Contains(errOut, "again") {
 		t.Fatalf("a dropped connection: %d %q", code, errOut)
+	}
+}
+
+// SIGTERM or SIGHUP while the terminal is raw puts it back and ends the session.
+func TestSandboxesSSHRestoresTheTerminalOnHangup(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
+	open := make(chan struct{})
+	terminalRoute(t, h, func(conn net.Conn, reader *bufio.Reader, _ http.Header) {
+		_, _, _ = readClientFrame(reader) // the window size
+		close(open)
+		_, _ = io.Copy(io.Discard, conn) // then silence until the client closes
+	})
+	terminal := &fakeTerminal{interactive: true, cols: 80, rows: 24}
+	go func() {
+		<-open
+		for {
+			terminal.mu.Lock()
+			hangup := terminal.hangup
+			terminal.mu.Unlock()
+			if hangup != nil {
+				hangup()
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+	done := make(chan struct{})
+	var code int
+	var errOut string
+	go func() {
+		code, _, errOut = h.runWithTerminal(terminal, pipeReader{data: make(chan []byte)}, "sandboxes", "ssh", sbxID)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ssh did not end when the process was asked to")
+	}
+	terminal.mu.Lock()
+	defer terminal.mu.Unlock()
+	if !terminal.raw || !terminal.restored || terminal.restoreRuns != 1 {
+		t.Fatalf("raw %v restored %v restore ran %d times, want once", terminal.raw, terminal.restored, terminal.restoreRuns)
+	}
+	if code != exitFailure || !strings.Contains(errOut, "terminal was closed") {
+		t.Fatalf("hangup: %d %q", code, errOut)
 	}
 }

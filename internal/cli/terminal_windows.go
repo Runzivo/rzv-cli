@@ -18,3 +18,4 @@ func (windowsTerminal) Size() (int, int, error) {
 	return 0, 0, fmt.Errorf("an interactive terminal is not available on Windows")
 }
 func (windowsTerminal) OnResize(func()) func() { return func() {} }
+func (windowsTerminal) OnHangup(func()) func() { return func() {} }
