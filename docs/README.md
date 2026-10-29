@@ -8,6 +8,7 @@
 | [Workspace commands](workspace-commands.md) | Jobs and logs, insights, usage, billing, GitHub, runner profiles, API keys |
 | [Support tickets](tickets.md)               | List, open, show and reply to support tickets               |
 | [Notifications](notifications.md)           | List, mark read and configure notifications                 |
+| [Sandboxes](sandboxes.md)                   | Create sandboxes, run commands and open a terminal          |
 | [AI settings and usage](ai.md)               | Provider connections, configuration and usage               |
 | [Development](development.md)               | Building, testing and the CI runner                         |
 | [Releasing](releasing.md)                   | Tags, release workflow, reproducible builds, signing plan   |

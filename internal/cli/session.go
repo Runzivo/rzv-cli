@@ -212,6 +212,26 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "Turning auto-recharge on needs a person signed in, not an API key.")
 	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
 		return newError(apiErr.Code, exitAuth, "Sign in again with `rzv login`, then retry.")
+	case apiErr.Status == 404 && apiErr.Code == "sandbox_not_found":
+		return notFoundError("That sandbox was not found in this workspace. List them with `rzv sandboxes list`.")
+	case apiErr.Status == 409 && apiErr.Code == "sandbox_limit_reached":
+		return newError(apiErr.Code, exitFailure, "This workspace is already running its maximum number of sandboxes. Stop or delete one first.")
+	case apiErr.Status == 409 && apiErr.Code == "credit_exhausted":
+		return newError(apiErr.Code, exitFailure, "This workspace is out of credit for sandboxes. Add credit, then try again.")
+	case apiErr.Status == 409 && apiErr.Code == "sandbox_wrong_state":
+		return newError(apiErr.Code, exitFailure, "The sandbox is not in a state that allows this. Check `rzv sandboxes list`.")
+	case apiErr.Status == 409 && apiErr.Code == "sandbox_expired":
+		return newError(apiErr.Code, exitFailure, "The sandbox reached its eight hour lifetime and cannot start again. Create a new one.")
+	case apiErr.Status == 409 && apiErr.Code == "sandbox_name_taken":
+		return newError(apiErr.Code, exitFailure, "A sandbox with that name already exists in this workspace.")
+	case apiErr.Status == 409 && apiErr.Code == "no_capacity":
+		return newError(apiErr.Code, exitFailure, "No capacity is available to start the sandbox right now. Try again in a few minutes.")
+	case apiErr.Status == 409 && apiErr.Code == "workspace_blocked":
+		return newError(apiErr.Code, exitAccessDenied, "This workspace is blocked.")
+	case apiErr.Status == 503 && apiErr.Code == "sandboxes_unavailable":
+		return newError(apiErr.Code, exitUnavailable, "Sandboxes are not available on this Runzivo environment yet.")
+	case apiErr.Status == 503 && apiErr.Code == "sandbox_exec_unavailable":
+		return newError(apiErr.Code, exitUnavailable, "Running commands in sandboxes is not available on this Runzivo environment yet.")
 	case apiErr.Status == 403 && apiErr.Code == "permission_required":
 		return newError(apiErr.Code, exitAccessDenied, "Your workspace role does not allow this change.")
 	case apiErr.Status == 403 && (apiErr.Code == "workspace_blocked" || apiErr.Code == "workspace_closed"):
