@@ -2,148 +2,18 @@
 
 Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using a workspace API key, settings, members, and invitations commands require the `all:all` scope. `rzv workspaces invitations accept` always needs your own sign-in. Other workspace commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. Notification commands always require your own sign-in.
 
-## Workspace access
-
-| Command                                                                                 | What it does                                                                                                                                  |
-| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rzv workspaces settings show`                                                          | Workspace name, logo state, and update capability.                                                                                            |
-| `rzv workspaces settings update --name <name>`                                          | Change the workspace name.                                                                                                                    |
-| `rzv workspaces settings update --logo <path>`                                          | Upload a PNG or JPEG logo up to 192 KiB, with width and height each at most 512 pixels. The encoded settings request must fit within 256 KiB. |
-| `rzv workspaces settings update --remove-logo`                                          | Remove the current logo.                                                                                                                      |
-| `rzv workspaces members list`                                                           | Members and the allowed actions and roles for each member.                                                                                    |
-| `rzv workspaces members role <identity-id> --role <role>`                               | Change a member's role.                                                                                                                       |
-| `rzv workspaces members remove <identity-id>`                                           | Remove a member.                                                                                                                              |
-| `rzv workspaces invitations list`                                                       | Pending and prior invitations, teams, and allowed actions.                                                                                    |
-| `rzv workspaces invitations invite --email <email> --role <role> [--team-ids <id,...>]` | Invite a person, optionally assigning known custom team IDs.                                                                                  |
-| `rzv workspaces invitations resend <invitation-id>`                                     | Resend a pending invitation.                                                                                                                  |
-| `rzv workspaces invitations revoke <invitation-id>`                                     | Revoke an invitation.                                                                                                                         |
-| `rzv workspaces invitations teams <invitation-id> --team-ids <id,...>`                  | Replace custom teams. Pass an empty value to clear them.                                                                                      |
-| `rzv workspaces invitations accept (--token <token> \| --token-file <path>)`            | Accept an invitation with your own sign-in. Your identity needs a verified email matching the invitation recipient.                           |
-
-The service enforces the final permission, role, grant ceiling, self-removal, and last-owner checks. Invitation acceptance does not need a selected workspace and never saves or prints the acceptance token.
-
-Find team IDs with `rzv teams list` and pass them with `--team-ids`; `teams --team-ids=` clears the list.
-
-## Jobs and usage
-
-| Command                     | What it does                                                                                                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rzv jobs list`             | Every job, newest first: status, conclusion, repository, workflow.                                                                                            |
-| `rzv jobs get <job-id>`     | One job in detail. `rzv jobs status <job-id>` is the same.                                                                                                    |
-| `rzv jobs logs <job-id>` | Log text, or the API's reason it is unavailable. |
-| `rzv insights summary [--days <n>]` | Job and minute totals for 1 to 90 UTC days. |
-| `rzv insights heatmap [--days <n>]` | Queue activity by UTC weekday and hour. |
-| `rzv insights slow-jobs [--days <n>] [--limit <n>]` | Workflows ranked by P90 duration, with a limit from 1 to 25. |
-| `rzv usage`                 | Recorded billable minutes and job count.                                                                                                                      |
-| `rzv concurrency`           | Concurrent-job limit, jobs running now and what is left.                                                                                                      |
-| `rzv billing`               | Minute balance for the period and the packs on sale.                                                                                                          |
-| `rzv billing purchases`     | Recent minute-pack orders.                                                                                                                                    |
-| `rzv billing invoices`      | Receipts and invoices. `--json` for the full rows.                                                                                                            |
-| `rzv billing auto-recharge` | Auto-recharge settings. `set --enabled <true\|false> --threshold <minutes> --pack <id>` changes them (billing:write).                                         |
-| `rzv billing country`       | The workspace billing country. `set <code>` changes it for future purchases and `reset` clears it while the workspace has no credit purchase (billing:write). |
-| `rzv billing marketplace`   | The GitHub Marketplace plan for the workspace, if any.                                                                                                        |
-| `rzv billing checkout`      | Starts a hosted checkout: `--pack <id> --operation-id <id>`. Reuse the same `--operation-id` when retrying.                                                   |
-| `rzv billing portal`        | A link to the payment provider's billing portal. Do not store it.                                                                                             |
-| `rzv billing codes redeem --code-file <path>` | Redeem a promo code or prepaid voucher. |
-
-Checkout and portal links are sign-in capabilities. Live payments stay off until Runzivo enables them.
-
-Save a redemption code in a file and pass its path with `--code-file`. The code may contain at most 64 bytes. The command does not store the input and only displays the safe code representation returned by the service.
-
-Code redemption requires the workspace's `billing:write` permission. It works with a human sign-in or with an API key that has the `all:all` scope and whose creator still has that permission.
-
-`rzv concurrency` and `rzv runners` are read-only and need the `runners:read` scope when used with an API key. The limit is set by Runzivo for the workspace; `rzv` cannot change it. The running jobs on every listed size, plus the running jobs on the "no longer listed" line when `rzv runners` prints one, add up to the running count that `rzv concurrency` reports.
-
-A job's `status` is Runzivo's view of the run; only `conclusion` `success` means the GitHub workflow job succeeded.
-
-## Activity
-
-| Command | What it does |
-| --- | --- |
-| `rzv activity list` | Activity rows, newest first, with optional category, actor, result, time, query and paging filters. |
-| `rzv activity export` | Matching activity rows as CSV on stdout (or a `{workspace_id,csv}` JSON wrapper with `--json`), limited by the server to 10,000 rows. |
-| `rzv activity status` | Current component signals and execution evidence for 7, 30, or 60 days (30 by default). |
-
-List defaults to 50 rows. Its text and JSON output include the returned scope, retention period and next cursor for pagination.
-
-## Notifications
-
-| Command | What it does |
-| --- | --- |
-| `rzv notifications list [--category <c>] [--unread true\|false] [--limit <1-100>] [--cursor <cursor>]` | List one page and its unread count. |
-| `rzv notifications read <id...>` | Mark up to 100 listed notifications read. |
-| `rzv notifications read --all` | Mark every notification read. |
-| `rzv notifications settings show` | Read the category delivery settings. |
-| `rzv notifications settings update --category <c> --in-app true\|false --email true\|false` | Update one category with both channel values. |
-
-Categories are `billing`, `jobs`, `account`, `support`, and `system`. The response may mark an email setting locked. The server applies that policy, and the CLI shows the returned setting.
-
-## GitHub
-
-| Command                               | What it does                                                           |
-| ------------------------------------- | ---------------------------------------------------------------------- |
-| `rzv github status`                   | The linked GitHub App installation and its repositories.               |
-| `rzv github installations`            | Every linked installation, including setup and repository status.    |
-| `rzv github connect`                  | Start linking an installation; prints a short-lived state.             |
-| `rzv github authorize ...`            | Finish the link. Needs your own sign-in.                               |
-| `rzv repositories list`               | Repositories every linked installation covers.                         |
-| `rzv runner-profiles <repository-id>` | Runner sizes the repository can use now, with their `runs-on` label.   |
-| `rzv runners <repository-id>`         | The same sizes, plus the workspace's running and waiting jobs on each. |
-
-`rzv github authorize --state <state> --installation-id <id> --github-client-id <id>` uses GitHub's device flow: it prints a code to enter at github.com, then sends the resulting GitHub token to Runzivo once to prove you control the installation. `rzv` does not store that token.
-
-`rzv github installations` supports a workspace API key with
-`integrations:read` or `all:all`; the service still checks workspace access.
-The linking and onboarding commands require your own sign-in.
-
-## GitHub-backed workspace onboarding
-
-Use `rzv github workspaces start` to create a short-lived onboarding state.
-After installing the GitHub App, run `rzv github workspaces complete --state
-<state> --installation-id <id> --github-client-id <id>`. It uses the same
-device flow and does not store the resulting token. The result identifies
-whether the workspace was created, was already available, is still pending,
-or requires access. A returned workspace becomes the selected workspace.
-
-## Teams and permissions
-
-| Command                                                                 | What it does                                                 |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `rzv permissions`                                                       | Your permissions here, and every permission a team can have. |
-| `rzv teams list`                                                        | Teams with their member counts.                              |
-| `rzv teams show <team-id>`                                              | One team: permissions and members.                           |
-| `rzv teams create --name <n> --permissions <p,...> [--description <t>]` | Create a custom team.                                        |
-| `rzv teams rename <team-id> [--name <n>] [--description <t>]`           | Rename a team or change its description.                     |
-| `rzv teams permissions <team-id> --permissions <p,...>`                 | Replace the team's permissions.                              |
-| `rzv teams add-member <team-id> <identity-id>`                          | Add a workspace member to a team.                            |
-| `rzv teams remove-member <team-id> <identity-id>`                       | Remove a member from a team.                                 |
-| `rzv teams delete <team-id>`                                            | Delete a custom team.                                        |
-
-Changing teams needs the Manage members permission, and you can only grant permissions you hold yourself. The system teams (Owners, Admins, Members) cannot be renamed, deleted or given other permissions, and only an owner can change who is in Owners. With an API key, `rzv teams` and `rzv permissions` need a key with the `all:all` scope. Every change is recorded in the workspace activity log.
-
-## Workspace closure requests
-
-`rzv workspaces closures list` shows requests. `request` asks staff to close a workspace and `cancel` withdraws a pending request with its expected version. Neither command deletes a workspace immediately.
-
-List returns the newest 20 requests and has no cursor. List requires an owner or admin. Request and cancel use the current owner's `workspace:delete` permission. API-key access requires `all:all`.
-
-| Command | What it does |
-| --- | --- |
-| `rzv workspaces closures list` | List closure requests and their decision metadata. |
-| `rzv workspaces closures request --reason <text> --idempotency-key <key>` | Request closure for staff handling. |
-| `rzv workspaces closures cancel <request-id> --expected-version <n>` | Cancel a pending request. |
-
-## API keys
-
-Managing keys needs your own sign-in, not `RZV_API_KEY`.
-
-| Command                                                                                       | What it does                          |
-| --------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `rzv api-keys list`                                                                                                 | Keys, scopes, permissions and expiry.              |
-| `rzv api-keys create --name <n> (--scopes <s,...> \| --permissions <p,...>) --idempotency-key <k> [--expires-at <time>]` | Create a key; prints its secret once. |
-| `rzv api-keys rename <key-id> --name <n>`                                                     | Rename a key.                         |
-| `rzv api-keys revoke <key-id>`                                                                | Revoke a key.                         |
-
-Provide exactly one of `--scopes` or `--permissions` when creating a key. Scopes: `all:all` alone (full access, owners only), or any of `audit:read`, `jobs:read`, `logs:read`, `usage:read`, `runners:read`, `integrations:read`, `billing:read`. Permission names are checked against your current grants by the service. Keys expire after 365 days unless `--expires-at` is earlier. Retrying `create` with the same `--idempotency-key` does not create a second key.
+| Page                                | Commands                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------- |
+| [Workspaces](workspaces.md)         | `workspaces` list, select, create, settings, members, invitations, closures |
+| [Jobs, insights and usage](jobs.md) | `jobs`, `insights`, `usage`, `concurrency`                                  |
+| [Billing](billing.md)               | `billing`, checkout, portal, auto-recharge, codes                           |
+| [Activity](activity.md)             | `activity` list, export, status                                             |
+| [Notifications](notifications.md)   | `notifications` list, read, settings                                        |
+| [GitHub](github.md)                 | `github`, `repositories`, `runner-profiles`, `runners`, onboarding          |
+| [Teams and permissions](teams.md)   | `teams`, `permissions`                                                      |
+| [API keys](api-keys.md)             | `api-keys` list, create, rename, revoke                                     |
+| [Support tickets](tickets.md)       | `tickets` list, open, show, reply, close                                    |
+| [Sandboxes](sandboxes.md)           | `sandboxes`                                                                 |
+| [AI settings and usage](ai.md)      | `ai` providers, settings, usage                                             |
 
 Back to [Commands](commands.md).

@@ -57,9 +57,7 @@ func New(baseURL, credential, userAgent string, httpClient *http.Client) (*Clien
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
 		return nil, fmt.Errorf("API base URL must be an origin such as https://api.runzivo.dev")
 	}
-	host := u.Hostname()
-	loopback := host == "localhost" || host == "127.0.0.1" || host == "::1"
-	if u.Scheme != "https" && !(u.Scheme == "http" && loopback) {
+	if u.Scheme != "https" && !(u.Scheme == "http" && loopback(u.Hostname())) {
 		return nil, fmt.Errorf("API base URL must use HTTPS")
 	}
 	if httpClient == nil {
@@ -68,6 +66,12 @@ func New(baseURL, credential, userAgent string, httpClient *http.Client) (*Clien
 	c := *httpClient
 	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &Client{baseURL: u.Scheme + "://" + u.Host, credential: credential, userAgent: userAgent, http: &c}, nil
+}
+
+// loopback reports whether host is this machine, the only place rzv sends a
+// credential without TLS.
+func loopback(host string) bool {
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // tenantPath builds /v1/customer/tenants/{id}/{rest} with the id escaped.

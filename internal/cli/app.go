@@ -117,7 +117,7 @@ func (a *app) fail(cmd *command, err error) int {
 	if cmd != nil && cmd.json() {
 		writeJSON(a.Stderr, map[string]string{"error": e.Code, "message": e.Message})
 	} else {
-		fmt.Fprintf(a.Stderr, "rzv: %s\n", display(e.Message))
+		fmt.Fprintf(a.Stderr, "rzv: %s\n", displayLog(e.Message))
 	}
 	return e.Exit
 }
@@ -149,6 +149,16 @@ func display(value string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// displayLog is display line by line: newlines are kept, every other control
+// character is escaped.
+func displayLog(value string) string {
+	lines := strings.Split(value, "\n")
+	for index, line := range lines {
+		lines[index] = display(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func displayOrDash(value *string) string {

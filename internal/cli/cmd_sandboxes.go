@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"text/tabwriter"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
 )
@@ -23,6 +24,7 @@ const sandboxesUsage = `Usage:
   rzv sandboxes start|stop|delete <sandbox-id> [--workspace <id>] [--json]
   rzv sandboxes exec <sandbox-id> [--cwd <dir>] [--timeout <1-3600>] [--env KEY=VALUE,...] [--workspace <id>] [--json] -- <command...>
   rzv sandboxes ssh <sandbox-id> [--workspace <id>]
+  rzv sandboxes terminal-ticket <sandbox-id> [--workspace <id>] [--json]
 
 A sandbox is a Linux virtual machine with your files in /workspace. It lives eight
 hours from its first start, stopped or not, then it and its files are deleted.
@@ -31,11 +33,16 @@ number at once. API keys need the all:all scope to change sandboxes.
 
 exec runs one command and exits with its exit status (124 if it timed out). Quote
 the command as you would for ssh. ssh opens an interactive terminal through
-Runzivo (macOS and Linux); leave it with the shell's own exit.`
+Runzivo (macOS and Linux); leave it with the shell's own exit. terminal-ticket
+prints a terminal URL for a client that cannot send an Authorization header,
+such as a browser; it works once, within about 30 seconds.`
 
 const (
 	maxExecTimeout = 3600
 	maxEnvEntries  = 64
+	maxEnvValue    = 8192
+	maxCwd         = 1024
+	maxCmd         = 65536
 )
 
 var (
@@ -69,6 +76,8 @@ func runSandboxes(a *app, cmd *command) error {
 		return sandboxesExec(a, cmd)
 	case "ssh":
 		return sandboxesSSH(a, cmd)
+	case "terminal-ticket":
+		return sandboxesTerminalTicket(a, cmd)
 	default:
 		return usageError("%s", sandboxesUsage)
 	}
@@ -256,6 +265,9 @@ func parseEnv(value string) (map[string]string, error) {
 		if !ok || key == "" || !envNamePattern.MatchString(key) {
 			return nil, usageError("--env takes KEY=VALUE pairs separated by commas, such as --env A=1,B=2.")
 		}
+		if utf8.RuneCountInString(val) > maxEnvValue {
+			return nil, usageError("--env values must be at most %d characters (%s is longer).", maxEnvValue, key)
+		}
 		env[key] = val
 	}
 	if len(env) > maxEnvEntries {
@@ -276,11 +288,17 @@ func sandboxesExec(a *app, cmd *command) error {
 		return err
 	}
 	input := api.ExecInput{Cmd: strings.Join(cmd.args[2:], " ")}
-	if len(input.Cmd) > 65536 {
-		return usageError("The command is too long (at most 65536 characters).")
+	if input.Cmd == "" {
+		return usageError("Give a command after --, such as `rzv sandboxes exec %s -- ls`.", id)
+	}
+	if utf8.RuneCountInString(input.Cmd) > maxCmd {
+		return usageError("The command is too long (at most %d characters).", maxCmd)
 	}
 	if input.Cwd, err = cmd.option("cwd"); err != nil {
 		return err
+	}
+	if utf8.RuneCountInString(input.Cwd) > maxCwd {
+		return usageError("--cwd must be at most %d characters.", maxCwd)
 	}
 	if _, ok := cmd.options["timeout"]; ok {
 		text, err := cmd.required("timeout")
@@ -308,7 +326,10 @@ func sandboxesExec(a *app, cmd *command) error {
 		if cmd.json() {
 			line := map[string]any{"type": event.Type}
 			if event.Type == "exit" {
-				line["exit_code"], line["timed_out"] = event.ExitCode, event.TimedOut
+				line["exit_code"], line["timed_out"], line["truncated"] = event.ExitCode, event.TimedOut, event.Truncated
+				if event.Reason != "" {
+					line["reason"] = event.Reason
+				}
 			} else {
 				line["data"] = base64.StdEncoding.EncodeToString(event.Data)
 			}
@@ -330,8 +351,12 @@ func sandboxesExec(a *app, cmd *command) error {
 		return apiError(err, "")
 	}
 	switch {
+	case exit.Reason != "":
+		return execEndedBySandbox(exit)
 	case exit.TimedOut:
 		return newError("command_timed_out", 124, "The command timed out.")
+	case exit.Truncated:
+		return newError("output_truncated", 137, "The command was stopped because its output passed 8 MiB. Write large output to a file in the sandbox instead.")
 	case exit.ExitCode != 0:
 		code := exit.ExitCode
 		if code < 1 || code > 255 {
@@ -340,6 +365,24 @@ func sandboxesExec(a *app, cmd *command) error {
 		return newError("command_failed", code, "The command exited with status %d.", exit.ExitCode)
 	}
 	return nil
+}
+
+// execEndedBySandbox explains a command Core ended because its sandbox left
+// running. The exit status is the command's, or a failure if it has none.
+func execEndedBySandbox(exit api.ExecEvent) error {
+	code := exit.ExitCode
+	if code < 1 || code > 255 {
+		code = exitFailure
+	}
+	switch exit.Reason {
+	case "sandbox_stopped":
+		return newError(exit.Reason, code, "The command ended because the sandbox was stopped.")
+	case "sandbox_expired":
+		return newError(exit.Reason, code, "The command ended because the sandbox reached its eight hour lifetime.")
+	case "sandbox_deleted":
+		return newError(exit.Reason, code, "The command ended because the sandbox was deleted.")
+	}
+	return newError("command_ended", code, "The command was ended by Runzivo (%s).", display(exit.Reason))
 }
 
 var errNoTerminal = usageError("rzv sandboxes ssh needs an interactive terminal on macOS or Linux. In scripts use `rzv sandboxes exec`.")
@@ -440,9 +483,10 @@ func sandboxesSSH(a *app, cmd *command) error {
 }
 
 // sandboxTerminalEnded explains a close from Core. A shell that exited by
-// itself closes normally with no reason.
+// itself closes normally, with shell_exited or no reason.
 func sandboxTerminalEnded(closed *api.CloseError) error {
-	if closed.Code == 1000 {
+	switch {
+	case closed.Code == 1000:
 		switch closed.Reason {
 		case "sandbox_stopped":
 			return newError("sandbox_stopped", exitFailure, "The sandbox was stopped.")
@@ -450,8 +494,48 @@ func sandboxTerminalEnded(closed *api.CloseError) error {
 			return newError("sandbox_expired", exitFailure, "The sandbox reached its eight hour lifetime and was deleted.")
 		case "sandbox_deleted":
 			return newError("sandbox_deleted", exitFailure, "The sandbox was deleted.")
+		case "idle_timeout":
+			return newError("idle_timeout", exitFailure, "The terminal was closed after 30 minutes with no input or output.")
 		}
 		return nil
+	case closed.Code == 1008 && closed.Reason == "input_rate":
+		return newError("input_rate", exitFailure, "The terminal was closed because input arrived too fast (more than 256 KiB a second). Copy large files with `rzv sandboxes exec` instead.")
+	case closed.Code == 1011 && closed.Reason == "output_overflow":
+		return newError("output_overflow", exitFailure, "The terminal was closed because its output was not read fast enough. Run the command again for a new session.")
 	}
 	return unavailableError("The terminal connection ended unexpectedly (code %d). Run the command again for a new session.", closed.Code)
+}
+
+func sandboxesTerminalTicket(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv sandboxes terminal-ticket <sandbox-id> [--workspace <id>] [--json]"); err != nil {
+		return err
+	}
+	id, err := sandboxID(cmd.args[1])
+	if err != nil {
+		return err
+	}
+	workspace, client, err := a.workspaceClient(cmd)
+	if err != nil {
+		return err
+	}
+	ticket, err := client.SandboxTerminalTicket(a.ctx, workspace, id)
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) && apiErr.Status == 503 && apiErr.Code == "sandbox_exec_unavailable" {
+		return newError(apiErr.Code, exitUnavailable, "Terminal tickets are not available on this Runzivo environment yet.")
+	}
+	if err != nil {
+		return apiError(err, "")
+	}
+	connect, err := ticket.ConnectURL()
+	if err != nil {
+		return apiError(err, "")
+	}
+	// The ticket goes to stdout only; the note on stderr leaves stdout to the
+	// URL or the JSON, so either can be piped.
+	a.output(cmd, map[string]any{"workspace_id": workspace, "sandbox_id": id, "url": ticket.URL, "ticket": ticket.Ticket, "expires_at": ticket.ExpiresAt, "connect_url": connect}, display(connect))
+	fmt.Fprintf(a.Stderr, "The ticket works once and expires in about 30 seconds (at %s).\n", display(ticket.ExpiresAt))
+	return nil
 }

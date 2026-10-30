@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // SandboxError says why a sandbox failed. It never names a host.
@@ -120,12 +121,16 @@ type ExecInput struct {
 }
 
 // ExecEvent is one event of the streamed output: stdout or stderr bytes, then
-// one exit.
+// one exit. Truncated means the output passed 8 MiB and the command was
+// stopped; Reason is set when Core ended the command because the sandbox
+// stopped, expired or was deleted.
 type ExecEvent struct {
-	Type     string `json:"type"`
-	Data     []byte `json:"-"`
-	ExitCode int    `json:"exit_code"`
-	TimedOut bool   `json:"timed_out"`
+	Type      string `json:"type"`
+	Data      []byte `json:"-"`
+	ExitCode  int    `json:"exit_code"`
+	TimedOut  bool   `json:"timed_out"`
+	Truncated bool   `json:"truncated"`
+	Reason    string `json:"reason"`
 }
 
 // maxEventBytes bounds one NDJSON line of the exec stream.
@@ -169,15 +174,17 @@ func (c *Client) SandboxExec(ctx context.Context, tenantID, sandboxID string, in
 			continue
 		}
 		var raw struct {
-			Type     string `json:"type"`
-			Data     string `json:"data"`
-			ExitCode int    `json:"exit_code"`
-			TimedOut bool   `json:"timed_out"`
+			Type      string `json:"type"`
+			Data      string `json:"data"`
+			ExitCode  int    `json:"exit_code"`
+			TimedOut  bool   `json:"timed_out"`
+			Truncated bool   `json:"truncated"`
+			Reason    string `json:"reason"`
 		}
 		if json.Unmarshal(line, &raw) != nil {
 			return ExecEvent{}, &Error{Status: resp.StatusCode, Code: "malformed_response"}
 		}
-		event := ExecEvent{Type: raw.Type, ExitCode: raw.ExitCode, TimedOut: raw.TimedOut}
+		event := ExecEvent{Type: raw.Type, ExitCode: raw.ExitCode, TimedOut: raw.TimedOut, Truncated: raw.Truncated, Reason: raw.Reason}
 		switch raw.Type {
 		case "stdout", "stderr":
 			decoded, err := base64.StdEncoding.DecodeString(raw.Data)
@@ -203,6 +210,44 @@ func (c *Client) SandboxExec(ctx context.Context, tenantID, sandboxID string, in
 		return ExecEvent{}, ctx.Err()
 	}
 	return ExecEvent{}, &Error{Status: resp.StatusCode, Code: "malformed_response"}
+}
+
+// TerminalTicket is createCustomerSandboxTerminalTicket's result: a
+// single-use ticket for the terminal WebSocket at URL, valid until ExpiresAt
+// (about 30 seconds). It is for clients that cannot send Authorization on a
+// WebSocket, such as a browser.
+type TerminalTicket struct {
+	URL       string `json:"url"`
+	Ticket    string `json:"ticket"`
+	ExpiresAt string `json:"expires_at"`
+}
+
+// SandboxTerminalTicket calls createCustomerSandboxTerminalTicket.
+func (c *Client) SandboxTerminalTicket(ctx context.Context, tenantID, sandboxID string) (*TerminalTicket, error) {
+	var ticket TerminalTicket
+	if err := c.do(ctx, http.MethodPost, sandboxPath(tenantID, "/"+url.PathEscape(sandboxID)+"/terminal-ticket"), nil, nil, &ticket); err != nil {
+		return nil, err
+	}
+	if err := required(nonEmpty(ticket.URL, ticket.Ticket, ticket.ExpiresAt)); err != nil {
+		return nil, err
+	}
+	if _, err := time.Parse(time.RFC3339, ticket.ExpiresAt); err != nil {
+		return nil, required(false)
+	}
+	return &ticket, nil
+}
+
+// ConnectURL is URL with the ticket added as the ticket query parameter. The
+// ticket is a credential, so the URL must be wss, or ws on this machine only.
+func (t *TerminalTicket) ConnectURL() (string, error) {
+	target, err := url.Parse(t.URL)
+	if err != nil || target.Host == "" || (target.Scheme != "wss" && !(target.Scheme == "ws" && loopback(target.Hostname()))) {
+		return "", required(false)
+	}
+	query := target.Query()
+	query.Set("ticket", t.Ticket)
+	target.RawQuery = query.Encode()
+	return target.String(), nil
 }
 
 // SandboxTerminal opens the sandbox's terminal WebSocket with this client's

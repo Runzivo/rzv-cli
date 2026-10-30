@@ -230,6 +230,10 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitFailure, "No capacity is available to start the sandbox right now. Try again in a few minutes.")
 	case apiErr.Status == 409 && apiErr.Code == "workspace_blocked":
 		return newError(apiErr.Code, exitAccessDenied, "This workspace is blocked.")
+	case apiErr.Status == 409 && apiErr.Code == "session_limit_reached":
+		return newError(apiErr.Code, exitFailure, "This sandbox already has the most sessions open at once (4 commands and 2 terminals). Wait for one to end, then try again.")
+	case apiErr.Status == 429 && apiErr.Code == "ticket_limit_reached":
+		return newError(apiErr.Code, exitFailure, "This sandbox has 10 terminal tickets waiting to be used. Wait 30 seconds for them to expire, then try again.")
 	case apiErr.Status == 503 && apiErr.Code == "sandboxes_unavailable":
 		return newError(apiErr.Code, exitUnavailable, "Sandboxes are not available on this Runzivo environment yet.")
 	case apiErr.Status == 503 && apiErr.Code == "sandbox_exec_unavailable":

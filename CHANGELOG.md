@@ -7,6 +7,11 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 ### Added
 
 - `rzv sandboxes list|get|create|start|stop|delete|exec|ssh`: create sandboxes (Linux virtual machines that last eight hours from their first start), run commands in them with `exec` (streamed output, exit status passed through) and open an interactive terminal with `ssh` on macOS and Linux (your terminal is put back on exit, SIGTERM and SIGHUP). `--json` on every command except `ssh`; `list` shows the sizes the environment offers. Needs a Runzivo environment with Sandboxes turned on.
+- `rzv sandboxes terminal-ticket`: print a single-use terminal URL for a client that cannot send an `Authorization` header, such as a browser. `exec` exits with 137 when output passes 8 MiB and says when the sandbox stopped, expired or was deleted during the command (`--json` exit lines carry `truncated` and `reason`). `ssh` says why the terminal closed after 30 idle minutes, too much input or unread output.
+
+### Fixed
+
+- A command run without its subcommand, such as `rzv sandboxes`, prints its usage on separate lines instead of escaping each newline as `\u000a`. Other control characters in error messages are still escaped.
 
 ## release-2026-10-29-002253 (rzv 0.19.0), 2026-10-29
 
