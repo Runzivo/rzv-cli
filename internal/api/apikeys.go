@@ -8,7 +8,7 @@ import (
 
 // APIKeyScopes are the scopes a workspace API key can hold. all:all must
 // be the only scope and only an owner can create it.
-var APIKeyScopes = []string{"all:all", "audit:read", "jobs:read", "logs:read", "usage:read", "runners:read", "integrations:read", "billing:read", "sandboxes:read", "sandboxes:write"}
+var APIKeyScopes = []string{"all:all", "audit:read", "jobs:read", "logs:read", "usage:read", "runners:read", "integrations:read", "billing:read"}
 
 // APIKey is a workspace API key's metadata. The secret is never returned
 // after creation.

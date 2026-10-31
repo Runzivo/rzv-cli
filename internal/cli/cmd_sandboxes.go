@@ -34,8 +34,9 @@ const sandboxesUsage = `Usage:
 A sandbox is a Linux virtual machine with your files in /workspace. It lives eight
 hours from its first start, stopped or not, then it and its files are deleted.
 Stopping keeps the files and stops the compute charge. A workspace runs a limited
-number at once. API keys need sandboxes:read to read and sandboxes:write (or all:all) to change
-sandboxes.
+number at once. An API key reads sandboxes with the sandboxes:read or sandboxes:write
+permission and changes them with sandboxes:write, granted with
+"rzv api-keys create --permissions ...", or with the all:all scope.
 
 exec runs one command and exits with its exit status (124 if it timed out). One
 argument after -- is run as a shell script; two or more are run as that exact
@@ -227,7 +228,7 @@ func sandboxesCreate(a *app, cmd *command) error {
 		return err
 	} else if size != "" {
 		if !slices.Contains(sandboxSizes, size) {
-			return usageError("--size must be 2vcpu-8gb, 4vcpu-16gb, 8vcpu-32gb or 16vcpu-64gb. `rzv sandboxes list` shows the sizes on offer now.")
+			return usageError("--size must be one of %s. `rzv sandboxes list` shows the sizes on offer now.", strings.Join(sandboxSizes, ", "))
 		}
 		input.Size = size
 	}
