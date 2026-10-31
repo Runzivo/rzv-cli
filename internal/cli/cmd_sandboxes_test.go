@@ -209,6 +209,10 @@ func TestSandboxesExecStreamsOutputAndExitsWithTheCommandStatus(t *testing.T) {
 		{"sandboxes", "exec", sbxID, "--env", "BAD", "--", "ls"},
 		{"sandboxes", "exec", sbxID, "--env", "1A=2", "--", "ls"},
 		{"sandboxes", "exec", "bad", "--", "ls"},
+		{"sandboxes", "exec", sbxID, "--", ""},
+		{"sandboxes", "exec", sbxID, "--cwd", strings.Repeat("é", 1025), "--", "ls"},
+		{"sandboxes", "exec", sbxID, "--cwd", "/" + strings.Repeat("d", 1024), "--", "ls"},
+		{"sandboxes", "exec", sbxID, "--env", "A=" + strings.Repeat("v", 8193), "--", "ls"},
 	} {
 		if code, _, _ := h.run(args...); code != exitUsage {
 			t.Errorf("%v exit %d, want usage", args, code)
@@ -445,5 +449,135 @@ func TestSandboxesSSHRestoresTheTerminalOnHangup(t *testing.T) {
 	}
 	if code != exitFailure || !strings.Contains(errOut, "terminal was closed") {
 		t.Fatalf("hangup: %d %q", code, errOut)
+	}
+}
+
+func TestSandboxesExecExplainsOutputCapAndSandboxEnds(t *testing.T) {
+	h := selectedHarness(t)
+	execServer(h, chunk("stdout", "lots")+`{"type":"exit","exit_code":137,"timed_out":false,"truncated":true}`+"\n", 200, nil)
+	if code, out, errOut := h.run("sandboxes", "exec", sbxID, "--", "yes"); code != 137 || out != "lots" || !strings.Contains(errOut, "8 MiB") {
+		t.Fatalf("truncated: %d %q %q", code, out, errOut)
+	}
+	execServer(h, `{"type":"exit","exit_code":143,"timed_out":false,"truncated":false,"reason":"sandbox_stopped"}`+"\n", 200, nil)
+	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--", "sleep", "60"); code != 143 || !strings.Contains(errOut, "sandbox was stopped") {
+		t.Fatalf("stopped mid-command: %d %q", code, errOut)
+	}
+	execServer(h, `{"type":"exit","exit_code":0,"timed_out":false,"truncated":false,"reason":"sandbox_expired"}`+"\n", 200, nil)
+	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--", "sleep", "60"); code != exitFailure || !strings.Contains(errOut, "eight hour lifetime") {
+		t.Fatalf("expired mid-command: %d %q", code, errOut)
+	}
+	code, out, _ := h.run("sandboxes", "exec", sbxID, "--json", "--", "sleep", "60")
+	if code == 0 || !strings.Contains(out, `"reason":"sandbox_expired"`) || !strings.Contains(out, `"truncated":false`) {
+		t.Fatalf("exec --json with a reason: %d %q", code, out)
+	}
+	execServer(h, `{"error":{"code":"session_limit_reached"}}`, 409, nil)
+	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--", "ls"); code != exitFailure || !strings.Contains(errOut, "4 commands and 2 terminals") {
+		t.Fatalf("session limit: %d %q", code, errOut)
+	}
+}
+
+func TestSandboxesSSHExplainsWhyCoreClosedTheTerminal(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
+	cases := []struct {
+		code   uint16
+		reason string
+		exit   int
+		text   string
+	}{
+		{1000, "shell_exited", 0, ""},
+		{1000, "idle_timeout", exitFailure, "30 minutes"},
+		{1008, "input_rate", exitFailure, "too fast"},
+		{1011, "output_overflow", exitFailure, "not read fast enough"},
+		{1011, "", exitUnavailable, "code 1011"},
+	}
+	for _, c := range cases {
+		terminalRoute(t, h, func(conn net.Conn, reader *bufio.Reader, _ http.Header) {
+			_, _, _ = readClientFrame(reader)
+			payload := binary.BigEndian.AppendUint16(nil, c.code)
+			_, _ = conn.Write(serverFrame(8, append(payload, c.reason...)))
+		})
+		terminal := &fakeTerminal{interactive: true, cols: 80, rows: 24}
+		code, _, errOut := h.runWithTerminal(terminal, pipeReader{data: make(chan []byte)}, "sandboxes", "ssh", sbxID)
+		if code != c.exit || !strings.Contains(errOut, c.text) {
+			t.Errorf("close %d %s: exit %d %q, want %d containing %q", c.code, c.reason, code, errOut, c.exit, c.text)
+		}
+	}
+}
+
+func TestSandboxesTerminalTicket(t *testing.T) {
+	h := selectedHarness(t)
+	route := "POST /v1/customer/tenants/t-1/sandboxes/" + sbxID + "/terminal-ticket"
+	h.json(route, 201, `{"url":"wss://api.example.test/v1/customer/tenants/t-1/sandboxes/`+sbxID+`/terminal","ticket":"tkt-test-only","expires_at":"2026-10-30T09:00:30Z"}`)
+	// stdout holds only the URL; the single-use note goes to stderr without the ticket.
+	code, out, errOut := h.run("sandboxes", "terminal-ticket", sbxID)
+	if code != 0 || out != "wss://api.example.test/v1/customer/tenants/t-1/sandboxes/"+sbxID+"/terminal?ticket=tkt-test-only\n" {
+		t.Fatalf("terminal-ticket: %d %q", code, out)
+	}
+	if strings.Count(errOut, "\n") != 1 || !strings.Contains(errOut, "works once") || !strings.Contains(errOut, "about 30 seconds") || strings.Contains(errOut, "tkt-test-only") {
+		t.Fatalf("terminal-ticket note: %q", errOut)
+	}
+	code, out, errOut = h.run("sandboxes", "terminal-ticket", sbxID, "--json")
+	var got map[string]any
+	if code != 0 || json.Unmarshal([]byte(out), &got) != nil || got["ticket"] != "tkt-test-only" || got["url"] != "wss://api.example.test/v1/customer/tenants/t-1/sandboxes/"+sbxID+"/terminal" || got["expires_at"] != "2026-10-30T09:00:30Z" || !strings.HasSuffix(got["connect_url"].(string), "?ticket=tkt-test-only") || got["sandbox_id"] != sbxID {
+		t.Fatalf("terminal-ticket --json: %d %q", code, out)
+	}
+	if !strings.Contains(errOut, "works once") || strings.Contains(errOut, "tkt-test-only") {
+		t.Fatalf("terminal-ticket --json note: %q", errOut)
+	}
+	// Refusals never echo a ticket.
+	h.json(route, 201, `{"url":"ftp://x","ticket":"tkt-test-only","expires_at":"2026-10-30T09:00:30Z"}`)
+	if code, out, errOut := h.run("sandboxes", "terminal-ticket", sbxID); code == 0 || strings.Contains(out+errOut, "tkt-test-only") {
+		t.Fatalf("a malformed ticket response: %d %q %q", code, out, errOut)
+	}
+	// The ticket travels over wss, or over ws only to this machine.
+	for _, target := range []string{"https://api.example.test/terminal", "ws://api.example.test/v1/terminal"} {
+		h.json(route, 201, `{"url":"`+target+`","ticket":"tkt-test-only","expires_at":"2026-10-30T09:00:30Z"}`)
+		if code, out, errOut := h.run("sandboxes", "terminal-ticket", sbxID); code == 0 || strings.Contains(out+errOut, "tkt-test-only") {
+			t.Fatalf("a ticket for %s was accepted: %d %q %q", target, code, out, errOut)
+		}
+	}
+	for _, target := range []string{"ws://127.0.0.1:8080/terminal", "ws://localhost/terminal", "ws://[::1]:8080/terminal"} {
+		h.json(route, 201, `{"url":"`+target+`","ticket":"tkt-test-only","expires_at":"2026-10-30T09:00:30Z"}`)
+		if code, out, _ := h.run("sandboxes", "terminal-ticket", sbxID); code != 0 || out != target+"?ticket=tkt-test-only\n" {
+			t.Fatalf("a loopback ticket for %s: %d %q", target, code, out)
+		}
+	}
+	h.json(route, 201, `{"url":"wss://api.example.test/terminal","ticket":"tkt-test-only","expires_at":"in 30 seconds"}`)
+	if code, out, errOut := h.run("sandboxes", "terminal-ticket", sbxID); code == 0 || strings.Contains(out+errOut, "tkt-test-only") {
+		t.Fatalf("an expires_at that is not RFC 3339 was accepted: %d %q %q", code, out, errOut)
+	}
+	h.json(route, 201, `{"url":"wss://api.example.test/terminal","expires_at":"2026-10-30T09:00:30Z"}`)
+	if code, _, _ := h.run("sandboxes", "terminal-ticket", sbxID); code == 0 {
+		t.Fatal("a response without a ticket was accepted")
+	}
+	h.json(route, 429, `{"error":{"code":"ticket_limit_reached"}}`)
+	if code, _, errOut := h.run("sandboxes", "terminal-ticket", sbxID); code != exitFailure || !strings.Contains(errOut, "10 terminal tickets") {
+		t.Fatalf("ticket limit: %d %q", code, errOut)
+	}
+	h.json(route, 503, `{"error":{"code":"sandbox_exec_unavailable"}}`)
+	if code, _, errOut := h.run("sandboxes", "terminal-ticket", sbxID); code != exitUnavailable || !strings.Contains(errOut, "Terminal tickets are not available") || strings.Contains(errOut, "Running commands") {
+		t.Fatalf("no public origin: %d %q", code, errOut)
+	}
+	for _, args := range [][]string{{"sandboxes", "terminal-ticket"}, {"sandboxes", "terminal-ticket", "dev"}, {"sandboxes", "terminal-ticket", sbxID, "extra"}} {
+		if code, _, _ := h.run(args...); code != exitUsage {
+			t.Errorf("%v exit %d, want usage", args, code)
+		}
+	}
+}
+
+// The limits count characters, as JSON Schema maxLength does, and a command
+// of spaces is still a command.
+func TestSandboxesExecLimitsCountCharacters(t *testing.T) {
+	h := selectedHarness(t)
+	var seen map[string]any
+	execServer(h, `{"type":"exit","exit_code":0,"timed_out":false}`+"\n", 200, &seen)
+	cwd, value := strings.Repeat("é", 1024), strings.Repeat("é", 8192)
+	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--cwd", cwd, "--env", "A="+value, "--", "ls"); code != 0 || seen["cwd"] != cwd {
+		t.Fatalf("multibyte values at the limit: %d %q", code, errOut)
+	}
+	seen = nil
+	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--", " "); code != 0 || seen["cmd"] != " " {
+		t.Fatalf("a whitespace command: %d %q %v", code, errOut, seen)
 	}
 }

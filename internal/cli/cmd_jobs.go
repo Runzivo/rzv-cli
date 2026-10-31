@@ -93,14 +93,6 @@ func runJobs(a *app, cmd *command) error {
 	}
 }
 
-func displayLog(value string) string {
-	lines := strings.Split(value, "\n")
-	for index, line := range lines {
-		lines[index] = display(line)
-	}
-	return strings.Join(lines, "\n")
-}
-
 func renderJobs(workspaceID string, jobs []api.Job) string {
 	if len(jobs) == 0 {
 		return "No jobs for workspace " + display(workspaceID) + "."

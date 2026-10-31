@@ -26,4 +26,4 @@ All commands support `--json`. Text output escapes terminal control characters i
 
 `rzv tickets close <reference>` closes a ticket you opened; the ticket becomes `resolved` and the thread gets a closing note. Only the person who opened a ticket can close it, an already closed ticket is refused, and the customer API does not provide a reopen operation, so `rzv` has no such command.
 
-Back to [Commands](commands.md).
+Back to [Workspace commands](workspace-commands.md).

@@ -18,7 +18,9 @@
 
 Each profile holds one sign-in. `rzv login` signs in to the profile in use; `rzv login -p work` signs in to `work` and leaves the other profiles alone. `--workspace <slug or id>` (or `-w`) selects a workspace at sign-in; the sign-in is saved only if that workspace is one you belong to. Signing in makes its profile the active one.
 
-`rzv profiles list` shows the profiles, `rzv profiles use <profile>` switches the active one, and `rzv profiles remove <profile>` deletes a profile's local sign-in. Removing does not revoke the session; it expires as usual.
+`rzv profiles list` shows the profiles with each one's identity and workspace (tokens are never printed), `rzv profiles use <profile>` switches the active one, and `rzv profiles remove <profile>` deletes a profile's local sign-in. Removing does not revoke the session; it expires as usual.
+
+Every command accepts `-p <profile>` (or `--profile`) for one run, and `RZV_PROFILE` sets the profile for a shell. The profile in use is chosen in this order: `-p`, then `RZV_PROFILE`, then the active profile, then `default`. Profile names are lowercase letters, digits and hyphens, up to 32 characters.
 
 ## Where the token is stored
 

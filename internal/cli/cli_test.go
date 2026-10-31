@@ -242,3 +242,19 @@ func TestParse(t *testing.T) {
 		t.Fatal("boolean with value accepted")
 	}
 }
+
+// A bare command prints its usage on real lines, and an error still cannot
+// carry a terminal escape sequence.
+func TestUsageErrorsKeepNewlinesAndEscapeControlCharacters(t *testing.T) {
+	h := newHarness(t)
+	for _, name := range []string{"sandboxes", "tickets", "jobs"} {
+		code, _, errOut := h.run(name)
+		if code != exitUsage || !strings.HasPrefix(errOut, "rzv: Usage:\n  rzv "+name+" ") || strings.Contains(errOut, `\u000a`) {
+			t.Errorf("%s: exit %d %q", name, code, errOut)
+		}
+	}
+	code, _, errOut := h.run("whoami", "--bo\x1b[31mgus", "x")
+	if code != exitUsage || strings.Contains(errOut, "\x1b") || !strings.Contains(errOut, `--bo\u001b[31mgus`) {
+		t.Fatalf("escape in an error: %d %q", code, errOut)
+	}
+}
