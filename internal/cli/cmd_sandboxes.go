@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,10 +18,14 @@ import (
 	"github.com/Runzivo/rzv-cli/internal/api"
 )
 
+// sandboxSizes are the sizes Core defines. Which of them can start right now
+// depends on capacity; the list response's sizes field names those.
+var sandboxSizes = []string{"2vcpu-8gb", "4vcpu-16gb", "8vcpu-32gb", "16vcpu-64gb"}
+
 const sandboxesUsage = `Usage:
   rzv sandboxes list [--workspace <id>] [--json]
   rzv sandboxes get <sandbox-id> [--workspace <id>] [--json]
-  rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb] [--disk-gib <5-64>] [--idempotency-key <key>] [--workspace <id>] [--json]
+  rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--idempotency-key <key>] [--workspace <id>] [--json]
   rzv sandboxes start|stop|delete <sandbox-id> [--workspace <id>] [--json]
   rzv sandboxes exec <sandbox-id> [--cwd <dir>] [--timeout <1-3600>] [--env KEY=VALUE,...] [--workspace <id>] [--json] -- <command...>
   rzv sandboxes ssh <sandbox-id> [--workspace <id>]
@@ -29,7 +34,8 @@ const sandboxesUsage = `Usage:
 A sandbox is a Linux virtual machine with your files in /workspace. It lives eight
 hours from its first start, stopped or not, then it and its files are deleted.
 Stopping keeps the files and stops the compute charge. A workspace runs a limited
-number at once. API keys need the all:all scope to change sandboxes.
+number at once. API keys need sandboxes:read to read and sandboxes:write (or all:all) to change
+sandboxes.
 
 exec runs one command and exits with its exit status (124 if it timed out). One
 argument after -- is run as a shell script; two or more are run as that exact
@@ -206,7 +212,7 @@ func sandboxesCreate(a *app, cmd *command) error {
 	if err := cmd.allow("workspace", "account", "name", "size", "disk-gib", "idempotency-key"); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(1, "rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb] [--disk-gib <5-64>]"); err != nil {
+	if err := cmd.expectArgs(1, "rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>]"); err != nil {
 		return err
 	}
 	name, err := cmd.required("name")
@@ -220,8 +226,8 @@ func sandboxesCreate(a *app, cmd *command) error {
 	if size, err := cmd.option("size"); err != nil {
 		return err
 	} else if size != "" {
-		if size != "2vcpu-8gb" && size != "4vcpu-16gb" {
-			return usageError("--size must be 2vcpu-8gb or 4vcpu-16gb.")
+		if !slices.Contains(sandboxSizes, size) {
+			return usageError("--size must be 2vcpu-8gb, 4vcpu-16gb, 8vcpu-32gb or 16vcpu-64gb. `rzv sandboxes list` shows the sizes on offer now.")
 		}
 		input.Size = size
 	}

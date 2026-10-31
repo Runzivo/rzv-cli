@@ -18,7 +18,7 @@ const apiKeysUsage = `Usage:
 
 Scopes: all:all on its own (full access, owners only), or any of audit:read,
 jobs:read, logs:read, usage:read, runners:read, integrations:read,
-billing:read. Without --expires-at a key expires in 365 days, the longest
+billing:read, sandboxes:read, sandboxes:write. Without --expires-at a key expires in 365 days, the longest
 allowed. Permissions are checked against your current grants by the service.
 The secret is shown once, at creation. Use your own sign-in:
 RZV_API_KEY cannot manage API keys.`
@@ -132,7 +132,7 @@ func parseScopes(raw string) ([]string, error) {
 		seen[s] = true
 	}
 	if bad {
-		return nil, usageError("--scopes must be all:all on its own or a comma-separated list without repeats of audit:read, jobs:read, logs:read, usage:read, runners:read, integrations:read, billing:read.")
+		return nil, usageError("--scopes must be all:all on its own or a comma-separated list without repeats of audit:read, jobs:read, logs:read, usage:read, runners:read, integrations:read, billing:read, sandboxes:read, sandboxes:write.")
 	}
 	return scopes, nil
 }
