@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -166,7 +167,7 @@ func TestSandboxesExecStreamsOutputAndExitsWithTheCommandStatus(t *testing.T) {
 		t.Fatalf("exec: %d stdout %q stderr %q", code, out, errOut)
 	}
 	env, _ := seen["env"].(map[string]any)
-	if seen["cmd"] != "echo hello world" || seen["cwd"] != "/workspace/app" || seen["timeout_seconds"] != float64(60) || env["A"] != "1" || env["B"] != "two" {
+	if seen["cmd"] != "'echo' 'hello' 'world'" || seen["cwd"] != "/workspace/app" || seen["timeout_seconds"] != float64(60) || env["A"] != "1" || env["B"] != "two" {
 		t.Fatalf("exec request = %v", seen)
 	}
 
@@ -579,5 +580,53 @@ func TestSandboxesExecLimitsCountCharacters(t *testing.T) {
 	seen = nil
 	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--", " "); code != 0 || seen["cmd"] != " " {
 		t.Fatalf("a whitespace command: %d %q %v", code, errOut, seen)
+	}
+}
+
+func TestSandboxesExecQuotesEachArgumentAfterTheFirst(t *testing.T) {
+	h := selectedHarness(t)
+	var seen map[string]any
+	execServer(h, `{"type":"exit","exit_code":7,"timed_out":false}`+"\n", 200, &seen)
+	if code, _, _ := h.run("sandboxes", "exec", sbxID, "--", "sh", "-c", "exit 7"); code != 7 || seen["cmd"] != `'sh' '-c' 'exit 7'` {
+		t.Fatalf("sh -c \"exit 7\": %d %v", code, seen)
+	}
+	// One argument is a shell script and goes unchanged.
+	for _, script := range []string{"echo a; echo b", "ls | wc -l", `echo "$HOME"`} {
+		execServer(h, `{"type":"exit","exit_code":0,"timed_out":false}`+"\n", 200, &seen)
+		if code, _, _ := h.run("sandboxes", "exec", sbxID, "--", script); code != 0 || seen["cmd"] != script {
+			t.Fatalf("script %q: %d %v", script, code, seen)
+		}
+	}
+	// The limit counts the quoted command: 'a' plus a space is 4 characters a word.
+	execServer(h, `{"type":"exit","exit_code":0,"timed_out":false}`+"\n", 200, nil)
+	if code, _, _ := h.run(append([]string{"sandboxes", "exec", sbxID, "--"}, strings.Split(strings.Repeat("a", maxCmd/4+1), "")...)...); code != exitUsage {
+		t.Fatalf("a quoted command over the limit: exit %d, want usage", code)
+	}
+}
+
+func TestExecCommandGivesTheShellTheExactArguments(t *testing.T) {
+	args := []string{"two words", "it's", `"double"`, "$HOME", "`id`", "a;b", "&&", "line\nbreak", "", "naïve ☃ 日本", `back\slash`, "'", "*"}
+	if got := execCommand([]string{"it's", ""}); got != `'it'\''s' ''` {
+		t.Fatalf("execCommand = %q", got)
+	}
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("no sh to run the command with")
+	}
+	// printf ends each argument the shell passes it with a NUL byte, so
+	// newlines and empty arguments come back intact.
+	cmd := execCommand(append([]string{"printf", `%s\0`}, args...))
+	out, err := exec.Command(sh, "-c", cmd).Output()
+	if err != nil {
+		t.Fatalf("sh -c %q: %v", cmd, err)
+	}
+	got := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
+	if len(got) != len(args) {
+		t.Fatalf("sh saw %q, want %q", got, args)
+	}
+	for i := range args {
+		if got[i] != args[i] {
+			t.Errorf("argument %d: sh saw %q, want %q", i, got[i], args[i])
+		}
 	}
 }

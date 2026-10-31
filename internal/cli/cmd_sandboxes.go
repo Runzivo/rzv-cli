@@ -31,8 +31,9 @@ hours from its first start, stopped or not, then it and its files are deleted.
 Stopping keeps the files and stops the compute charge. A workspace runs a limited
 number at once. API keys need the all:all scope to change sandboxes.
 
-exec runs one command and exits with its exit status (124 if it timed out). Quote
-the command as you would for ssh. ssh opens an interactive terminal through
+exec runs one command and exits with its exit status (124 if it timed out). One
+argument after -- is run as a shell script; two or more are run as that exact
+argument list, each quoted for the shell. ssh opens an interactive terminal through
 Runzivo (macOS and Linux); leave it with the shell's own exit. terminal-ticket
 prints a terminal URL for a client that cannot send an Authorization header,
 such as a browser; it works once, within about 30 seconds.`
@@ -287,7 +288,7 @@ func sandboxesExec(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	input := api.ExecInput{Cmd: strings.Join(cmd.args[2:], " ")}
+	input := api.ExecInput{Cmd: execCommand(cmd.args[2:])}
 	if input.Cmd == "" {
 		return usageError("Give a command after --, such as `rzv sandboxes exec %s -- ls`.", id)
 	}
@@ -365,6 +366,20 @@ func sandboxesExec(a *app, cmd *command) error {
 		return newError("command_failed", code, "The command exited with status %d.", exit.ExitCode)
 	}
 	return nil
+}
+
+// execCommand builds the string the sandbox runs with bash -lc. One argument is
+// a shell script and goes as it is; two or more are quoted so the remote shell
+// sees exactly that argument list.
+func execCommand(args []string) string {
+	if len(args) == 1 {
+		return args[0]
+	}
+	quoted := make([]string, len(args))
+	for i, arg := range args {
+		quoted[i] = "'" + strings.ReplaceAll(arg, "'", `'\''`) + "'"
+	}
+	return strings.Join(quoted, " ")
 }
 
 // execEndedBySandbox explains a command Core ended because its sandbox left

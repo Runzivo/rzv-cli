@@ -2,6 +2,16 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Changed
+
+- Behaviour change: when `rzv sandboxes exec` gets two or more arguments after `--`, pipes, `&&`, `$VARS` and `NAME=value` prefixes given as separate arguments are now passed literally. Put the whole command in one argument to use shell syntax: instead of `-- FOO=1 make test`, use `-- 'FOO=1 make test'`.
+
+### Fixed
+
+- `rzv sandboxes exec` with two or more arguments after `--` runs that exact argument list. Each argument is quoted for the shell instead of joined with spaces, so `rzv sandboxes exec <id> -- sh -c 'exit 7'` exits with 7 and arguments with spaces, quotes, `$` or `;` are no longer split or expanded. One argument is still run as a shell script.
+
 ## release-2026-10-31-012059 (rzv 0.20.0), 2026-10-31
 
 ### Added

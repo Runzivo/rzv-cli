@@ -4,7 +4,12 @@
 rzv sandboxes exec <sandbox-id> [--cwd <dir>] [--timeout <seconds>] [--env A=1,B=2] -- <command...>
 ```
 
-`exec` runs one command (through `bash -lc`) in a running sandbox and streams its output. Quote it as you would for `ssh`; put `--` before it so its own options are not read by `rzv`.
+`exec` runs one command (through `bash -lc`) in a running sandbox and streams its output. Put `--` before it so its own options are not read by `rzv`.
+
+- One argument after `--` is a shell script, so pipes, `;` and `$VARS` work: `rzv sandboxes exec <id> -- 'make test | tail -5'`.
+- Two or more arguments are run as that exact argument list. `rzv` quotes each one for the shell, so spaces, quotes, `$`, `;` and newlines arrive unchanged: `rzv sandboxes exec <id> -- sh -c 'exit 7'` exits with 7.
+
+Behaviour change: pipes, `&&`, `$VARS` and `NAME=value` prefixes given as separate arguments are now passed literally. Put the whole command in one argument to use shell syntax: instead of `-- FOO=1 make test`, use `-- 'FOO=1 make test'`.
 
 | Option                | Meaning                                               |
 | --------------------- | ----------------------------------------------------- |
