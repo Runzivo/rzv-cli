@@ -12,6 +12,17 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 - `rzv sandboxes exec` with two or more arguments after `--` runs that exact argument list. Each argument is quoted for the shell instead of joined with spaces, so `rzv sandboxes exec <id> -- sh -c 'exit 7'` exits with 7 and arguments with spaces, quotes, `$` or `;` are no longer split or expanded. One argument is still run as a shell script.
 
+## release-2026-10-31-193326 (rzv 0.21.0), 2026-10-31
+
+### Added
+
+- `rzv sandboxes create --size` accepts `8vcpu-32gb` and `16vcpu-64gb` as well as `2vcpu-8gb` and `4vcpu-16gb`. Which sizes can start now depends on the environment's capacity; `rzv sandboxes list` shows them.
+
+### Fixed
+
+- `rzv sandboxes exec` quotes each argument, so the sandbox runs exactly the command you typed.
+- The sandboxes help and docs describe API key access correctly: `sandboxes:read` and `sandboxes:write` are permissions, granted with `rzv api-keys create --permissions`, or use the `all:all` scope.
+
 ## release-2026-10-31-012059 (rzv 0.20.0), 2026-10-31
 
 ### Added
