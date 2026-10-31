@@ -3,7 +3,7 @@
 A sandbox is a Linux virtual machine in your workspace. Your files live in `/workspace` and survive a stop and a start. It lasts **eight hours from its first start**, running or stopped; then the machine and its files are deleted. Time stopped counts toward the eight hours, and the lifetime cannot be extended.
 
 ```sh
-rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb] [--disk-gib 20]
+rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib 20]
 rzv sandboxes list                       # status, time left and credits used
 rzv sandboxes get <sandbox-id>
 rzv sandboxes stop <sandbox-id>          # keeps the files, stops the charge

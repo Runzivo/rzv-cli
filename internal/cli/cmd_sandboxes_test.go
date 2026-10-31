@@ -80,9 +80,15 @@ func TestSandboxesCreateStartStopDelete(t *testing.T) {
 	if code != 0 || bodies[1]["size"] != "4vcpu-16gb" || bodies[1]["disk_gib"] != float64(40) || bodies[1]["client_operation_id"] != "op-0123456789" {
 		t.Fatalf("create with options: %d %v", code, bodies[1])
 	}
+	for i, size := range []string{"8vcpu-32gb", "16vcpu-64gb"} {
+		if code, _, _ := h.run("sandboxes", "create", "--name", "large", "--size", size); code != 0 || bodies[2+i]["size"] != size {
+			t.Fatalf("create %s: %d %v", size, code, bodies)
+		}
+	}
 	for _, args := range [][]string{
 		{"sandboxes", "create"},
 		{"sandboxes", "create", "--name", "x", "--size", "1vcpu"},
+		{"sandboxes", "create", "--name", "x", "--size", "32vcpu-128gb"},
 		{"sandboxes", "create", "--name", "x", "--disk-gib", "4"},
 		{"sandboxes", "create", "--name", "x", "--disk-gib", "65"},
 		{"sandboxes", "create", "--name", "x", "--idempotency-key", "short"},
@@ -92,7 +98,7 @@ func TestSandboxesCreateStartStopDelete(t *testing.T) {
 			t.Errorf("%v exit %d, want usage", args, code)
 		}
 	}
-	if len(bodies) != 2 {
+	if len(bodies) != 4 {
 		t.Fatalf("a refused create reached the API: %d calls", len(bodies))
 	}
 	h.json("POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/start", 200, sandboxWith("starting"))
