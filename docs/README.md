@@ -10,7 +10,8 @@
 | [Notifications](notifications.md)                       | List, mark read and configure notifications                                            |
 | [Sandboxes](sandboxes.md)                               | Create sandboxes, run commands and open a terminal                                     |
 | [Running commands in a sandbox](sandboxes-exec.md)      | `rzv sandboxes exec`, its exit status and JSON output                                  |
-| [Sandbox terminal](sandboxes-terminal.md)               | `rzv sandboxes ssh` and `terminal-ticket`                                              |
+| [Sandbox SSH](sandboxes-ssh.md) | Standard ssh, file transfers, local forwarding and Remote SSH editors |
+| [Sandbox terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`                                              |
 | [Sandbox billing and permissions](sandboxes-billing.md) | Charges, credit and the permissions each command needs                                 |
 | [AI settings and usage](ai.md)                          | Provider connections, configuration and usage                                          |
 | [Development](development.md)                           | Building, testing and the CI runner                                                    |

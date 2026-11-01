@@ -16,7 +16,7 @@ func init() {
 	commandUsage["version"] = "Usage: rzv version [--json]"
 
 	register("login", "Sign in through your browser", runLogin)
-	commandUsage["login"] = `Usage: rzv login [-p <profile>] [--env prd|shared] [--workspace <slug|id>] [--no-browser] [--json]
+	commandUsage["login"] = `Usage: rzv login [-p <profile>] [--env prd|shared] [--workspace <workspace>] [--no-browser] [--json]
 
 Signs in through your browser (GitHub via Runzivo's identity provider) and
 stores the access token in your user config directory, readable only by you.
@@ -26,7 +26,7 @@ Each profile holds one sign-in. -p / --profile picks the profile (default
 "default", or $RZV_PROFILE). Signing in makes that profile the active one.
 
   -p, --profile  Profile to sign in to (lowercase letters, digits, hyphens)
-  -w, --workspace  Workspace to select, by slug or id; must be one you belong to
+  -w, --workspace  Workspace to select, by id, slug or name; must be one you belong to
   --env          Runzivo environment (default prd, or $RZV_ENV)
   --no-browser   Print the sign-in URL without opening a browser
 
@@ -61,7 +61,7 @@ func runLogin(a *app, cmd *command) error {
 	if err := cmd.allow("env", "workspace", "issuer", "client-id", "audience", "api-base-url", "github-broker-claim", "allow-insecure-loopback", "no-browser"); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(0, "rzv login [-p <profile>] [--env prd|shared] [--workspace <slug|id>] [--json]"); err != nil {
+	if err := cmd.expectArgs(0, "rzv login [-p <profile>] [--env prd|shared] [--workspace <workspace>] [--json]"); err != nil {
 		return err
 	}
 	workspace, err := cmd.option("workspace")
@@ -134,8 +134,11 @@ func runLogin(a *app, cmd *command) error {
 		if err != nil {
 			return apiError(err, "")
 		}
-		id, found := matchWorkspace(memberships, workspace)
-		if !found {
+		id, err := a.matchWorkspace(memberships, workspace)
+		if err != nil {
+			return err
+		}
+		if id == "" {
 			return accessError("You are not a member of workspace %s. Nothing was saved; run `rzv login` again with a workspace you belong to.", display(workspace))
 		}
 		creds.SelectedWorkspace = id
@@ -232,7 +235,7 @@ func runWhoami(a *app, cmd *command) error {
 		fmt.Sprintf("Workspaces: %d", len(memberships)),
 	}
 	if creds.SelectedWorkspace != "" {
-		lines = append(lines, "Selected workspace: "+display(creds.SelectedWorkspace))
+		lines = append(lines, a.text("Selected workspace: ", "Espace de travail sélectionné : ")+workspaceLabel(memberships, creds.SelectedWorkspace))
 	} else {
 		lines = append(lines, "Selected workspace: none")
 	}

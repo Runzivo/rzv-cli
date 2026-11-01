@@ -183,7 +183,7 @@ func activityStatus(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "The audit status resource was not found in this workspace.")
 	}
-	a.output(cmd, map[string]any{"workspace_id": id, "audit_status": status}, renderAuditStatus(status))
+	a.output(cmd, map[string]any{"workspace_id": id, "audit_status": status}, renderAuditStatus(status, a.text("running", "en cours"), a.text("unknown", "inconnu")))
 	return nil
 }
 func renderActivity(p *api.ActivityPage) string {
@@ -199,7 +199,7 @@ func renderActivity(p *api.ActivityPage) string {
 	_ = w.Flush()
 	return strings.TrimSuffix(b.String(), "\n") + fmt.Sprintf("\nScope: %s\nRetention: %d days\nNext cursor: %s", display(p.Scope), p.RetentionDays, displayOrDash(p.NextCursor))
 }
-func renderAuditStatus(s *api.AuditStatus) string {
+func renderAuditStatus(s *api.AuditStatus, runningLabel, unknownLabel string) string {
 	lines := []string{fmt.Sprintf("Audit status (%d days):", s.PeriodDays), "Generated: " + display(s.GeneratedAt), "History recorded: " + strconv.FormatBool(s.HistoryRecorded), "Components:"}
 	for _, c := range s.Components {
 		uptime := "unknown"
@@ -208,7 +208,11 @@ func renderAuditStatus(s *api.AuditStatus) string {
 		}
 		lines = append(lines, fmt.Sprintf("- %s: %s (last signal %s, uptime %s): %s", display(c.Name), display(c.State), displayOrDash(c.LastSignalAt), uptime, display(c.Detail)))
 	}
-	lines = append(lines, fmt.Sprintf("Execution assurances: jobs %d, fresh microVMs %d, destroyed %d, clean teardowns %d, forced stops %d, awaiting teardown %d", s.Assurances.JobsRun, s.Assurances.FreshMicroVMs, s.Assurances.Destroyed, s.Assurances.CleanTeardowns, s.Assurances.ForcedStops, s.Assurances.AwaitingTeardown), "Lease evidence:")
+	running := unknownLabel
+	if s.Assurances.Running != nil {
+		running = strconv.FormatInt(*s.Assurances.Running, 10)
+	}
+	lines = append(lines, fmt.Sprintf("Execution assurances: jobs %d, fresh microVMs %d, %s %s, destroyed %d, clean teardowns %d, forced stops %d, awaiting teardown %d", s.Assurances.JobsRun, s.Assurances.FreshMicroVMs, runningLabel, running, s.Assurances.Destroyed, s.Assurances.CleanTeardowns, s.Assurances.ForcedStops, s.Assurances.AwaitingTeardown), "Lease evidence:")
 	if len(s.Evidence) == 0 {
 		lines = append(lines, "- none")
 	} else {

@@ -328,60 +328,64 @@ func readClientFrame(reader *bufio.Reader) (byte, []byte, error) {
 	return head[0] & 0x0F, payload, nil
 }
 
-func TestSandboxesSSHPassesKeysBothWaysAndRestoresTheTerminal(t *testing.T) {
-	h := selectedHarness(t)
-	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
-	var auth string
-	type got struct {
-		opcode  byte
-		payload string
-	}
-	frames := make(chan got, 8)
-	terminalRoute(t, h, func(conn net.Conn, reader *bufio.Reader, header http.Header) {
-		auth = header.Get("Authorization")
-		// The first frame is the window size, then keystrokes arrive as bytes.
-		for i := 0; i < 2; i++ {
-			opcode, payload, err := readClientFrame(reader)
-			if err != nil {
-				return
+func TestSandboxesTerminalPassesKeysBothWaysAndRestoresTheTerminal(t *testing.T) {
+	for _, verb := range []string{"terminal"} {
+		t.Run(verb, func(t *testing.T) {
+			h := selectedHarness(t)
+			h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
+			var auth string
+			type got struct {
+				opcode  byte
+				payload string
 			}
-			frames <- got{opcode, string(payload)}
-		}
-		_, _ = conn.Write(serverFrame(2, []byte("$ ls\r\nfile\r\n")))
-		_, _ = conn.Write(serverFrame(8, append([]byte{0x03, 0xE8}, "sandbox_stopped"...)))
-	})
-	terminal := &fakeTerminal{interactive: true, cols: 132, rows: 43}
-	stdin := pipeReader{data: make(chan []byte, 1)}
-	stdin.data <- []byte("ls\r")
-	code, out, errOut := h.runWithTerminal(terminal, stdin, "sandboxes", "ssh", sbxID)
-	if code != exitFailure || !strings.Contains(errOut, "The sandbox was stopped.") || out != "$ ls\r\nfile\r\n" {
-		t.Fatalf("ssh: %d stdout %q stderr %q", code, out, errOut)
-	}
-	if first, second := <-frames, <-frames; first.opcode != 1 || !strings.Contains(first.payload, `"cols":132`) || !strings.Contains(first.payload, `"rows":43`) || second.opcode != 2 || second.payload != "ls\r" {
-		t.Fatalf("frames = %+v %+v", first, second)
-	}
-	if !strings.HasPrefix(auth, "Bearer ") || len(auth) < 12 {
-		t.Fatalf("the terminal was opened with Authorization %q", auth)
-	}
-	terminal.mu.Lock()
-	defer terminal.mu.Unlock()
-	if !terminal.raw || !terminal.restored {
-		t.Fatalf("raw mode %v, restored %v", terminal.raw, terminal.restored)
+			frames := make(chan got, 8)
+			terminalRoute(t, h, func(conn net.Conn, reader *bufio.Reader, header http.Header) {
+				auth = header.Get("Authorization")
+				// The first frame is the window size, then keystrokes arrive as bytes.
+				for i := 0; i < 2; i++ {
+					opcode, payload, err := readClientFrame(reader)
+					if err != nil {
+						return
+					}
+					frames <- got{opcode, string(payload)}
+				}
+				_, _ = conn.Write(serverFrame(2, []byte("$ ls\r\nfile\r\n")))
+				_, _ = conn.Write(serverFrame(8, append([]byte{0x03, 0xE8}, "sandbox_stopped"...)))
+			})
+			terminal := &fakeTerminal{interactive: true, cols: 132, rows: 43}
+			stdin := pipeReader{data: make(chan []byte, 1)}
+			stdin.data <- []byte("ls\r")
+			code, out, errOut := h.runWithTerminal(terminal, stdin, "sandboxes", verb, sbxID)
+			if code != exitFailure || !strings.Contains(errOut, "The sandbox was stopped.") || out != "$ ls\r\nfile\r\n" {
+				t.Fatalf("ssh: %d stdout %q stderr %q", code, out, errOut)
+			}
+			if first, second := <-frames, <-frames; first.opcode != 1 || !strings.Contains(first.payload, `"cols":132`) || !strings.Contains(first.payload, `"rows":43`) || second.opcode != 2 || second.payload != "ls\r" {
+				t.Fatalf("frames = %+v %+v", first, second)
+			}
+			if !strings.HasPrefix(auth, "Bearer ") || len(auth) < 12 {
+				t.Fatalf("the terminal was opened with Authorization %q", auth)
+			}
+			terminal.mu.Lock()
+			defer terminal.mu.Unlock()
+			if !terminal.raw || !terminal.restored {
+				t.Fatalf("raw mode %v, restored %v", terminal.raw, terminal.restored)
+			}
+		})
 	}
 }
 
-func TestSandboxesSSHRefusesWhatCannotWork(t *testing.T) {
+func TestSandboxesTerminalRefusesWhatCannotWork(t *testing.T) {
 	h := selectedHarness(t)
 	interactive := &fakeTerminal{interactive: true, cols: 80, rows: 24}
 	stdin := pipeReader{data: make(chan []byte)}
-	if code, _, errOut := h.runWithTerminal(&fakeTerminal{}, stdin, "sandboxes", "ssh", sbxID); code != exitUsage || !strings.Contains(errOut, "interactive terminal") {
+	if code, _, errOut := h.runWithTerminal(&fakeTerminal{}, stdin, "sandboxes", "terminal", sbxID); code != exitUsage || !strings.Contains(errOut, "interactive terminal") {
 		t.Fatalf("no terminal: %d %q", code, errOut)
 	}
-	if code, _, _ := h.runWithTerminal(interactive, stdin, "sandboxes", "ssh", sbxID, "--json"); code != exitUsage {
+	if code, _, _ := h.runWithTerminal(interactive, stdin, "sandboxes", "terminal", sbxID, "--json"); code != exitUsage {
 		t.Fatalf("--json: %d", code)
 	}
 	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxWith("stopped"))
-	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "ssh", sbxID); code != exitFailure || !strings.Contains(errOut, "is stopped") || !strings.Contains(errOut, "rzv sandboxes start") {
+	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "terminal", sbxID); code != exitFailure || !strings.Contains(errOut, "is stopped") || !strings.Contains(errOut, "rzv sandboxes start") {
 		t.Fatalf("stopped sandbox: %d %q", code, errOut)
 	}
 	if interactive.raw {
@@ -389,7 +393,7 @@ func TestSandboxesSSHRefusesWhatCannotWork(t *testing.T) {
 	}
 	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
 	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/terminal", 403, `{"error":{"code":"api_key_scope_required"}}`)
-	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "ssh", sbxID); code != exitAccessDenied || !strings.Contains(errOut, "scope does not allow") {
+	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "terminal", sbxID); code != exitAccessDenied || !strings.Contains(errOut, "scope does not allow") {
 		t.Fatalf("refused terminal: %d %q", code, errOut)
 	}
 	if interactive.raw {
@@ -401,20 +405,20 @@ func TestSandboxesSSHRefusesWhatCannotWork(t *testing.T) {
 		_, _ = conn.Write(serverFrame(8, []byte{0x03, 0xE8}))
 	})
 	delete(h.routes, "GET /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/terminal-dummy")
-	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "ssh", sbxID); code != 0 {
+	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "terminal", sbxID); code != 0 {
 		t.Fatalf("a shell that exited: %d %q", code, errOut)
 	}
 	// A dropped connection says to run the command again.
 	terminalRoute(t, h, func(conn net.Conn, reader *bufio.Reader, _ http.Header) {
 		_, _, _ = readClientFrame(reader)
 	})
-	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "ssh", sbxID); code != exitUnavailable || !strings.Contains(errOut, "again") {
+	if code, _, errOut := h.runWithTerminal(interactive, stdin, "sandboxes", "terminal", sbxID); code != exitUnavailable || !strings.Contains(errOut, "again") {
 		t.Fatalf("a dropped connection: %d %q", code, errOut)
 	}
 }
 
 // SIGTERM or SIGHUP while the terminal is raw puts it back and ends the session.
-func TestSandboxesSSHRestoresTheTerminalOnHangup(t *testing.T) {
+func TestSandboxesTerminalRestoresTheTerminalOnHangup(t *testing.T) {
 	h := selectedHarness(t)
 	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
 	open := make(chan struct{})
@@ -441,7 +445,7 @@ func TestSandboxesSSHRestoresTheTerminalOnHangup(t *testing.T) {
 	var code int
 	var errOut string
 	go func() {
-		code, _, errOut = h.runWithTerminal(terminal, pipeReader{data: make(chan []byte)}, "sandboxes", "ssh", sbxID)
+		code, _, errOut = h.runWithTerminal(terminal, pipeReader{data: make(chan []byte)}, "sandboxes", "terminal", sbxID)
 		close(done)
 	}()
 	select {
@@ -483,7 +487,7 @@ func TestSandboxesExecExplainsOutputCapAndSandboxEnds(t *testing.T) {
 	}
 }
 
-func TestSandboxesSSHExplainsWhyCoreClosedTheTerminal(t *testing.T) {
+func TestSandboxesTerminalExplainsWhyCoreClosedTheTerminal(t *testing.T) {
 	h := selectedHarness(t)
 	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
 	cases := []struct {
@@ -505,7 +509,7 @@ func TestSandboxesSSHExplainsWhyCoreClosedTheTerminal(t *testing.T) {
 			_, _ = conn.Write(serverFrame(8, append(payload, c.reason...)))
 		})
 		terminal := &fakeTerminal{interactive: true, cols: 80, rows: 24}
-		code, _, errOut := h.runWithTerminal(terminal, pipeReader{data: make(chan []byte)}, "sandboxes", "ssh", sbxID)
+		code, _, errOut := h.runWithTerminal(terminal, pipeReader{data: make(chan []byte)}, "sandboxes", "terminal", sbxID)
 		if code != c.exit || !strings.Contains(errOut, c.text) {
 			t.Errorf("close %d %s: exit %d %q, want %d containing %q", c.code, c.reason, code, errOut, c.exit, c.text)
 		}

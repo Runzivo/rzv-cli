@@ -95,7 +95,11 @@ func Run(ctx context.Context, argv []string, deps Deps) int {
 		return a.fail(cmd, usageError("Unknown command %q. Run `rzv help`.", cmd.name))
 	}
 	if cmd.flags["help"] {
-		fmt.Fprintf(a.Stdout, "%s\n", commandUsage[name])
+		usage := commandUsage[name]
+		if name == "workspaces" {
+			usage = a.workspaceUsage()
+		}
+		fmt.Fprintf(a.Stdout, "%s\n", usage)
 		return 0
 	}
 	return a.runHandler(cmd, h)

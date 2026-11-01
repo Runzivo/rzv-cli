@@ -10,7 +10,7 @@ This repository holds the source code of `rzv` (Go), its release notes and its r
 curl -fsSL https://runzivo.dev/downloads/rzv/install.sh | sh
 ```
 
-The installer downloads the latest release, checks its SHA-256 checksum and puts `rzv` in `$RZV_INSTALL_DIR` (default `~/.local/bin`). `rzv` is one static executable with no runtime dependencies. More options, platforms and manual downloads: [docs/install.md](docs/install.md).
+The installer downloads the latest release, checks its SHA-256 checksum and puts `rzv` in `$RZV_INSTALL_DIR` (default `~/.local/bin`). `rzv` is one static executable. Sandbox SSH uses your installed OpenSSH client on macOS or Linux. The binary includes pinned `golang.org/x/crypto/ssh` for OpenSSH keys and certificates, plus its indirect `golang.org/x/sys` dependency. More options, platforms and manual downloads: [docs/install.md](docs/install.md).
 
 ## Use
 
@@ -20,29 +20,15 @@ rzv login -p work -w acme              # a second profile, with a workspace sele
 rzv profiles list                      # local profiles and which one is active
 rzv whoami                             # who you are signed in as
 rzv workspaces list                    # workspaces you belong to
-rzv workspaces select <workspace-id>   # choose one for later commands
-rzv workspaces settings show            # name, logo and update capability
-rzv workspaces members list             # members and permitted actions
-rzv workspaces invitations list         # invitations and permitted actions
-rzv github installations                # linked installations and setup state
-rzv github workspaces start             # start GitHub-backed workspace onboarding
-rzv workspaces closures list           # closure requests, not immediate deletion
+rzv workspaces select <workspace>      # id, slug or display name
 rzv jobs list                          # jobs for the selected workspace
 rzv activity list                      # workspace activity log
-rzv activity export > activity.csv     # matching CSV export
 rzv activity status                    # audit signals and execution evidence
-rzv jobs get <job-id>                  # one job's status
-rzv api-keys create --name ci --permissions jobs:read,logs:read --idempotency-key <key>
-rzv billing codes redeem --code-file <path>
-rzv tickets list                       # support tickets for the selected workspace
-rzv tickets open --kind technical_help --subject "Login issue" --body "Details"
-rzv notifications list                  # notifications for the selected workspace
-rzv notifications read --all            # mark every notification read
-rzv jobs logs <job-id>                 # log text when available
 rzv insights summary                   # workspace job metrics
 rzv ai settings show                   # AI configuration for the selected workspace
 rzv ai usage summary --group-by day    # workspace AI usage
 rzv sandboxes list                     # sandboxes: create, exec, ssh, stop, delete
+rzv sandboxes ssh-config <sandbox-id> --write  # standard SSH and Remote SSH editors
 rzv logout                             # remove the stored sign-in
 ```
 

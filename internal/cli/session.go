@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
@@ -130,28 +131,61 @@ func (a *app) workspaceClient(cmd *command) (string, *api.Client, error) {
 	if err != nil {
 		return "", nil, apiError(err, "")
 	}
-	tenantID, found := matchWorkspace(memberships, id)
-	if !found {
+	tenantID, err := a.matchWorkspace(memberships, id)
+	if err != nil {
+		return "", nil, err
+	}
+	if tenantID == "" {
 		return "", nil, accessError("You are not a member of workspace %s.", display(id))
 	}
 	return tenantID, client, nil
 }
 
-// defaultWorkspace is RZV_WORKSPACE: the workspace (slug or id) used when a
+// defaultWorkspace is RZV_WORKSPACE: the workspace (id, slug or name) used when a
 // command names none.
 func (a *app) defaultWorkspace() string {
 	return strings.TrimSpace(a.Getenv("RZV_WORKSPACE"))
 }
 
-// matchWorkspace finds the membership whose id or slug is ref and returns
-// its id.
-func matchWorkspace(memberships []api.Membership, ref string) (string, bool) {
+// matchWorkspace resolves an exact id before a case-insensitive slug or name.
+// Ambiguity at either tier is an error; never select the first match.
+func (a *app) matchWorkspace(memberships []api.Membership, ref string) (string, error) {
 	for _, m := range memberships {
-		if m.TenantID == ref || m.TenantSlug == ref {
-			return m.TenantID, true
+		if m.TenantID == ref {
+			return m.TenantID, nil
 		}
 	}
-	return "", false
+	for _, field := range []func(api.Membership) string{
+		func(m api.Membership) string { return m.TenantSlug },
+		func(m api.Membership) string { return m.TenantName },
+	} {
+		var matches []api.Membership
+		for _, m := range memberships {
+			if ref != "" && strings.EqualFold(field(m), ref) {
+				matches = append(matches, m)
+			}
+		}
+		if len(matches) == 1 {
+			return matches[0].TenantID, nil
+		}
+		if len(matches) > 1 {
+			lines := []string{fmt.Sprintf(a.text("More than one workspace is named %s. Choose an id:", "Plusieurs espaces de travail portent le nom %s. Choisissez un identifiant :"), display(ref))}
+			for _, m := range matches {
+				lines = append(lines, "- "+workspaceLabel(memberships, m.TenantID))
+			}
+			return "", usageError("%s", strings.Join(lines, "\n"))
+		}
+	}
+	return "", nil
+}
+
+func workspaceLabel(memberships []api.Membership, id string) string {
+	for _, m := range memberships {
+		if m.TenantID == id && m.TenantName != "" {
+			return display(m.TenantName) + " [" + display(id) + "]"
+		}
+	}
+	return display(id)
 }
 
 // apiKeyTarget picks the API origin for RZV_API_KEY: RZV_API_URL, else the

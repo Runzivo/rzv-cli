@@ -23,7 +23,7 @@ var zeroTime time.Time
 
 // A WebSocket client (RFC 6455) small enough to read in one sitting: one
 // connection, binary and text messages, ping/pong and close. It exists because
-// rzv has no third-party dependencies; it is not a general library.
+// it predates the SSH integration; it is not a general library.
 
 const (
 	opContinuation = 0x0
@@ -102,6 +102,8 @@ func dialWebSocket(ctx context.Context, target string, header http.Header) (*Web
 }
 
 func handshake(ctx context.Context, conn net.Conn, target *url.URL, header http.Header) (*WebSocket, error) {
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
 	rawKey := make([]byte, 16)
 	if _, err := rand.Read(rawKey); err != nil {
 		return nil, &Error{Status: 0, Code: "request_failed"}
@@ -157,6 +159,7 @@ func (w *WebSocket) WriteText(data []byte) error { return w.writeFrame(opText, d
 
 // Close sends a normal close and closes the connection.
 func (w *WebSocket) Close() error {
+	_ = w.conn.SetWriteDeadline(time.Now().Add(time.Second))
 	w.writeMu.Lock()
 	already := w.closed
 	w.writeMu.Unlock()
@@ -218,6 +221,7 @@ func (w *WebSocket) ReadMessage() (messageType int, payload []byte, err error) {
 			}
 		case opPong:
 		case opClose:
+			_ = w.conn.SetWriteDeadline(time.Now().Add(time.Second))
 			closeErr := &CloseError{Code: 1005}
 			if len(data) >= 2 {
 				closeErr.Code = int(binary.BigEndian.Uint16(data))
@@ -285,3 +289,7 @@ func (w *WebSocket) readFrame() (fin bool, opcode byte, payload []byte, err erro
 	}
 	return fin, opcode, payload, nil
 }
+
+// Abort interrupts blocked reads and writes without waiting for a close frame.
+// A proxy must use this on cancellation, even under backpressure.
+func (w *WebSocket) Abort() error { return w.conn.Close() }

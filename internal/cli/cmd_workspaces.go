@@ -12,9 +12,11 @@ import (
 	"github.com/Runzivo/rzv-cli/internal/api"
 )
 
+const workspaceSelectionHint = "With a login session, a workspace can be an id, slug or display name.\nQuote names containing spaces. API keys require an exact workspace id."
+
 const workspacesUsage = `Usage:
   rzv workspaces list [--json]                         Workspaces you belong to
-  rzv workspaces select <workspace-id> [--json]        Use one for later commands
+  rzv workspaces select <workspace> [--json]        Use one for later commands
   rzv workspaces create --slug <slug> --name <name>    Create a workspace and select it
   rzv workspaces settings ...                           Read or update workspace settings
   rzv workspaces members ...                            List or manage workspace members
@@ -22,6 +24,8 @@ const workspacesUsage = `Usage:
   rzv workspaces closures list [--workspace <id>] [--json]
   rzv workspaces closures request --reason <text> --idempotency-key <key> [--workspace <id>] [--json]
   rzv workspaces closures cancel <request-id> --expected-version <n> [--workspace <id>] [--json]
+
+` + workspaceSelectionHint + `
 
 "rzv accounts ..." is accepted as an older name for "rzv workspaces ...".
 
@@ -34,7 +38,7 @@ func init() {
 
 func runWorkspaces(a *app, cmd *command) error {
 	if len(cmd.args) == 0 {
-		return usageError("%s", workspacesUsage)
+		return usageError("%s", a.workspaceUsage())
 	}
 	switch cmd.args[0] {
 	case "list":
@@ -48,13 +52,13 @@ func runWorkspaces(a *app, cmd *command) error {
 	case "closures":
 		return workspaceClosures(a, cmd)
 	default:
-		return usageError("%s", workspacesUsage)
+		return usageError("%s", a.workspaceUsage())
 	}
 }
 
 func workspaceClosures(a *app, cmd *command) error {
 	if len(cmd.args) < 2 {
-		return usageError("%s", workspacesUsage)
+		return usageError("%s", a.workspaceUsage())
 	}
 	switch cmd.args[1] {
 	case "list":
@@ -64,7 +68,7 @@ func workspaceClosures(a *app, cmd *command) error {
 	case "cancel":
 		return closuresCancel(a, cmd)
 	}
-	return usageError("%s", workspacesUsage)
+	return usageError("%s", a.workspaceUsage())
 }
 func closuresList(a *app, cmd *command) error {
 	if err := cmd.allow("workspace", "account"); err != nil {
@@ -192,7 +196,7 @@ func renderWorkspaces(memberships []api.Membership, selected string) string {
 		if m.TenantID == selected {
 			mark = " (selected)"
 		}
-		lines = append(lines, fmt.Sprintf("- %s [%s] (%s)%s", display(m.TenantName), display(m.TenantID), display(m.Role), mark))
+		lines = append(lines, fmt.Sprintf("- %s [%s] (%s, %s)%s", display(m.TenantName), display(m.TenantID), display(m.TenantSlug), display(m.Role), mark))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -201,7 +205,7 @@ func workspacesSelect(a *app, cmd *command) error {
 	if err := cmd.allow(); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(2, "rzv workspaces select <workspace-id> [--json]"); err != nil {
+	if err := cmd.expectArgs(2, "rzv workspaces select <workspace> [--json]"); err != nil {
 		return err
 	}
 	id := cmd.args[1]
@@ -213,16 +217,19 @@ func workspacesSelect(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "")
 	}
-	// Accept the slug too; store the id.
-	id, found := matchWorkspace(memberships, id)
-	if !found {
+	// Resolve the reference before saving the id.
+	id, err = a.matchWorkspace(memberships, id)
+	if err != nil {
+		return err
+	}
+	if id == "" {
 		return accessError("You are not a member of workspace %s.", display(cmd.args[1]))
 	}
 	creds.SelectedWorkspace = id
 	if err := a.Store.Write(creds); err != nil {
 		return err
 	}
-	a.output(cmd, map[string]string{"selected_workspace_id": id}, "Selected workspace: "+display(id))
+	a.output(cmd, map[string]string{"selected_workspace_id": id}, a.text("Selected workspace: ", "Espace de travail sélectionné : ")+workspaceLabel(memberships, id))
 	return nil
 }
 
@@ -281,4 +288,8 @@ func createWorkspaceError(err error, slug string) error {
 		return usageError("The slug or name was rejected. --slug must be lowercase letters, digits and inner hyphens (at most 63 characters); --name must not be empty (at most 255 characters).")
 	}
 	return apiError(err, "")
+}
+
+func (a *app) workspaceUsage() string {
+	return strings.Replace(workspacesUsage, workspaceSelectionHint, a.text(workspaceSelectionHint, "Avec une session de connexion, utilisez un identifiant, un slug ou un nom d’espace de travail.\nMettez les noms contenant des espaces entre guillemets. Les clés API exigent un identifiant exact d’espace de travail."), 1)
 }

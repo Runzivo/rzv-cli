@@ -110,7 +110,7 @@ func TestLoginWhoamiAndWorkspaces(t *testing.T) {
 	}
 
 	code, out, _ = h.run("workspaces", "list")
-	if code != 0 || !strings.Contains(out, "- Acme [t-1] (owner)") || !strings.Contains(out, `Beta\u001b[31m`) {
+	if code != 0 || !strings.Contains(out, "- Acme [t-1] (acme, owner)") || !strings.Contains(out, `Beta\u001b[31m`) {
 		t.Fatalf("workspaces list: %d %q", code, out)
 	}
 

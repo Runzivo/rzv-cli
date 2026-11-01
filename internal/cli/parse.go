@@ -33,6 +33,8 @@ var booleanOptions = map[string]bool{
 	"personal":                true,
 	"open":                    true,
 	"all":                     true,
+	"stdio":                   true,
+	"write":                   true,
 	"refresh":                 true,
 }
 
