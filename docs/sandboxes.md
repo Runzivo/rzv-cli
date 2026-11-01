@@ -11,14 +11,15 @@ rzv sandboxes start <sandbox-id>
 rzv sandboxes delete <sandbox-id>        # deletes the machine and its files
 ```
 
-Add `--json` to any command except `ssh`. A workspace may run a limited number of sandboxes at once; `list` shows the limit and the sizes this Runzivo environment offers.
+Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket. A workspace may run a limited number of sandboxes at once; `list` shows the limit and the sizes this Runzivo environment offers.
 
 `create` takes `--idempotency-key <key>` (8 to 200 characters). Running it again with the same key returns the sandbox the first run created instead of a second one.
 
 | Page                                            | What it covers                                    |
 | ----------------------------------------------- | ------------------------------------------------- |
 | [Running commands](sandboxes-exec.md)           | `rzv sandboxes exec`, its options and exit status |
-| [Terminal](sandboxes-terminal.md)               | `rzv sandboxes ssh` and `terminal-ticket`         |
+| [SSH and file transfers](sandboxes-ssh.md) | OpenSSH, scp, sftp, rsync and Remote SSH editors |
+| [Terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`         |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
 
 Back to the [documentation index](README.md).

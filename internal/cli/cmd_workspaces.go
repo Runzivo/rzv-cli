@@ -14,7 +14,7 @@ import (
 
 const workspacesUsage = `Usage:
   rzv workspaces list [--json]                         Workspaces you belong to
-  rzv workspaces select <workspace-id> [--json]        Use one for later commands
+  rzv workspaces select <workspace> [--json]        Use one for later commands
   rzv workspaces create --slug <slug> --name <name>    Create a workspace and select it
   rzv workspaces settings ...                           Read or update workspace settings
   rzv workspaces members ...                            List or manage workspace members
@@ -22,6 +22,8 @@ const workspacesUsage = `Usage:
   rzv workspaces closures list [--workspace <id>] [--json]
   rzv workspaces closures request --reason <text> --idempotency-key <key> [--workspace <id>] [--json]
   rzv workspaces closures cancel <request-id> --expected-version <n> [--workspace <id>] [--json]
+
+A workspace can be an id, slug or display name. Quote names containing spaces.
 
 "rzv accounts ..." is accepted as an older name for "rzv workspaces ...".
 
@@ -192,7 +194,7 @@ func renderWorkspaces(memberships []api.Membership, selected string) string {
 		if m.TenantID == selected {
 			mark = " (selected)"
 		}
-		lines = append(lines, fmt.Sprintf("- %s [%s] (%s)%s", display(m.TenantName), display(m.TenantID), display(m.Role), mark))
+		lines = append(lines, fmt.Sprintf("- %s [%s] (%s, %s)%s", display(m.TenantName), display(m.TenantID), display(m.TenantSlug), display(m.Role), mark))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -201,7 +203,7 @@ func workspacesSelect(a *app, cmd *command) error {
 	if err := cmd.allow(); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(2, "rzv workspaces select <workspace-id> [--json]"); err != nil {
+	if err := cmd.expectArgs(2, "rzv workspaces select <workspace> [--json]"); err != nil {
 		return err
 	}
 	id := cmd.args[1]
@@ -213,16 +215,19 @@ func workspacesSelect(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "")
 	}
-	// Accept the slug too; store the id.
-	id, found := matchWorkspace(memberships, id)
-	if !found {
+	// Resolve the reference before saving the id.
+	id, err = a.matchWorkspace(memberships, id)
+	if err != nil {
+		return err
+	}
+	if id == "" {
 		return accessError("You are not a member of workspace %s.", display(cmd.args[1]))
 	}
 	creds.SelectedWorkspace = id
 	if err := a.Store.Write(creds); err != nil {
 		return err
 	}
-	a.output(cmd, map[string]string{"selected_workspace_id": id}, "Selected workspace: "+display(id))
+	a.output(cmd, map[string]string{"selected_workspace_id": id}, a.text("Selected workspace: ", "Espace de travail sélectionné : ")+workspaceLabel(memberships, id))
 	return nil
 }
 

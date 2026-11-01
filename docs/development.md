@@ -1,6 +1,6 @@
 # Development
 
-`rzv` is a single Go module with no third-party dependencies. It needs the Go version in `go.mod`.
+`rzv` is a single Go module using golang.org/x/crypto for OpenSSH keys and certificates. It needs the Go version in `go.mod`.
 
 ```sh
 go build -o rzv ./cmd/rzv   # build for this machine
@@ -22,6 +22,8 @@ gofmt -l . && go vet ./...  # formatting and static checks
 | `internal/version`    | Build metadata, set at release time with `-ldflags`          |
 
 The API client follows the Runzivo customer API contract (`api/customer.openapi.yaml` in the Runzivo service). It is written by hand against that contract and covers only the operations `rzv` calls. Tests use local fake servers and throwaway keys; they never reach Runzivo or use real credentials.
+
+The SSH integration test runs a private local sshd behind a fake relay. It covers ssh, scp, sftp, rsync, local forwarding, certificate refresh, host-key rotation, CA rejection and installed-binary login/API-key access. Install these OpenSSH tools and rsync to run it; otherwise it reports a skip. It never changes the system sshd or contacts a real Runzivo service.
 
 ## CI
 

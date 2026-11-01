@@ -85,3 +85,27 @@ func TestActivityAcceptsEmptyDescription(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAuditRunningCount(t *testing.T) {
+	for _, tc := range []struct {
+		value   string
+		want    int64
+		invalid bool
+	}{
+		{"", 0, false}, {`,"running":4`, 4, false}, {`,"running":0`, 0, false},
+		{`,"running":null`, 0, true}, {`,"running":-1`, 0, true}, {`,"running":"4"`, 0, true},
+	} {
+		body := strings.Replace(auditJSON, `"awaiting_teardown":0`, `"awaiting_teardown":0`+tc.value, 1)
+		c := newTestClient(t, respond(http.StatusOK, body))
+		status, err := c.AuditStatus(context.Background(), "t", 30)
+		if tc.invalid {
+			if err == nil {
+				t.Fatal("accepted invalid running count")
+			}
+			continue
+		}
+		if err != nil || status.Assurances.Running != tc.want {
+			t.Fatalf("%v, %v", status, err)
+		}
+	}
+}

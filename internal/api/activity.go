@@ -153,6 +153,7 @@ type AuditComponent struct {
 	UptimePercent *float64 `json:"uptime_percent"`
 }
 type ExecutionAssurance struct {
+	Running          int64 `json:"running"`
 	JobsRun          int64 `json:"jobs_run"`
 	FreshMicroVMs    int64 `json:"fresh_microvms"`
 	Destroyed        int64 `json:"destroyed"`
@@ -196,6 +197,9 @@ func (s *AuditStatus) UnmarshalJSON(data []byte) error {
 		if !present(assurances, key) || !nonNull(assurances[key]) {
 			return fmt.Errorf("missing %s", key)
 		}
+	}
+	if present(assurances, "running") && !nonNull(assurances["running"]) {
+		return fmt.Errorf("null running")
 	}
 	if !nonNull(raw["history_recorded"]) {
 		return fmt.Errorf("null history_recorded")
@@ -242,7 +246,7 @@ func (c *Client) AuditStatus(ctx context.Context, tenantID string, periodDays in
 	if err := c.do(ctx, http.MethodGet, tenantPath(tenantID, "/audit-status"), q, nil, &out); err != nil {
 		return nil, err
 	}
-	if err := required((out.PeriodDays == 7 || out.PeriodDays == 30 || out.PeriodDays == 60) && out.GeneratedAt != "" && out.Components != nil && out.Evidence != nil && out.Assurances.JobsRun >= 0 && out.Assurances.FreshMicroVMs >= 0 && out.Assurances.Destroyed >= 0 && out.Assurances.CleanTeardowns >= 0 && out.Assurances.ForcedStops >= 0 && out.Assurances.AwaitingTeardown >= 0); err != nil {
+	if err := required((out.PeriodDays == 7 || out.PeriodDays == 30 || out.PeriodDays == 60) && out.GeneratedAt != "" && out.Components != nil && out.Evidence != nil && out.Assurances.JobsRun >= 0 && out.Assurances.FreshMicroVMs >= 0 && out.Assurances.Destroyed >= 0 && out.Assurances.CleanTeardowns >= 0 && out.Assurances.ForcedStops >= 0 && out.Assurances.AwaitingTeardown >= 0 && out.Assurances.Running >= 0); err != nil {
 		return nil, err
 	}
 	for _, component := range out.Components {

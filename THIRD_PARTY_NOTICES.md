@@ -2,11 +2,14 @@
 
 ## rzv 0.9.0 and later
 
-Each `rzv` executable is written in Go and statically links the Go standard library and runtime. It uses no other third-party code.
+Each `rzv` executable is written in Go and statically links the Go standard library and runtime. Sandbox SSH also uses the Go SSH and system packages listed below.
 
 | Component                       | Version | License      | Source and full license text                     |
 | ------------------------------- | ------- | ------------ | ------------------------------------------------ |
 | Go standard library and runtime | 1.27.2  | BSD-3-Clause | https://go.dev/LICENSE (source: https://go.dev/) |
+
+| golang.org/x/crypto | v0.57.0 | BSD-3-Clause | [License](docs/licenses/golang-x-crypto.txt) |
+| golang.org/x/sys | v0.48.0 | BSD-3-Clause | [License](docs/licenses/golang-x-sys.txt) |
 
 The Go version for each release is the one in `go.mod` at the release tag.
 

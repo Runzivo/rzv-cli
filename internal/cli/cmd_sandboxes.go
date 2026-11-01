@@ -28,7 +28,11 @@ const sandboxesUsage = `Usage:
   rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--idempotency-key <key>] [--workspace <id>] [--json]
   rzv sandboxes start|stop|delete <sandbox-id> [--workspace <id>] [--json]
   rzv sandboxes exec <sandbox-id> [--cwd <dir>] [--timeout <1-3600>] [--env KEY=VALUE,...] [--workspace <id>] [--json] -- <command...>
-  rzv sandboxes ssh <sandbox-id> [--workspace <id>]
+  rzv sandboxes terminal <sandbox-id> [--workspace <id>]
+  rzv sandboxes ssh <sandbox-id> [--workspace <workspace>] [-- <ssh options or command>]
+  rzv sandboxes ssh <sandbox-id> --stdio [--workspace <workspace>]
+  rzv sandboxes ssh-proxy <sandbox-id>.rzv [--workspace <workspace>]
+  rzv sandboxes ssh-config [<sandbox-id>] [--workspace <workspace>] [--write]
   rzv sandboxes terminal-ticket <sandbox-id> [--workspace <id>] [--json]
 
 A sandbox is a Linux virtual machine with your files in /workspace. It lives eight
@@ -40,8 +44,11 @@ permission and changes them with sandboxes:write, granted with
 
 exec runs one command and exits with its exit status (124 if it timed out). One
 argument after -- is run as a shell script; two or more are run as that exact
-argument list, each quoted for the shell. ssh opens an interactive terminal through
-Runzivo (macOS and Linux); leave it with the shell's own exit. terminal-ticket
+argument list, each quoted for the shell. ssh uses system OpenSSH on macOS/Linux,
+with certificate authentication and strict host verification. ssh-config enables
+ssh, scp, sftp, rsync and Remote SSH editors; --write maintains an owned Include.
+terminal opens the existing PTY shell and is the fallback when OpenSSH is absent.
+terminal-ticket
 prints a terminal URL for a client that cannot send an Authorization header,
 such as a browser; it works once, within about 30 seconds.`
 
@@ -82,8 +89,12 @@ func runSandboxes(a *app, cmd *command) error {
 		return sandboxAction(a, cmd, "delete", func(c *api.Client, ws, id string) (*api.Sandbox, error) { return c.SandboxDelete(a.ctx, ws, id) }, "Deleting")
 	case "exec":
 		return sandboxesExec(a, cmd)
-	case "ssh":
-		return sandboxesSSH(a, cmd)
+	case "ssh", "ssh-proxy":
+		return sandboxOpenSSH(a, cmd)
+	case "ssh-config":
+		return sandboxSSHConfig(a, cmd)
+	case "terminal":
+		return sandboxesTerminal(a, cmd)
 	case "terminal-ticket":
 		return sandboxesTerminalTicket(a, cmd)
 	default:
@@ -407,13 +418,13 @@ func execEndedBySandbox(exit api.ExecEvent) error {
 	return newError("command_ended", code, "The command was ended by Runzivo (%s).", display(exit.Reason))
 }
 
-var errNoTerminal = usageError("rzv sandboxes ssh needs an interactive terminal on macOS or Linux. In scripts use `rzv sandboxes exec`.")
+var errNoTerminal = usageError("rzv sandboxes terminal needs an interactive terminal on macOS or Linux. In scripts use `rzv sandboxes exec`.")
 
-func sandboxesSSH(a *app, cmd *command) error {
+func sandboxesTerminal(a *app, cmd *command) error {
 	if err := cmd.allow("workspace", "account"); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(2, "rzv sandboxes ssh <sandbox-id> [--workspace <id>]"); err != nil {
+	if err := cmd.expectArgs(2, "rzv sandboxes terminal <sandbox-id> [--workspace <id>]"); err != nil {
 		return err
 	}
 	id, err := sandboxID(cmd.args[1])
@@ -421,7 +432,7 @@ func sandboxesSSH(a *app, cmd *command) error {
 		return err
 	}
 	if cmd.json() {
-		return usageError("--json is not valid for ssh.")
+		return usageError("%s", a.text("--json is not valid for terminal.", "--json n’est pas valide pour terminal."))
 	}
 	terminal := a.Terminal
 	if terminal == nil || a.Stdin == nil || !terminal.Interactive() {

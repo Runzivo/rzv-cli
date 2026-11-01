@@ -2,13 +2,15 @@
 
 | Command                                       | What it does                                                           |
 | --------------------------------------------- | ---------------------------------------------------------------------- |
-| `rzv workspaces list`                         | Workspaces you belong to, with your role.                              |
-| `rzv workspaces select <workspace-id\|slug>`  | Use this workspace for later commands.                                 |
+| `rzv workspaces list`                         | Workspaces you belong to, with name, slug, id and role.                              |
+| `rzv workspaces select <workspace>`  | Use this workspace for later commands.                                 |
 | `rzv workspaces create --slug <s> --name <n>` | Create a workspace and select it. Re-running the same command is safe. |
 
 To create a workspace from a GitHub App installation, see [GitHub](github.md).
 
-`rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <slug or id>` (short `-w`, or the older `--account`) to override the selection. `RZV_WORKSPACE` sets the default workspace, and it is used when no `--workspace` is given. With `RZV_API_KEY`, pass the workspace id: a key cannot look up slugs.
+`rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <workspace>` (short `-w`, or the older `--account`) to override the selection. `RZV_WORKSPACE` sets the default workspace, and it is used when no `--workspace` is given. With `RZV_API_KEY`, pass the workspace id: a key cannot look up slugs or names.
+
+A workspace reference matches an exact id first, then a slug without case sensitivity, then a display name without case sensitivity. Quote names with spaces, for example `rzv workspaces select "My Team"`. If several workspaces match, the command lists their ids and refuses to choose. Select an exact id instead. `select` and `whoami` show the selected name and id.
 
 ## Settings, members and invitations
 
