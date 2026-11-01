@@ -104,7 +104,7 @@ func TestAuditRunningCount(t *testing.T) {
 			}
 			continue
 		}
-		if err != nil || status.Assurances.Running != tc.want {
+		if err != nil || (tc.value == "" && status.Assurances.Running != nil) || (tc.value != "" && (status.Assurances.Running == nil || *status.Assurances.Running != tc.want)) {
 			t.Fatalf("%v, %v", status, err)
 		}
 	}

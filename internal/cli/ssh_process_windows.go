@@ -2,19 +2,10 @@
 
 package cli
 
-import (
-	"errors"
-	"os"
-	"os/exec"
-)
+import "errors"
 
+// Required to compile the shared command file. The command rejects Windows
+// before reaching this stub until native Windows SSH is supported.
 func runOpenSSH(path string, args []string) error {
-	cmd := exec.Command(path, args...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
-	err := cmd.Run()
-	var exit *exec.ExitError
-	if errors.As(err, &exit) {
-		return newError("ssh_exit", exit.ExitCode(), "OpenSSH exited with status %d.", exit.ExitCode())
-	}
-	return err
+	return errors.New("sandbox OpenSSH is not supported on Windows")
 }

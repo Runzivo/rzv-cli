@@ -7,15 +7,17 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 ### Added
 
 - On macOS and Linux, `rzv sandboxes ssh` uses system OpenSSH with short-lived user certificates, strict host CA verification, remote exit status and local forwarding. `ssh --stdio` / `ssh-proxy` carry raw bytes with half-close support. `ssh-config` prints configuration or maintains an owned Include with `--write`, enabling ssh, scp, sftp, rsync and Remote SSH editors. Certificate refresh runs before each connection. Requires the matching Core SSH release and enablement.
-- `rzv sandboxes terminal` preserves the existing PTY terminal and is the fallback for an interactive shell when OpenSSH is missing. Native sandbox OpenSSH on Windows is not included yet.
+- `rzv sandboxes terminal` preserves the existing PTY terminal and is the fallback for an interactive shell when OpenSSH is missing or the environment has SSH disabled or lacks its routes. Native sandbox OpenSSH on Windows is not included yet.
 
-- `rzv activity status` includes the running lease count in human output and `--json`. Older Core responses without the field show zero.
+- `rzv activity status` includes the running lease count in human output and `--json`. Older Core responses without the field show unknown in human output and omit the count in JSON.
 
 ### Changed
 
 - Behaviour change: when `rzv sandboxes exec` gets two or more arguments after `--`, pipes, `&&`, `$VARS` and `NAME=value` prefixes given as separate arguments are now passed literally. Put the whole command in one argument to use shell syntax: instead of `-- FOO=1 make test`, use `-- 'FOO=1 make test'`.
 
 ### Fixed
+
+- SSH remote commands beginning with option-like text stay remote commands. Managed SSH config preserves file modes and existing Include lines; symlinked configs are refused with guidance. SSH lifetime checks tolerate modest clock skew, and normal lifecycle closes report their reason.
 
 - Workspace selection accepts exact ids, case-insensitive slugs and case-insensitive display names, in that order. Ambiguous names or slugs are refused with matching ids. Lists show slugs, and selection and `whoami` show the name and id.
 

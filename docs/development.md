@@ -1,6 +1,6 @@
 # Development
 
-`rzv` is a single Go module using golang.org/x/crypto for OpenSSH keys and certificates. It needs the Go version in `go.mod`.
+`rzv` is a single Go module using golang.org/x/crypto for OpenSSH keys and certificates. The versions of this dependency and its indirect golang.org/x/sys dependency are pinned in go.mod and go.sum. It needs the Go version in `go.mod`.
 
 ```sh
 go build -o rzv ./cmd/rzv   # build for this machine
@@ -27,7 +27,7 @@ The SSH integration test runs a private local sshd behind a fake relay. It cover
 
 ## CI
 
-`.github/workflows/ci.yml` checks formatting, vets, runs the tests with the race detector, builds every release file (`scripts/build.sh`) and runs the installer against them (`scripts/test-install.sh`). Linux jobs run on Runzivo's own microVM runners (`runs-on: rzv-ubuntu-24.04-x64-2vcpu-8gb`). macOS and Windows builds are cross-compiled only; smoke tests on those systems come later. Third-party actions are pinned to full commit SHAs.
+`.github/workflows/ci.yml` checks formatting, vets, runs the tests with the race detector, builds every release file (`scripts/build.sh`) and runs the installer against them (`scripts/test-install.sh`). Linux jobs run on Runzivo's own microVM runners (`runs-on: rzv-ubuntu-24.04-x64-2vcpu-8gb`). macOS and Windows builds are cross-compiled only; smoke tests on those systems come later. Third-party actions are pinned to full commit SHAs. CI downloads the pinned Go modules; `go mod verify` checks their cached contents.
 
 Releases: [Releasing](releasing.md).
 

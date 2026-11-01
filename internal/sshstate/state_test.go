@@ -94,7 +94,24 @@ func TestCertificatesAndHostAuthority(t *testing.T) {
 	if e := s.SaveCertificate(string(ssh.MarshalAuthorizedKey(valid)), expiry, now); e != nil {
 		t.Fatal(e)
 	}
-	for _, cert := range []*ssh.Certificate{makeCert(signer(t).PublicKey(), "user", expiry), makeCert(s.Key.PublicKey(), "root", expiry), makeCert(s.Key.PublicKey(), "user", now.Add(-time.Second))} {
+	for _, skew := range []time.Duration{-4 * time.Minute, 4 * time.Minute} {
+		if e := s.SaveCertificate(string(ssh.MarshalAuthorizedKey(valid)), expiry, now.Add(skew)); e != nil {
+			t.Fatal("clock skew rejected", skew, e)
+		}
+	}
+	if e := s.SaveCertificate(string(ssh.MarshalAuthorizedKey(valid)), expiry, now.Add(-7*time.Minute)); e == nil {
+		t.Fatal("excessive skew accepted")
+	}
+	tooLong := makeCert(s.Key.PublicKey(), "user", now.Add(16*time.Minute))
+	if e := s.SaveCertificate(string(ssh.MarshalAuthorizedKey(tooLong)), now.Add(16*time.Minute), now.Add(4*time.Minute)); e == nil {
+		t.Fatal("overlong TTL accepted")
+	}
+	tampered := *valid
+	tampered.Serial++
+	if e := s.SaveCertificate(string(ssh.MarshalAuthorizedKey(&tampered)), expiry, now.Add(-4*time.Minute)); e == nil {
+		t.Fatal("invalid signature accepted with skew")
+	}
+	for _, cert := range []*ssh.Certificate{makeCert(signer(t).PublicKey(), "user", expiry), makeCert(s.Key.PublicKey(), "root", expiry), makeCert(s.Key.PublicKey(), "user", now.Add(-6*time.Minute))} {
 		if e := s.SaveCertificate(string(ssh.MarshalAuthorizedKey(cert)), time.Unix(int64(cert.ValidBefore), 0), now); e == nil {
 			t.Fatal("invalid certificate accepted")
 		}

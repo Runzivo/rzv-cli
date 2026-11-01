@@ -13,7 +13,7 @@ import (
 )
 
 // SystemTerminal is the terminal of this process. On macOS and Linux it uses
-// the stty tool every Unix system has, so rzv needs no third-party code.
+// the stty tool every Unix system has, so PTY handling needs no additional dependency.
 func SystemTerminal() Terminal { return unixTerminal{} }
 
 type unixTerminal struct{}

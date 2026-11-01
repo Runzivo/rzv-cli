@@ -24,6 +24,8 @@ type SSHTicket struct {
 	Certificate          string    `json:"certificate"`
 	CertificateExpiresAt time.Time `json:"certificate_expires_at"`
 	Principal            string    `json:"principal"`
+	// LocalExpiresAt bounds prepared-ticket reuse using the receiving clock.
+	LocalExpiresAt time.Time `json:"local_expires_at,omitempty"`
 }
 
 func (h SSHHost) Validate(sandboxID string) error {
@@ -47,16 +49,24 @@ func (c *Client) SandboxSSHHost(ctx context.Context, workspace, sandboxID string
 
 func (c *Client) SandboxSSHTicket(ctx context.Context, workspace, sandboxID, publicKey string) (*SSHTicket, error) {
 	var ticket SSHTicket
+	requestedAt := time.Now()
 	if err := c.do(ctx, http.MethodPost, sandboxPath(workspace, "/"+url.PathEscape(sandboxID)+"/ssh-ticket"), nil, map[string]string{"public_key": publicKey}, &ticket); err != nil {
 		return nil, err
 	}
 	if err := ticket.SSHHost.Validate(sandboxID); err != nil {
 		return nil, err
 	}
+	// Core issues a 15-minute certificate and a 30-second ticket together.
+	// Compare their durations, not a short ticket expiry against the client clock.
+	issued := ticket.CertificateExpiresAt.Add(-15 * time.Minute)
+	ttl := ticket.ExpiresAt.Sub(issued)
 	now := time.Now()
-	if ticket.Principal != "user" || ticket.Ticket == "" || ticket.Certificate == "" || !ticket.ExpiresAt.After(now) || ticket.ExpiresAt.After(now.Add(45*time.Second)) || !ticket.CertificateExpiresAt.After(now) || ticket.CertificateExpiresAt.After(now.Add(16*time.Minute)) {
-		return nil, required(false)
+	if ticket.Principal != "user" || ticket.Ticket == "" || ticket.Certificate == "" || ttl <= 0 || ttl > 45*time.Second || issued.Before(now.Add(-5*time.Minute)) || issued.After(now.Add(5*time.Minute)) {
+		return nil, &Error{Status: http.StatusOK, Code: "invalid_ssh_ticket"}
 	}
+	// Start the local budget before the request so network latency never
+	// extends the time we will reuse a prepared ticket.
+	ticket.LocalExpiresAt = requestedAt.Add(ttl)
 	if _, err := c.sshConnectURL(&ticket, workspace, sandboxID); err != nil {
 		return nil, err
 	}

@@ -443,13 +443,38 @@ func TestOpenSSHFileToolsForwardingAndRefresh(t *testing.T) {
 	if bytes.Equal(before, after) {
 		t.Fatal("certificate was not refreshed")
 	}
+	// The test sshd accepts the local account, while production uses user.
+	// Override the account only in the test executable shim, never the CLI.
+	sshPath, _ := exec.LookPath("ssh")
+	shimDir := filepath.Join(root, "bin")
+	if e := os.Mkdir(shimDir, 0700); e != nil {
+		t.Fatal(e)
+	}
+	shim := "#!/bin/sh\nexec " + shellArg(sshPath) + " -l " + shellArg(current.Username) + " \"$@\"\n"
+	if e := os.WriteFile(filepath.Join(shimDir, "ssh"), []byte(shim), 0700); e != nil {
+		t.Fatal(e)
+	}
+	env = append(env, "PATH="+shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	// Wrapper preserves remote exit status with system OpenSSH.
-	cmd := exec.Command(binaryPath, "sandboxes", "ssh", sbxID, "--", "-l", current.Username, "exit 17")
+	cmd := exec.Command(binaryPath, "sandboxes", "ssh", sbxID, "--", "exit 17")
 	cmd.Env = env
 	out, e := cmd.CombinedOutput()
 	var status *exec.ExitError
 	if !errors.As(e, &status) || status.ExitCode() != 17 {
 		t.Fatalf("remote exit: %v %s", e, out)
+	}
+	// A command beginning with -o must reach the remote shell, never OpenSSH's
+	// option parser. If the guard regresses, this creates a local marker file.
+	marker := filepath.Join(root, "proxy-injection")
+	attack := "-oProxyCommand=touch " + shellArg(marker)
+	cmd = exec.Command(binaryPath, "sandboxes", "ssh", sbxID, "--", "--", attack)
+	cmd.Env = env
+	out, e = cmd.CombinedOutput()
+	if !errors.As(e, &status) || status.ExitCode() == 255 || !bytes.Contains(out, []byte("ProxyCommand")) {
+		t.Fatalf("leading option was not a remote command: %v %s", e, out)
+	}
+	if _, e := os.Stat(marker); !os.IsNotExist(e) {
+		t.Fatal("remote text executed locally")
 	}
 	source := filepath.Join(root, "source.bin")
 	payload := bytes.Repeat([]byte{0, 255, 13, 10, 23}, 1<<15)

@@ -10,7 +10,7 @@ This repository holds the source code of `rzv` (Go), its release notes and its r
 curl -fsSL https://runzivo.dev/downloads/rzv/install.sh | sh
 ```
 
-The installer downloads the latest release, checks its SHA-256 checksum and puts `rzv` in `$RZV_INSTALL_DIR` (default `~/.local/bin`). `rzv` is one static executable. Sandbox SSH uses your installed OpenSSH client on macOS or Linux. More options, platforms and manual downloads: [docs/install.md](docs/install.md).
+The installer downloads the latest release, checks its SHA-256 checksum and puts `rzv` in `$RZV_INSTALL_DIR` (default `~/.local/bin`). `rzv` is one static executable. Sandbox SSH uses your installed OpenSSH client on macOS or Linux. The binary includes pinned `golang.org/x/crypto/ssh` for OpenSSH keys and certificates, plus its indirect `golang.org/x/sys` dependency. More options, platforms and manual downloads: [docs/install.md](docs/install.md).
 
 ## Use
 

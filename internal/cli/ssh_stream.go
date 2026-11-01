@@ -11,7 +11,7 @@ import (
 
 // proxySSH owns the socket and closes pipe ends when their peer ends. Writes
 // are synchronous and bounded: neither direction queues unbounded SSH data.
-func proxySSH(ctx context.Context, socket *api.WebSocket, input io.Reader, output io.Writer) error {
+func proxySSH(ctx context.Context, socket *api.WebSocket, input io.Reader, output io.Writer, onClose func(string)) error {
 	defer socket.Abort()
 	stop := context.AfterFunc(ctx, func() {
 		_ = socket.Abort()
@@ -60,7 +60,10 @@ func proxySSH(ctx context.Context, socket *api.WebSocket, input io.Reader, outpu
 				return ctx.Err()
 			}
 			var closed *api.CloseError
-			if errors.As(err, &closed) && closed.Code == 1000 && (closed.Reason == "" || closed.Reason == "shell_exited" || closed.Reason == "socket_closed") {
+			if errors.As(err, &closed) && closed.Code == 1000 && (closed.Reason == "" || closed.Reason == "shell_exited" || closed.Reason == "socket_closed" || closed.Reason == "idle_timeout" || closed.Reason == "sandbox_stopped" || closed.Reason == "sandbox_expired" || closed.Reason == "sandbox_deleted") {
+				if onClose != nil && closed.Reason != "" {
+					onClose(closed.Reason)
+				}
 				return nil
 			}
 			select {

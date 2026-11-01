@@ -9,7 +9,7 @@ rzv sandboxes ssh <sandbox-id> -- 'exit 7'
 rzv sandboxes ssh <sandbox-id> -- -N -L 8080:localhost:3000
 ```
 
-The remote command's exit status is preserved. OpenSSH handles terminal resizing and signals. For several shell operations, pass one quoted command. The wrapper accepts `-t`, `-tt`, `-T`, `-N`, `-n`, `-v`, `-vv`, `-vvv`, `-l` and `-L`; use plain `ssh` with generated configuration for other options.
+The remote command's exit status is preserved. OpenSSH handles terminal resizing and signals. For several shell operations, pass one quoted command. The wrapper accepts `-t`, `-tt`, `-T`, `-N`, `-n`, `-v`, `-vv`, `-vvv` and `-L`; use plain `ssh` with generated configuration for other options.
 
 With an API key, generating configuration requires `sandboxes:read`; connecting requires `sandboxes:write` (or `all:all`).
 
@@ -26,7 +26,9 @@ ssh -N -L 8080:localhost:3000 <sandbox-id>.rzv
 
 `ssh-config` prints a Host block unless you pass `--write`. Without an id it handles the running sandboxes in the selected workspace. Add `--workspace <id, slug or name>` or `--profile <profile>` when generating configuration.
 
-`--write` stores each owned block in `~/.ssh/rzv/` and prepends one Include to `~/.ssh/config`, preserving your other configuration. Re-running it updates that sandbox's owned block. The alias is its sandbox id, so host moves and sandbox restarts do not change the connection name.
+`--write` stores each owned block in `~/.ssh/rzv/` and prepends one Include to `~/.ssh/config`, preserving your other configuration and file permissions. An existing Include is reused anywhere in the file, including CRLF files. Symlinked configs are refused with instructions to include the printed block in your managed dotfile. Re-running it updates that sandbox's owned block. The alias is its sandbox id, so host moves and sandbox restarts do not change the connection name.
+
+`--write` honors `$HOME`. OpenSSH uses the account’s passwd home for its default config and `~` expansion. Keep these homes aligned; otherwise place the printed block in the config OpenSSH reads.
 
 ## VS Code and Cursor
 
@@ -34,7 +36,7 @@ Install your editor's Remote SSH extension. Generate the configuration with `ssh
 
 Local forwarding reaches services on the sandbox's localhost. It requires the server release that permits local forwarding. Agent forwarding, X11 forwarding and remote forwarding are not enabled by this setup. No password or public guest SSH address is needed. Editor installation and operation have not been tested against a live sandbox in this release.
 
-Editor references: [VS Code Remote SSH](https://code.visualstudio.com/docs/remote/ssh) and [Cursor Remote SSH troubleshooting](https://prod.cursor.com/help/troubleshooting/network).
+Editor references: [VS Code Remote SSH](https://code.visualstudio.com/docs/remote/ssh) and [Cursor Remote SSH troubleshooting](https://cursor.com/help/troubleshooting/network).
 
 ## Credentials and reconnection
 
@@ -46,6 +48,6 @@ Keep the selected profile signed in. With `RZV_API_KEY`, the connecting process 
 
 A stopped, expired or deleted sandbox disconnects. Idle and unread-output limits still apply on the service. Reconnect with the same command; the CLI does not replay remote commands automatically. A long-running established session does not reconnect merely because its login certificate expires.
 
-Use `rzv sandboxes terminal <sandbox-id>` for the existing PTY shell. When OpenSSH is missing, `ssh` falls back to that shell only for an interactive connection without extra arguments.
+Use `rzv sandboxes terminal <sandbox-id>` for the existing PTY shell. When OpenSSH is missing or the environment has SSH disabled or lacks its routes, `ssh` falls back to that shell only for an interactive connection without extra arguments. Commands and file transfers receive guidance instead of being replayed through the terminal.
 
 Back to [Sandboxes](sandboxes.md).

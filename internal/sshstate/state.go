@@ -1,5 +1,6 @@
 // Package sshstate manages private, identity-bound OpenSSH state. It never
-// persists bearer credentials or relay tickets.
+// persists bearer credentials. The CLI briefly persists a single-use relay
+// ticket in ticket.json (0600) until its proxy claims and deletes it.
 package sshstate
 
 import (
@@ -154,10 +155,24 @@ func (s *State) SaveCertificate(raw string, expires time.Time, now time.Time) er
 		return ErrCertificate
 	}
 	cert, ok := key.(*ssh.Certificate)
-	if !ok || cert.CertType != ssh.UserCert || !bytes.Equal(cert.Key.Marshal(), s.Key.PublicKey().Marshal()) || len(cert.ValidPrincipals) != 1 || cert.ValidPrincipals[0] != "user" || cert.ValidBefore != uint64(expires.Unix()) || !expires.After(now) || expires.After(now.Add(16*time.Minute)) || len(cert.CriticalOptions) != 0 {
+	if !ok || cert.CertType != ssh.UserCert || !bytes.Equal(cert.Key.Marshal(), s.Key.PublicKey().Marshal()) || len(cert.ValidPrincipals) != 1 || cert.ValidPrincipals[0] != "user" || cert.ValidBefore != uint64(expires.Unix()) || cert.ValidBefore <= cert.ValidAfter || cert.ValidBefore-cert.ValidAfter > uint64((16*time.Minute)/time.Second) || len(cert.CriticalOptions) != 0 {
 		return ErrCertificate
 	}
-	checker := ssh.CertChecker{Clock: func() time.Time { return now }}
+	// Allow five minutes of client skew while retaining a bounded certificate
+	// lifetime. Core and sshd enforce expiry on their own clocks at redemption.
+	after := time.Unix(int64(cert.ValidAfter), 0)
+	before := time.Unix(int64(cert.ValidBefore), 0)
+	if now.Before(after.Add(-5*time.Minute)) || !now.Before(before.Add(5*time.Minute)) {
+		return ErrCertificate
+	}
+	checkTime := now
+	if checkTime.Before(after) {
+		checkTime = after
+	}
+	if !checkTime.Before(before) {
+		checkTime = before.Add(-time.Second)
+	}
+	checker := ssh.CertChecker{Clock: func() time.Time { return checkTime }}
 	if err := checker.CheckCert("user", cert); err != nil {
 		return ErrCertificate
 	}

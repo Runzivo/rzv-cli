@@ -60,20 +60,23 @@ func TestActivityUsesWorkspaceAPIKey(t *testing.T) {
 }
 
 func TestAuditRunningHumanAndJSON(t *testing.T) {
-	for _, count := range []string{"", `,"running":7`} {
+	for _, count := range []string{"", `,"running":0`, `,"running":7`} {
 		h := selectedHarness(t)
 		h.json("GET /v1/customer/tenants/t-1/audit-status", 200, strings.Replace(cliAuditJSON, `"awaiting_teardown":6`, `"awaiting_teardown":6`+count, 1))
-		want := "7"
+		want := strings.TrimPrefix(count, `,"running":`)
 		if count == "" {
-			want = "0"
+			want = "unknown"
 		}
 		if code, out, e := h.run("activity", "status"); code != 0 || !strings.Contains(out, "running "+want) {
 			t.Fatal(code, out, e)
 		}
-		if code, out, e := h.run("activity", "status", "--json"); code != 0 || !strings.Contains(out, `"running":`+want) {
+		if code, out, e := h.run("activity", "status", "--json"); code != 0 || (count == "" && strings.Contains(out, `"running":`)) || (count != "" && !strings.Contains(out, `"running":`+want)) {
 			t.Fatal(code, out, e)
 		}
 		h.env["LC_MESSAGES"] = "fr_CA.UTF-8"
+		if count == "" {
+			want = "inconnu"
+		}
 		if code, out, e := h.run("activity", "status"); code != 0 || !strings.Contains(out, "en cours "+want) {
 			t.Fatal(code, out, e)
 		}

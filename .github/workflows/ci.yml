@@ -36,6 +36,10 @@ jobs:
           go-version-file: go.mod
           cache: false
 
+      # OpenSSH key/certificate support uses pinned x/crypto and indirect x/sys.
+      - name: Verify Go modules
+        run: go mod download && go mod verify
+
       - name: Check formatting
         run: |
           unformatted="$(gofmt -l .)"

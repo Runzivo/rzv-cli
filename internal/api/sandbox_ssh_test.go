@@ -46,6 +46,20 @@ func TestSandboxSSHContractAndURLBinding(t *testing.T) {
 	if _, e := c.SandboxSSHTicket(context.Background(), "w", id, "key"); e != nil {
 		t.Fatal(e)
 	}
+	for _, skew := range []time.Duration{-4 * time.Minute, 4 * time.Minute} {
+		mutate = func(v *SSHTicket) {
+			v.ExpiresAt = v.ExpiresAt.Add(skew)
+			v.CertificateExpiresAt = v.CertificateExpiresAt.Add(skew)
+		}
+		ticket, err := c.SandboxSSHTicket(context.Background(), "w", id, "key")
+		if err != nil {
+			t.Fatal("clock skew rejected", skew, err)
+		}
+		remaining := time.Until(ticket.LocalExpiresAt)
+		if remaining < 29*time.Second || remaining > 31*time.Second {
+			t.Fatal("cache deadline uses server clock", remaining)
+		}
+	}
 	for _, change := range []func(*SSHTicket){
 		func(v *SSHTicket) { v.URL = "wss://foreign.test" + sandboxPath("w", "/"+id+"/ssh") },
 		func(v *SSHTicket) { v.URL += "?ticket=other" }, func(v *SSHTicket) { v.URL += "#fragment" },
@@ -53,6 +67,15 @@ func TestSandboxSSHContractAndURLBinding(t *testing.T) {
 		func(v *SSHTicket) { v.Principal = "root" }, func(v *SSHTicket) { v.HostKeyAlias = "other.sandbox.runzivo" },
 		func(v *SSHTicket) { v.HostCAPublicKey += "\nmalicious" }, func(v *SSHTicket) { v.ExpiresAt = time.Now().Add(-time.Second) },
 		func(v *SSHTicket) { v.CertificateExpiresAt = time.Now().Add(time.Hour) },
+		func(v *SSHTicket) { v.ExpiresAt = v.ExpiresAt.Add(time.Minute) },
+		func(v *SSHTicket) {
+			v.ExpiresAt = v.ExpiresAt.Add(6 * time.Minute)
+			v.CertificateExpiresAt = v.CertificateExpiresAt.Add(6 * time.Minute)
+		},
+		func(v *SSHTicket) {
+			v.ExpiresAt = v.ExpiresAt.Add(-6 * time.Minute)
+			v.CertificateExpiresAt = v.CertificateExpiresAt.Add(-6 * time.Minute)
+		},
 	} {
 		mutate = change
 		if _, e := c.SandboxSSHTicket(context.Background(), "w", id, "key"); e == nil || strings.Contains(e.Error(), "secret-ticket") {
