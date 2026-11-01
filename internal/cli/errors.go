@@ -21,6 +21,9 @@ type Error struct {
 	Code    string
 	Exit    int
 	Message string
+	// Quiet errors set the exit code without printing: a later step reports
+	// the same failure once.
+	Quiet bool
 }
 
 func (e *Error) Error() string { return e.Message }

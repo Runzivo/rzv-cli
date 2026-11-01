@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -115,8 +116,89 @@ func takeSSHTicket(state *sshstate.State) (*api.SSHTicket, error) {
 	return &ticket, nil
 }
 
+// sshPrepareMode says which step prepares a ticket. OpenSSH runs the config
+// refresh (Match exec) and then the ProxyCommand (--stdio) for one connection,
+// so they share one startup wait instead of waiting twice.
+type sshPrepareMode int
+
+const (
+	sshPrepareDirect  sshPrepareMode = iota // rzv sandboxes ssh, before exec
+	sshPrepareRefresh                       // ssh-config --refresh from Match exec
+	sshPrepareProxy                         // --stdio from ProxyCommand
+)
+
+// sshStartWait bounds how long one connection waits for sandbox SSH to start.
+// sshStartGrace is how long a refresh timeout makes the following proxy step
+// fail at once instead of waiting again. sshRetryMin is the shortest wait
+// between ticket requests. Variables so tests run quickly.
+var (
+	sshStartWait  = 60 * time.Second
+	sshStartGrace = 15 * time.Second
+	sshRetryMin   = time.Second
+)
+
+var errSSHStartTimeout = errors.New("sandbox SSH did not start in time")
+
+func sshWaitPath(state *sshstate.State) string { return filepath.Join(state.Dir, "ssh-wait.json") }
+
+type sshWaitMarker struct {
+	Deadline time.Time `json:"deadline"`
+}
+
+func readSSHWaitDeadline(state *sshstate.State) time.Time {
+	data, err := sshstate.ReadPrivate(sshWaitPath(state))
+	if err != nil {
+		return time.Time{}
+	}
+	var marker sshWaitMarker
+	if json.Unmarshal(data, &marker) != nil {
+		return time.Time{}
+	}
+	return marker.Deadline
+}
+
+func (a *app) sshStartTimeoutError(quiet bool) error {
+	err := newError("sandbox_ssh_starting", 255, "%s", a.text("Sandbox SSH did not start within 60 seconds. Try the connection again shortly.", "SSH dans le bac à sable n’a pas démarré en 60 secondes. Réessayez la connexion bientôt."))
+	err.Quiet = quiet
+	return err
+}
+
 func (a *app) prepareSSH(state *sshstate.State, client *api.Client) (*api.SSHTicket, error) {
-	ticket, err := client.SandboxSSHTicket(a.ctx, state.Binding.Workspace, state.Binding.Sandbox, state.PublicKey())
+	return a.prepareSSHFor(state, client, sshPrepareDirect)
+}
+
+// prepareSSHFor mints a ticket, waiting up to sshStartWait while Core answers
+// sandbox_ssh_starting. A refresh that times out records its deadline and
+// stays silent; the proxy step that OpenSSH runs next then fails at once with
+// the one timeout message.
+func (a *app) prepareSSHFor(state *sshstate.State, client *api.Client, mode sshPrepareMode) (*api.SSHTicket, error) {
+	now := time.Now()
+	deadline := now.Add(sshStartWait)
+	if mode == sshPrepareProxy {
+		if previous := readSSHWaitDeadline(state); !previous.IsZero() {
+			_ = os.Remove(sshWaitPath(state))
+			if !now.After(previous.Add(sshStartGrace)) && !previous.After(deadline) {
+				return nil, a.sshStartTimeoutError(false)
+			}
+		}
+	}
+	waiting := false
+	ticket, err := waitForSSHTicket(a.ctx, deadline, func(ctx context.Context) (*api.SSHTicket, error) {
+		return client.SandboxSSHTicket(ctx, state.Binding.Workspace, state.Binding.Sandbox, state.PublicKey())
+	}, func() {
+		if !waiting {
+			waiting = true
+			fmt.Fprintln(a.Stderr, a.text("Waiting for sandbox SSH to start...", "En attente du démarrage de SSH dans le bac à sable..."))
+		}
+	}, sleepContext)
+	if errors.Is(err, errSSHStartTimeout) {
+		if mode == sshPrepareRefresh {
+			marker, _ := json.Marshal(sshWaitMarker{Deadline: deadline})
+			_ = sshstate.WritePrivate(sshWaitPath(state), marker)
+			return nil, a.sshStartTimeoutError(true)
+		}
+		return nil, a.sshStartTimeoutError(false)
+	}
 	if err != nil {
 		return nil, a.sshAPIError(err)
 	}
@@ -127,6 +209,55 @@ func (a *app) prepareSSH(state *sshstate.State, client *api.Client) (*api.SSHTic
 		return nil, err
 	}
 	return ticket, nil
+}
+
+func isSSHStarting(err error) (*api.Error, bool) {
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) && apiErr.Status == 503 && apiErr.Code == "sandbox_ssh_starting" {
+		return apiErr, true
+	}
+	return nil, false
+}
+
+// waitForSSHTicket sends each request on ctx, so the deadline never cuts a
+// request short; it only decides whether to retry sandbox_ssh_starting. The
+// wait between requests is the server's Retry-After, at least sshRetryMin and
+// at most the time left. It returns errSSHStartTimeout once the deadline has
+// passed, and ctx's error if ctx ends while waiting.
+func waitForSSHTicket(ctx context.Context, deadline time.Time, request func(context.Context) (*api.SSHTicket, error), waiting func(), sleep func(context.Context, time.Duration) error) (*api.SSHTicket, error) {
+	for {
+		ticket, err := request(ctx)
+		if err == nil {
+			return ticket, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		apiErr, starting := isSSHStarting(err)
+		if !starting {
+			return nil, err
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil, errSSHStartTimeout
+		}
+		waiting()
+		delay := min(max(apiErr.RetryAfter, sshRetryMin), remaining)
+		if err := sleep(ctx, delay); err != nil {
+			return nil, err
+		}
+	}
+}
+
+func sleepContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func sandboxOpenSSH(a *app, cmd *command) error {
@@ -156,7 +287,7 @@ func sandboxOpenSSH(a *app, cmd *command) error {
 		}
 		ticket, err := takeSSHTicket(state)
 		if err != nil {
-			ticket, err = a.prepareSSH(state, client)
+			ticket, err = a.prepareSSHFor(state, client, sshPrepareProxy)
 		} else {
 			// Revalidate persisted data before using it; no persisted field controls
 			// the destination except through the API client's strict URL check.
@@ -368,7 +499,7 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 				return nil
 			}
 		}
-		ticket, err := a.prepareSSH(state, client)
+		ticket, err := a.prepareSSHFor(state, client, sshPrepareRefresh)
 		if err != nil {
 			return err
 		}

@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,10 +27,12 @@ const (
 )
 
 // Error is a failed API call. Status is 0 when no response arrived. Code is
-// the server's error code when it sent a well-formed one.
+// the server's error code when it sent a well-formed one. RetryAfter is the
+// server's Retry-After delay, or 0 when it sent none.
 type Error struct {
-	Status int
-	Code   string
+	Status     int
+	Code       string
+	RetryAfter time.Duration
 }
 
 func (e *Error) Error() string {
@@ -116,7 +119,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		return &Error{Status: 0, Code: "customer_api_unavailable"}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return decodeError(resp.StatusCode, data)
+		return decodeError(resp.StatusCode, data, resp.Header.Get("Retry-After"))
 	}
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
@@ -156,7 +159,7 @@ func (c *Client) doCSV(ctx context.Context, path string, query url.Values) ([]by
 		return nil, &Error{Status: resp.StatusCode, Code: "response_too_large"}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return nil, decodeError(resp.StatusCode, data)
+		return nil, decodeError(resp.StatusCode, data, resp.Header.Get("Retry-After"))
 	}
 	contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	if err != nil || contentType != "text/csv" {
@@ -178,16 +181,38 @@ func (c *Client) doCSV(ctx context.Context, path string, query url.Values) ([]by
 	return data, nil
 }
 
-func decodeError(status int, data []byte) *Error {
+func decodeError(status int, data []byte, retryAfter string) *Error {
 	var body struct {
 		Error struct {
 			Code string `json:"code"`
 		} `json:"error"`
 	}
 	if json.Unmarshal(data, &body) == nil && errorCodePattern.MatchString(body.Error.Code) {
-		return &Error{Status: status, Code: body.Error.Code}
+		return &Error{Status: status, Code: body.Error.Code, RetryAfter: parseRetryAfter(retryAfter, time.Now())}
 	}
 	return &Error{Status: status, Code: "invalid_error_response"}
+}
+
+// maxRetryAfter bounds a server-supplied delay; callers clamp it further.
+const maxRetryAfter = 5 * time.Minute
+
+// parseRetryAfter reads a Retry-After header as delay seconds or an HTTP date.
+// A missing, malformed or past value is 0.
+func parseRetryAfter(value string, now time.Time) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	var delay time.Duration
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds <= 0 {
+			return 0
+		}
+		delay = time.Duration(min(seconds, int(maxRetryAfter/time.Second))) * time.Second
+	} else if at, err := http.ParseTime(value); err == nil {
+		delay = at.Sub(now)
+	}
+	return min(max(delay, 0), maxRetryAfter)
 }
 
 // required reports a malformed response when a required field is missing.

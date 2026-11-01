@@ -140,7 +140,7 @@ func handshake(ctx context.Context, conn net.Conn, target *url.URL, header http.
 	}()
 	if response.StatusCode != http.StatusSwitchingProtocols {
 		data, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
-		return nil, decodeError(response.StatusCode, data)
+		return nil, decodeError(response.StatusCode, data, response.Header.Get("Retry-After"))
 	}
 	sum := sha1.Sum([]byte(key + websocketGUID)) //nolint:gosec
 	if !strings.EqualFold(response.Header.Get("Upgrade"), "websocket") ||
