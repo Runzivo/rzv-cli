@@ -2,7 +2,7 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
-## Unreleased
+## release-2026-11-01-185141 (rzv 0.22.0), 2026-11-01
 
 ### Added
 
@@ -16,6 +16,8 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 - Behaviour change: when `rzv sandboxes exec` gets two or more arguments after `--`, pipes, `&&`, `$VARS` and `NAME=value` prefixes given as separate arguments are now passed literally. Put the whole command in one argument to use shell syntax: instead of `-- FOO=1 make test`, use `-- 'FOO=1 make test'`.
 
 ### Fixed
+
+- `rzv sandboxes ssh`, `ssh --stdio` and the `ssh-config` refresh wait up to 60 seconds, honouring `Retry-After`, while a newly started sandbox's SSH service starts, with one status line on stderr. They no longer fail with a host-key error in the first seconds after a start.
 
 - SSH remote commands beginning with option-like text stay remote commands. Managed SSH config preserves file modes and existing Include lines; symlinked configs are refused with guidance. SSH lifetime checks tolerate modest clock skew, and normal lifecycle closes report their reason.
 
