@@ -119,7 +119,7 @@ func TestCertificatesAndHostAuthority(t *testing.T) {
 	if e := s.SaveCertificate(string(ssh.MarshalAuthorizedKey(valid)), expiry.Add(time.Second), now); e == nil {
 		t.Fatal("mismatched expiry accepted")
 	}
-	alias := s.Binding.Sandbox + ".sandbox.runzivo"
+	alias := s.Binding.Sandbox + ".sandbox.runzivo.dev"
 	raw := string(bytes.TrimSpace(ssh.MarshalAuthorizedKey(ca.PublicKey())))
 	if e := s.SaveHost(alias, raw); e != nil {
 		t.Fatal(e)
@@ -130,6 +130,14 @@ func TestCertificatesAndHostAuthority(t *testing.T) {
 	}
 	if s.SaveHost("*.rzv", raw) == nil || s.SaveHost(alias, raw+"\nanything") == nil {
 		t.Fatal("unsafe authority accepted")
+	}
+	for _, invalid := range []string{s.Binding.Sandbox + ".sandbox.runzivo", alias + ".evil", "*.sandbox.runzivo.dev", "sbx_aaaaaaaaaaaaaaaaaaaaaaaa.sandbox.runzivo.dev"} {
+		if s.SaveHost(invalid, raw) == nil {
+			t.Fatalf("invalid host alias accepted: %q", invalid)
+		}
+	}
+	if after, err := ReadPrivate(s.KnownHostsFile()); err != nil || !bytes.Equal(after, data) {
+		t.Fatal("invalid alias changed the pinned authority", err)
 	}
 }
 func TestStateRefusesSymlinksAndPublicPrivateKeys(t *testing.T) {

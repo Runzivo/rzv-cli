@@ -175,7 +175,7 @@ func TestSSHConfigListResolvesMembershipOnce(t *testing.T) {
 	f := newSSHFixture(t, nil)
 	ca := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(f.hostCA.PublicKey())))
 	for _, id := range []string{sbxID, "sbx_aaaaaaaaaaaaaaaaaaaaaaaa"} {
-		h.json("GET /v1/customer/tenants/t-1/sandboxes/"+id+"/ssh-host", 200, `{"host_ca_public_key":"`+ca+`","host_key_alias":"`+id+`.sandbox.runzivo"}`)
+		h.json("GET /v1/customer/tenants/t-1/sandboxes/"+id+"/ssh-host", 200, `{"host_ca_public_key":"`+ca+`","host_key_alias":"`+id+`.sandbox.runzivo.dev"}`)
 	}
 	original := h.routes["GET /v1/customer/memberships"]
 	count := 0

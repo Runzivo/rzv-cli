@@ -77,7 +77,7 @@ func newSSHFixture(t *testing.T, serve func(net.Conn, *bufio.Reader)) *sshFixtur
 		hostCA := f.hostCA
 		serve := f.serve
 		f.mu.Unlock()
-		host := api.SSHHost{HostCAPublicKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCA.PublicKey()))), HostKeyAlias: sbxID + ".sandbox.runzivo"}
+		host := api.SSHHost{HostCAPublicKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCA.PublicKey()))), HostKeyAlias: sbxID + ".sandbox.runzivo.dev"}
 		if r.URL.Path == path+"/ssh" {
 			f.mu.Lock()
 			ok := f.tickets[r.URL.Query().Get("ticket")]
@@ -206,7 +206,7 @@ func TestSSHProxyBinaryHalfCloseAndConfig(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	for _, s := range []string{"StrictHostKeyChecking yes", "HostKeyAlias " + sbxID + ".sandbox.runzivo", "ForwardAgent no", "ForwardX11 no", "Match host", "--stdio", "--refresh"} {
+	for _, s := range []string{"StrictHostKeyChecking yes", "HostKeyAlias " + sbxID + ".sandbox.runzivo.dev", "ForwardAgent no", "ForwardX11 no", "Match host", "--stdio", "--refresh"} {
 		if !strings.Contains(string(data), s) {
 			t.Fatal("missing config", s)
 		}
@@ -278,7 +278,7 @@ func startTestSSHD(t *testing.T, f *sshFixture, dir string) string {
 		t.Skip("local OpenSSH sshd is unavailable")
 	}
 	host, keyPath := writeSSHSigner(t, dir, "host-key")
-	cert := &ssh.Certificate{Key: host.PublicKey(), CertType: ssh.HostCert, ValidPrincipals: []string{sbxID + ".sandbox.runzivo"}, ValidAfter: uint64(time.Now().Add(-time.Minute).Unix()), ValidBefore: uint64(time.Now().Add(time.Hour).Unix())}
+	cert := &ssh.Certificate{Key: host.PublicKey(), CertType: ssh.HostCert, ValidPrincipals: []string{sbxID + ".sandbox.runzivo.dev"}, ValidAfter: uint64(time.Now().Add(-time.Minute).Unix()), ValidBefore: uint64(time.Now().Add(time.Hour).Unix())}
 	if e := cert.SignCert(rand.Reader, f.hostCA); e != nil {
 		t.Fatal(e)
 	}
@@ -582,11 +582,24 @@ func TestOpenSSHFileToolsForwardingAndRefresh(t *testing.T) {
 
 }
 
+func TestSSHSandboxIDHostAliases(t *testing.T) {
+	for _, host := range []string{sbxID, sbxID + ".rzv", sbxID + ".sandbox.runzivo.dev"} {
+		if id, err := sshSandboxID(host); err != nil || id != sbxID {
+			t.Fatalf("valid alias %q: id=%q err=%v", host, id, err)
+		}
+	}
+	for _, host := range []string{sbxID + ".sandbox.runzivo", sbxID + ".sandbox.runzivo.dev.evil", sbxID + ".sandbox.runzivo.dev.rzv", sbxID + ".rzv.sandbox.runzivo.dev", "sbx_short.sandbox.runzivo.dev", "*.sandbox.runzivo.dev"} {
+		if _, err := sshSandboxID(host); err == nil {
+			t.Fatalf("invalid alias accepted: %q", host)
+		}
+	}
+}
+
 func TestSSHRejectsWrongIdentityAndInvalidHosts(t *testing.T) {
 	f := newSSHFixture(t, func(net.Conn, *bufio.Reader) { t.Error("unexpected connection") })
 	var out, stderr bytes.Buffer
 	deps := fixtureDeps(f, t.TempDir(), strings.NewReader(""), &out, &stderr)
-	for _, host := range []string{"-oProxyCommand=bad", "../file", sbxID + ".rzv.evil", sbxID + "\nHost *"} {
+	for _, host := range []string{"-oProxyCommand=bad", "../file", sbxID + ".rzv.evil", sbxID + "\nHost *", sbxID + ".sandbox.runzivo", sbxID + ".sandbox.runzivo.dev.evil"} {
 		if code := Run(context.Background(), []string{"sandboxes", "ssh-proxy", host}, deps); code != exitUsage {
 			t.Fatal(code)
 		}

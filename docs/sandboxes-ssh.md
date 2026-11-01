@@ -40,7 +40,7 @@ Editor references: [VS Code Remote SSH](https://code.visualstudio.com/docs/remot
 
 ## Credentials and reconnection
 
-Private keys, certificates and known-hosts state live under the CLI configuration directory with private permissions. Configuration pins Core's host CA for the exact sandbox alias; strict host-key checking stays on. A new guest host key signed by that CA is accepted after restart.
+Private keys, certificates and known-hosts state live under the CLI configuration directory with private permissions. Configuration pins Core's host CA with an exact `@cert-authority <sandbox-id>.sandbox.runzivo.dev` entry and matching `HostKeyAlias`; strict host-key checking stays on. A new guest host key signed by that CA is accepted after restart. After upgrading from the old `.sandbox.runzivo` alias, rerun `rzv sandboxes ssh-config <sandbox-id> --write`. The connection name remains `<sandbox-id>.rzv`.
 
 OpenSSH runs a silent preparation command before loading the certificate and uses `ssh --stdio` as its ProxyCommand. The 15-minute certificate is refreshed on reconnect, and each relay ticket is single-use for about 30 seconds. A prepared ticket is stored privately until the proxy claims and removes it; an abandoned ticket expires and is replaced on the next connection. Credentials are not included in command arguments or printed.
 

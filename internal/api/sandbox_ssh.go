@@ -30,7 +30,7 @@ type SSHTicket struct {
 
 func (h SSHHost) Validate(sandboxID string) error {
 	key, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(h.HostCAPublicKey))
-	if err != nil || len(options) != 0 || len(rest) != 0 || strings.ContainsAny(h.HostCAPublicKey, "\r\n") || key.Type() != ssh.KeyAlgoED25519 || h.HostKeyAlias != sandboxID+".sandbox.runzivo" {
+	if err != nil || len(options) != 0 || len(rest) != 0 || strings.ContainsAny(h.HostCAPublicKey, "\r\n") || key.Type() != ssh.KeyAlgoED25519 || h.HostKeyAlias != sandboxID+".sandbox.runzivo.dev" {
 		return required(false)
 	}
 	return nil

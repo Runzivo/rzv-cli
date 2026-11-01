@@ -180,7 +180,7 @@ func (s *State) SaveCertificate(raw string, expires time.Time, now time.Time) er
 }
 
 func (s *State) SaveHost(alias, ca string) error {
-	if alias != s.Binding.Sandbox+".sandbox.runzivo" {
+	if alias != s.Binding.Sandbox+".sandbox.runzivo.dev" {
 		return ErrCertificate
 	}
 	key, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(ca))

@@ -24,8 +24,8 @@ func (a *app) sshError(en, fr string) error {
 
 func sshSandboxID(host string) (string, error) {
 	id := strings.TrimSuffix(host, ".rzv")
-	id = strings.TrimSuffix(id, ".sandbox.runzivo")
-	if host != id && host != id+".rzv" && host != id+".sandbox.runzivo" {
+	id = strings.TrimSuffix(id, ".sandbox.runzivo.dev")
+	if host != id && host != id+".rzv" && host != id+".sandbox.runzivo.dev" {
 		return sandboxID(host)
 	}
 	return sandboxID(id)
@@ -318,7 +318,7 @@ func (a *app) sshConfig(state *sshstate.State) (string, error) {
 Host %s
   HostName %s
   User user
-  HostKeyAlias %s.sandbox.runzivo
+  HostKeyAlias %s.sandbox.runzivo.dev
   IdentityFile %s
   CertificateFile %s
   UserKnownHostsFile %s

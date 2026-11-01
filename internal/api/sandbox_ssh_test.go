@@ -17,7 +17,7 @@ func TestSandboxSSHContractAndURLBinding(t *testing.T) {
 	_, key, _ := ed25519.GenerateKey(rand.Reader)
 	ca, _ := ssh.NewSignerFromKey(key)
 	id := "sbx_0123456789abcdef01234567"
-	host := SSHHost{HostCAPublicKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(ca.PublicKey()))), HostKeyAlias: id + ".sandbox.runzivo"}
+	host := SSHHost{HostCAPublicKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(ca.PublicKey()))), HostKeyAlias: id + ".sandbox.runzivo.dev"}
 	var target string
 	var mutate func(*SSHTicket)
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +64,10 @@ func TestSandboxSSHContractAndURLBinding(t *testing.T) {
 		func(v *SSHTicket) { v.URL = "wss://foreign.test" + sandboxPath("w", "/"+id+"/ssh") },
 		func(v *SSHTicket) { v.URL += "?ticket=other" }, func(v *SSHTicket) { v.URL += "#fragment" },
 		func(v *SSHTicket) { v.URL = strings.Replace(v.URL, "/w/", "/other/", 1) },
-		func(v *SSHTicket) { v.Principal = "root" }, func(v *SSHTicket) { v.HostKeyAlias = "other.sandbox.runzivo" },
+		func(v *SSHTicket) { v.Principal = "root" }, func(v *SSHTicket) { v.HostKeyAlias = "other.sandbox.runzivo.dev" },
+		func(v *SSHTicket) { v.HostKeyAlias = id + ".sandbox.runzivo" },
+		func(v *SSHTicket) { v.HostKeyAlias += ".evil" },
+		func(v *SSHTicket) { v.HostKeyAlias = "*.sandbox.runzivo.dev" },
 		func(v *SSHTicket) { v.HostCAPublicKey += "\nmalicious" }, func(v *SSHTicket) { v.ExpiresAt = time.Now().Add(-time.Second) },
 		func(v *SSHTicket) { v.CertificateExpiresAt = time.Now().Add(time.Hour) },
 		func(v *SSHTicket) { v.ExpiresAt = v.ExpiresAt.Add(time.Minute) },
