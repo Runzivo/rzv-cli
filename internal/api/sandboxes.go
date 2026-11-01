@@ -164,7 +164,7 @@ func (c *Client) SandboxExec(ctx context.Context, tenantID, sandboxID string, in
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
-		return ExecEvent{}, decodeError(resp.StatusCode, body)
+		return ExecEvent{}, decodeError(resp.StatusCode, body, resp.Header.Get("Retry-After"))
 	}
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64<<10), maxEventBytes)

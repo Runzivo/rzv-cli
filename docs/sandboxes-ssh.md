@@ -44,6 +44,8 @@ Private keys, certificates and known-hosts state live under the CLI configuratio
 
 OpenSSH runs a silent preparation command before loading the certificate and uses `ssh --stdio` as its ProxyCommand. The 15-minute certificate is refreshed on reconnect, and each relay ticket is single-use for about 30 seconds. A prepared ticket is stored privately until the proxy claims and removes it; an abandoned ticket expires and is replaced on the next connection. Credentials are not included in command arguments or printed.
 
+If the guest has not loaded its signed SSH host certificate yet, connection setup waits up to 60 seconds and prints a short status on stderr. It then reports a clear error; host-key verification remains strict.
+
 Keep the selected profile signed in. With `RZV_API_KEY`, the connecting process must inherit the key and API configuration; use an exact workspace id. Prepared state is bound to the API, identity, profile, workspace and sandbox. After changing identity, regenerate the SSH configuration.
 
 A stopped, expired or deleted sandbox disconnects. Idle and unread-output limits still apply on the service. Reconnect with the same command; the CLI does not replay remote commands automatically. A long-running established session does not reconnect merely because its login certificate expires.

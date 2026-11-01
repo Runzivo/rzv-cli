@@ -41,6 +41,9 @@ type sshFixture struct {
 	tickets             map[string]bool
 	issued, connections int
 	serve               func(net.Conn, *bufio.Reader)
+	// starting answers that many ticket requests with 503 sandbox_ssh_starting
+	// (a negative value answers every request so); startingCalls counts them.
+	starting, startingCalls int
 }
 
 func testSSHSigner(t *testing.T) ssh.Signer {
@@ -117,6 +120,21 @@ func newSSHFixture(t *testing.T, serve func(net.Conn, *bufio.Reader)) *sshFixtur
 		}
 		if r.URL.Path != path+"/ssh-ticket" || r.Method != "POST" {
 			http.NotFound(w, r)
+			return
+		}
+		f.mu.Lock()
+		starting := f.starting != 0
+		if starting {
+			f.startingCalls++
+			if f.starting > 0 {
+				f.starting--
+			}
+		}
+		f.mu.Unlock()
+		if starting {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `{"error":{"code":"sandbox_ssh_starting","message":"SSH is starting. Retry shortly."}}`)
 			return
 		}
 		var input struct {

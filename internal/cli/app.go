@@ -118,6 +118,9 @@ func (a *app) runHandler(cmd *command, h handler) int {
 // fail prints an error to stderr: JSON with --json, a plain line otherwise.
 func (a *app) fail(cmd *command, err error) int {
 	e := asError(err)
+	if e.Quiet {
+		return e.Exit
+	}
 	if cmd != nil && cmd.json() {
 		writeJSON(a.Stderr, map[string]string{"error": e.Code, "message": e.Message})
 	} else {
