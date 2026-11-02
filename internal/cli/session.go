@@ -263,7 +263,14 @@ func apiError(err error, notFound string) error {
 	case apiErr.Status == 409 && apiErr.Code == "disk_not_attached":
 		return newError(apiErr.Code, exitFailure, "That disk is not attached to a sandbox.")
 	case apiErr.Status == 409 && apiErr.Code == "disk_wrong_state":
-		return newError(apiErr.Code, exitFailure, "That disk is being deleted.")
+		// Disk commands look the disk up first (diskWrongState); here there is no disk to read.
+		return newError(apiErr.Code, exitFailure, "The disk is being deleted, or is past its scheduled deletion time.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_host_unsupported":
+		return newError(apiErr.Code, exitFailure, "This sandbox's files are on a server that cannot use persistent disks. Attach the disk to a new sandbox instead.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_image_unsupported":
+		return newError(apiErr.Code, exitFailure, "The sandbox image on this server cannot mount persistent disks yet.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_concurrent_change":
+		return newError(apiErr.Code, exitFailure, "The disk changed while the command ran. Run it again.")
 	case apiErr.Status == 409 && apiErr.Code == "disk_host_mismatch":
 		return newError(apiErr.Code, exitFailure, "That sandbox's files are on a different server from the disk, and neither can move. Create a new sandbox with `--disk` instead.")
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_has_disk":

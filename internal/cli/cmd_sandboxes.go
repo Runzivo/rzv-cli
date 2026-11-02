@@ -178,6 +178,28 @@ func timeLeft(s api.Sandbox) string {
 
 func credits(value float64) string { return strconv.FormatFloat(value, 'f', -1, 64) + " min" }
 
+// diskState says whether a running sandbox's guest mounted its disk. Nil (not
+// running, or a server that does not report it) keeps the plain description.
+func diskState(state *api.SandboxDiskState) string {
+	if state == nil {
+		return "mounted at /mnt/disk while running"
+	}
+	detail := ""
+	if state.Detail != nil && *state.Detail != "" {
+		detail = " (" + display(*state.Detail) + ")"
+	}
+	switch state.State {
+	case "mounted":
+		return "mounted at /mnt/disk"
+	case "pending":
+		return "checking" + detail
+	case "unavailable":
+		return "not mounted" + detail
+	default:
+		return display(state.State) + detail
+	}
+}
+
 func renderSandbox(s *api.Sandbox, verb string) string {
 	lines := []string{}
 	head := fmt.Sprintf("%s [%s]: %s", display(s.Name), display(s.ID), display(s.Status))
@@ -187,7 +209,7 @@ func renderSandbox(s *api.Sandbox, verb string) string {
 	lines = append(lines, head)
 	lines = append(lines, fmt.Sprintf("Size: %s, disk %d GiB", display(s.Size), s.DiskGiB))
 	if s.DiskID != nil {
-		lines = append(lines, "Persistent disk: "+display(*s.DiskID)+", mounted at /mnt/disk while running")
+		lines = append(lines, "Persistent disk: "+display(*s.DiskID)+", "+diskState(s.DiskState))
 	}
 	lines = append(lines, "Time left: "+timeLeft(*s))
 	if s.ExpiresAt != nil {
@@ -281,6 +303,9 @@ func sandboxesCreate(a *app, cmd *command) error {
 	}
 	sandbox, err := client.SandboxCreate(a.ctx, workspace, input)
 	if err != nil {
+		if input.DiskID != "" {
+			return diskError(a, client, workspace, input.DiskID, err)
+		}
 		return apiError(err, "")
 	}
 	a.output(cmd, map[string]any{"workspace_id": workspace, "sandbox": sandbox}, renderSandbox(sandbox, "Created"))

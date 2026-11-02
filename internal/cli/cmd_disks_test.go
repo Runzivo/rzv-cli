@@ -172,3 +172,89 @@ func TestSandboxesCreateWithADisk(t *testing.T) {
 		t.Fatalf("missing disk: %d %q", code, errOut)
 	}
 }
+
+func TestDisksNewRefusals(t *testing.T) {
+	h := selectedHarness(t)
+	for code, want := range map[string]string{
+		"disk_host_unsupported":  "This sandbox's files are on a server that cannot use persistent disks. Attach the disk to a new sandbox instead.",
+		"disk_image_unsupported": "The sandbox image on this server cannot mount persistent disks yet.",
+		"disk_concurrent_change": "The disk changed while the command ran. Run it again.",
+	} {
+		h.json("POST /v1/customer/tenants/t-1/disks/"+volID+"/attach", 409, `{"error":{"code":"`+code+`"}}`)
+		if exit, _, errOut := h.run("disks", "attach", volID, "--sandbox", sbxID); exit != exitFailure || !strings.Contains(errOut, want) {
+			t.Errorf("%s: %d %q", code, exit, errOut)
+		}
+	}
+}
+
+func TestDisksWrongStateReadsTheDisk(t *testing.T) {
+	h := selectedHarness(t)
+	scheduled := func(when string) string {
+		return strings.Replace(diskJSON, `"usage":`, `"scheduled_deletion":{"delete_after":"`+when+`","reason":"unpaid"},"usage":`, 1)
+	}
+	past := "That disk is past its scheduled deletion time and is being deleted."
+	deleting := "That disk is being deleted."
+	combined := "The disk is being deleted, or is past its scheduled deletion time."
+	for _, tc := range []struct {
+		name   string
+		status int
+		disk   string
+		want   string
+	}{
+		{"past deadline", 200, scheduled("2020-01-01T00:00:00Z"), past},
+		{"future deadline", 200, scheduled("2099-01-01T00:00:00Z"), deleting},
+		{"not scheduled", 200, strings.Replace(diskJSON, `"status":"available"`, `"status":"deleting"`, 1), deleting},
+		{"read fails", 404, `{"error":{"code":"disk_not_found"}}`, combined},
+	} {
+		h.json("GET /v1/customer/tenants/t-1/disks/"+volID, tc.status, tc.disk)
+		h.json("POST /v1/customer/tenants/t-1/disks/"+volID+"/attach", 409, `{"error":{"code":"disk_wrong_state"}}`)
+		if exit, _, errOut := h.run("disks", "attach", volID, "--sandbox", sbxID); exit != exitFailure || !strings.Contains(errOut, tc.want) {
+			t.Errorf("attach, %s: %d %q", tc.name, exit, errOut)
+		}
+		h.json("POST /v1/customer/tenants/t-1/sandboxes", 409, `{"error":{"code":"disk_wrong_state"}}`)
+		if exit, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--disk", volID); exit != exitFailure || !strings.Contains(errOut, tc.want) {
+			t.Errorf("sandboxes create, %s: %d %q", tc.name, exit, errOut)
+		}
+	}
+}
+
+func TestSandboxesDiskState(t *testing.T) {
+	h := selectedHarness(t)
+	withDisk := strings.Replace(sandboxJSON, `"credits_used":20.5`, `"credits_used":20.5,"disk_id":"`+volID+`"`, 1)
+	state := func(body string) string {
+		return strings.Replace(withDisk, `"disk_id":`, `"disk_state":`+body+`,"disk_id":`, 1)
+	}
+	for _, tc := range []struct{ body, want string }{
+		{state(`{"state":"unavailable","detail":"mount failed"}`), "Persistent disk: " + volID + ", not mounted (mount failed)"},
+		{state(`{"state":"pending","detail":"waiting for the guest"}`), "Persistent disk: " + volID + ", checking (waiting for the guest)"},
+		{state(`{"state":"pending","detail":null}`), "Persistent disk: " + volID + ", checking\n"},
+		{state(`{"state":"mounted","detail":null}`), "Persistent disk: " + volID + ", mounted at /mnt/disk\n"},
+		{state(`null`), "Persistent disk: " + volID + ", mounted at /mnt/disk while running"},
+		{withDisk, "Persistent disk: " + volID + ", mounted at /mnt/disk while running"},
+	} {
+		h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, tc.body)
+		if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, tc.want) {
+			t.Errorf("get %s: %d %q", tc.body, code, out)
+		}
+	}
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, state(`{"state":"unavailable","detail":"mount failed"}`))
+	code, out, _ := h.run("sandboxes", "get", sbxID, "--json")
+	var got struct {
+		Sandbox struct {
+			DiskState map[string]any `json:"disk_state"`
+		} `json:"sandbox"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &got) != nil || got.Sandbox.DiskState["state"] != "unavailable" || got.Sandbox.DiskState["detail"] != "mount failed" {
+		t.Fatalf("get --json: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+state(`{"state":"pending","detail":null}`)+`],"max_running":2,"sizes":["2vcpu-8gb"]}`)
+	code, out, _ = h.run("sandboxes", "list", "--json")
+	var listed struct {
+		Sandboxes []struct {
+			DiskState map[string]any `json:"disk_state"`
+		} `json:"sandboxes"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Sandboxes) != 1 || listed.Sandboxes[0].DiskState["state"] != "pending" {
+		t.Fatalf("list --json: %d %q", code, out)
+	}
+}

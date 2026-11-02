@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
 )
@@ -145,6 +147,26 @@ func scheduledDeletion(d api.Disk) string {
 	return "Scheduled for deletion on " + when + " (" + reason + ")"
 }
 
+// diskError is apiError for a call about one known disk. disk_wrong_state
+// reads the disk to say whether it is past its scheduled deletion time; if
+// that read fails, apiError's combined message stands.
+func diskError(a *app, client *api.Client, workspace, id string, err error) error {
+	var apiErr *api.Error
+	if !errors.As(err, &apiErr) || apiErr.Status != 409 || apiErr.Code != "disk_wrong_state" {
+		return apiError(err, "")
+	}
+	disk, getErr := client.DiskGet(a.ctx, workspace, id)
+	if getErr != nil {
+		return apiError(err, "")
+	}
+	if s := disk.ScheduledDeletion; s != nil {
+		if t, parseErr := s.DeleteAfterTime(); parseErr == nil && !t.After(time.Now()) {
+			return newError(apiErr.Code, exitFailure, "That disk is past its scheduled deletion time and is being deleted.")
+		}
+	}
+	return newError(apiErr.Code, exitFailure, "That disk is being deleted.")
+}
+
 func attachedTo(d api.Disk) string {
 	if d.AttachedSandboxID == nil {
 		return "-"
@@ -191,7 +213,7 @@ func diskAction(a *app, cmd *command, name string, call func(*api.Client, string
 	}
 	disk, err := call(client, workspace, id)
 	if err != nil {
-		return apiError(err, "")
+		return diskError(a, client, workspace, id, err)
 	}
 	text := renderDisk(disk, verb)
 	if verb == "Deleting" {
@@ -274,7 +296,7 @@ func disksAttach(a *app, cmd *command) error {
 	}
 	disk, err := client.DiskAttach(a.ctx, workspace, id, sandbox)
 	if err != nil {
-		return apiError(err, "")
+		return diskError(a, client, workspace, id, err)
 	}
 	a.output(cmd, map[string]any{"workspace_id": workspace, "disk": disk}, renderDisk(disk, "Attached")+"\nIt is mounted at "+display(disk.MountPath)+" from the sandbox's next start.")
 	return nil

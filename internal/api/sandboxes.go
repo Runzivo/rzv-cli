@@ -38,6 +38,16 @@ type Sandbox struct {
 	// DiskID is the attached persistent disk, mounted at /mnt/disk while
 	// running. Nil when none, or from a server without persistent disks.
 	DiskID *string `json:"disk_id,omitempty"`
+	// DiskState is whether the running guest mounted that disk. Nil when
+	// there is nothing to report, or from a server that does not send it.
+	DiskState *SandboxDiskState `json:"disk_state,omitempty"`
+}
+
+// SandboxDiskState is a running sandbox's persistent disk mount state:
+// pending, mounted or unavailable, with an optional detail.
+type SandboxDiskState struct {
+	State  string  `json:"state"`
+	Detail *string `json:"detail"`
 }
 
 func (s *Sandbox) valid() bool {
