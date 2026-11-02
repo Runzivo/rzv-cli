@@ -59,7 +59,12 @@ func TestSandboxListDecodesLifetimesOnOffer(t *testing.T) {
 	}
 	c = newTestClient(t, respond(200, `{"sandboxes":[],"max_running":2}`))
 	listing, err = c.SandboxList(context.Background(), "t-1")
-	if err != nil || listing.Lifetimes == nil || len(listing.Lifetimes) != 0 {
+	if err != nil || len(listing.Lifetimes) != 1 || listing.Lifetimes[0] != 8 {
 		t.Fatalf("older server listing = %+v, err = %v", listing, err)
+	}
+	c = newTestClient(t, respond(200, `{"sandboxes":[],"max_running":0,"sizes":[],"lifetimes":[]}`))
+	listing, err = c.SandboxList(context.Background(), "t-1")
+	if err != nil || listing.Lifetimes == nil || len(listing.Lifetimes) != 0 {
+		t.Fatalf("sandboxes off listing = %+v, err = %v", listing, err)
 	}
 }

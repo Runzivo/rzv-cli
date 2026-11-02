@@ -675,7 +675,7 @@ func TestSandboxesCreateLifetime(t *testing.T) {
 	for _, c := range []struct {
 		flag  string
 		hours float64
-	}{{"8h", 8}, {"12h", 12}, {"24h", 24}} {
+	}{{"12h", 12}, {"24h", 24}} {
 		before := len(bodies)
 		code, out, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", c.flag)
 		if code != 0 || len(bodies) != before+1 {
@@ -686,7 +686,12 @@ func TestSandboxesCreateLifetime(t *testing.T) {
 			t.Fatalf("--lifetime %s sent %s", c.flag, bodies[before])
 		}
 	}
+	// 8h is the default and is left out, so it works on an older server too.
 	before := len(bodies)
+	if code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", "8h"); code != 0 || len(bodies) != before+1 || strings.Contains(bodies[before], "lifetime") {
+		t.Fatalf("create --lifetime 8h: %d %q sent %v", code, errOut, bodies[before:])
+	}
+	before = len(bodies)
 	if code, _, errOut := h.run("sandboxes", "create", "--name", "dev"); code != 0 || len(bodies) != before+1 || strings.Contains(bodies[before], "lifetime") {
 		t.Fatalf("create without --lifetime: %d %q sent %v", code, errOut, bodies[before:])
 	}
@@ -721,13 +726,27 @@ func TestSandboxesCreateExplainsInvalidLifetimeFromTheServer(t *testing.T) {
 	}
 }
 
+func TestSandboxesCreateExplainsAServerWithoutTheLifetimeChoice(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("POST /v1/customer/tenants/t-1/sandboxes", 400, `{"error":{"code":"invalid_request"}}`)
+	code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", "24h")
+	if code != exitUsage || !strings.Contains(errOut, "This Runzivo server doesn't support choosing a lifetime yet. Omit --lifetime to get 8h.") || strings.Contains(errOut, "400") {
+		t.Fatalf("invalid_request with --lifetime: %d %q", code, errOut)
+	}
+	// Without a lifetime in the request the hint does not apply.
+	code, _, errOut = h.run("sandboxes", "create", "--name", "dev")
+	if code == 0 || strings.Contains(errOut, "choosing a lifetime") {
+		t.Fatalf("invalid_request without --lifetime: %d %q", code, errOut)
+	}
+}
+
 func TestSandboxesShowLifetimeExpiryAndTimeLeft(t *testing.T) {
 	fixedZone(t, "EST", -5*3600)
 	h := selectedHarness(t)
 	running := sandboxLifetimeJSON("running", 12, `"2026-11-02T23:04:00Z"`, 7*3600+42*60+30)
 	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, running)
 	code, out, _ := h.run("sandboxes", "get", sbxID)
-	for _, want := range []string{"dev [" + sbxID + "]: running", "Lifetime: 12h from first run", "Time left: 7h 42m", "Expires: 2026-11-02 18:04 EST (23:04 UTC)"} {
+	for _, want := range []string{"dev [" + sbxID + "]: running", "Lifetime: 12h", "Time left: 7h 42m", "Expires: 2026-11-02 18:04 EST (23:04 UTC)"} {
 		if code != 0 || !strings.Contains(out, want) {
 			t.Fatalf("get running: %d missing %q in %q", code, want, out)
 		}
@@ -854,9 +873,9 @@ func TestSandboxesListShowsLifetimesOnOffer(t *testing.T) {
 	if code, out, _ := h.run("sandboxes", "list"); code != 0 || !strings.Contains(out, "Lifetimes on offer here: 8h.") || strings.Contains(out, "Sizes on offer") {
 		t.Fatalf("empty list: %d %q", code, out)
 	}
-	// An older server sends no lifetimes: nothing is claimed.
+	// An older server sends no lifetimes: it offers only the default 8h.
 	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+sandboxJSON+`],"max_running":2,"sizes":["2vcpu-8gb"]}`)
-	if code, out, _ := h.run("sandboxes", "list"); code != 0 || strings.Contains(out, "Lifetimes on offer") {
+	if code, out, _ := h.run("sandboxes", "list"); code != 0 || !strings.Contains(out, "Lifetimes on offer here: 8h.") {
 		t.Fatalf("list without lifetimes: %d %q", code, out)
 	}
 }
@@ -864,7 +883,7 @@ func TestSandboxesListShowsLifetimesOnOffer(t *testing.T) {
 func TestSandboxesHelpDescribesLifetime(t *testing.T) {
 	h := newHarness(t)
 	code, out, _ := h.run("help", "sandboxes")
-	for _, want := range []string{"[--lifetime 8h|12h|24h]", "Lifetime from when the sandbox first runs: 8h (default), 12h or 24h.", "It cannot be extended.", "12h and 24h are offered only where Runzivo has turned them on."} {
+	for _, want := range []string{"[--lifetime 8h|12h|24h]", "--lifetime: 8h (default), 12h or 24h.", "there the timer starts when the sandbox first runs.", "It cannot be extended.", "12h and 24h are offered only where Runzivo has turned them on;"} {
 		if code != 0 || !strings.Contains(strings.Join(strings.Fields(out), " "), want) {
 			t.Fatalf("help sandboxes: %d lacks %q in %q", code, want, out)
 		}

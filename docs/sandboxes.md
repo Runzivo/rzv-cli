@@ -4,7 +4,7 @@ A sandbox is a Linux virtual machine in your workspace. Your files live in `/wor
 
 ## Lifetime
 
-Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default), `12h` or `24h`. No other value is accepted. If you leave the flag out, the sandbox lives 8 hours. 12h and 24h are offered only where Runzivo has turned them on; `list` shows the lifetimes on offer. Asking for one that is not offered fails with `lifetime_unavailable` (HTTP 409). Choose another, or omit `--lifetime`.
+Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default), `12h` or `24h`. No other value is accepted. If you leave the flag out, the sandbox lives 8 hours. 12h and 24h are offered only where Runzivo has turned them on; `list` shows the lifetimes on offer. There the timer starts when the sandbox first runs. Elsewhere only 8h is offered and the timer starts at the first start. Asking for one that is not offered fails with `lifetime_unavailable` (HTTP 409). Choose another, or omit `--lifetime`. A Runzivo service from before the lifetime choice refuses `--lifetime 12h` or `24h` as an invalid request; `rzv` then says the server does not support choosing a lifetime yet.
 
 - The timer starts when the sandbox first becomes running. Until then the full lifetime is left and `list` and `get` show "starts when running" for the expiry.
 - Stopping, starting and restarting do not move the timer. Time spent stopped counts.

@@ -41,9 +41,10 @@ const sandboxesUsage = `Usage:
 A sandbox is a Linux virtual machine with your files in /workspace. Stopping keeps
 the files and stops the compute charge.
 
---lifetime: Lifetime from when the sandbox first runs: 8h (default), 12h or 24h. The sandbox stops
-and its temporary files are deleted when the timer expires. It cannot be extended.
-12h and 24h are offered only where Runzivo has turned them on.
+--lifetime: 8h (default), 12h or 24h. The sandbox stops and its temporary files are
+deleted when the timer expires. It cannot be extended. 12h and 24h are offered only
+where Runzivo has turned them on; there the timer starts when the sandbox first runs.
+Elsewhere the 8h timer starts at the first start.
 
 A workspace runs a limited
 number at once. An API key reads sandboxes with the sandboxes:read or sandboxes:write
@@ -267,7 +268,7 @@ func renderSandbox(s *api.Sandbox, verb string) string {
 	lines = append(lines, head)
 	lines = append(lines, fmt.Sprintf("Size: %s, disk %d GiB", display(s.Size), s.DiskGiB))
 	if s.LifetimeHours > 0 {
-		lines = append(lines, "Lifetime: "+lifetimeText(*s)+" from first run")
+		lines = append(lines, "Lifetime: "+lifetimeText(*s))
 	}
 	lines = append(lines, "Time left: "+timeLeft(*s))
 	lines = append(lines, "Expires: "+expiryText(*s))
@@ -348,7 +349,11 @@ func sandboxesCreate(a *app, cmd *command) error {
 		if !ok {
 			return usageError("--lifetime must be 8h, 12h or 24h.")
 		}
-		input.LifetimeHours = hours
+		// 8h is the server's default and is left out of the request, so it
+		// also works with a server from before the lifetime choice.
+		if hours != 8 {
+			input.LifetimeHours = hours
+		}
 	}
 	if key, err := cmd.option("idempotency-key"); err != nil {
 		return err
@@ -364,6 +369,12 @@ func sandboxesCreate(a *app, cmd *command) error {
 	}
 	sandbox, err := client.SandboxCreate(a.ctx, workspace, input)
 	if err != nil {
+		// A server from before the lifetime choice refuses the unknown
+		// lifetime_hours field as a plain invalid request.
+		var apiErr *api.Error
+		if input.LifetimeHours != 0 && errors.As(err, &apiErr) && apiErr.Status == 400 && apiErr.Code == "invalid_request" {
+			return newError(apiErr.Code, exitUsage, "This Runzivo server doesn't support choosing a lifetime yet. Omit --lifetime to get 8h.")
+		}
 		return apiError(err, "")
 	}
 	a.output(cmd, map[string]any{"workspace_id": workspace, "sandbox": sandbox}, renderSandbox(sandbox, "Created"))
