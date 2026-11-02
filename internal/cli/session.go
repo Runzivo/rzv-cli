@@ -246,6 +246,37 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "Turning auto-recharge on needs a person signed in, not an API key.")
 	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
 		return newError(apiErr.Code, exitAuth, "Sign in again with `rzv login`, then retry.")
+	case apiErr.Status == 404 && apiErr.Code == "disk_not_found":
+		return notFoundError("That persistent disk was not found in this workspace. List them with `rzv disks list`.")
+	case apiErr.Status == 403 && apiErr.Code == "persistent_disks_not_entitled":
+		return newError(apiErr.Code, exitAccessDenied, "This workspace has no persistent disk quota. Ask Runzivo support for one.")
+	case apiErr.Status == 503 && apiErr.Code == "persistent_disks_unavailable":
+		return newError(apiErr.Code, exitUnavailable, "Persistent disks are not available on this Runzivo environment yet.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_quota_exceeded":
+		return newError(apiErr.Code, exitFailure, "That size would go over this workspace's disk quota. `rzv disks list` shows the quota.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_limit_reached":
+		return newError(apiErr.Code, exitFailure, "This workspace already has its maximum number of disks. Delete one first.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_name_taken":
+		return newError(apiErr.Code, exitFailure, "A disk with that name already exists in this workspace.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_attached":
+		return newError(apiErr.Code, exitFailure, "That disk is attached to a sandbox. Stop the sandbox and run `rzv disks detach <disk-id>` first.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_not_attached":
+		return newError(apiErr.Code, exitFailure, "That disk is not attached to a sandbox.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_wrong_state":
+		// Disk commands look the disk up first (diskWrongState); here there is no disk to read.
+		return newError(apiErr.Code, exitFailure, "The disk is being deleted, or is past its scheduled deletion time.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_host_unsupported":
+		return newError(apiErr.Code, exitFailure, "This sandbox's files are on a server that cannot use persistent disks. Attach the disk to a new sandbox instead.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_image_unsupported":
+		return newError(apiErr.Code, exitFailure, "The sandbox image on this server cannot mount persistent disks yet.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_concurrent_change":
+		return newError(apiErr.Code, exitFailure, "The disk changed while the command ran. Run it again.")
+	case apiErr.Status == 409 && apiErr.Code == "disk_host_mismatch":
+		return newError(apiErr.Code, exitFailure, "That sandbox's files are on a different server from the disk, and neither can move. Create a new sandbox with `--disk` instead.")
+	case apiErr.Status == 409 && apiErr.Code == "sandbox_has_disk":
+		return newError(apiErr.Code, exitFailure, "That sandbox already has a persistent disk.")
+	case apiErr.Status == 409 && apiErr.Code == "sandbox_must_be_stopped":
+		return newError(apiErr.Code, exitFailure, "Stop the sandbox first with `rzv sandboxes stop <sandbox-id>`.")
 	case apiErr.Status == 404 && apiErr.Code == "sandbox_not_found":
 		return notFoundError("That sandbox was not found in this workspace. List them with `rzv sandboxes list`.")
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_limit_reached":

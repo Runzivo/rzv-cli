@@ -25,7 +25,7 @@ var sandboxSizes = []string{"2vcpu-8gb", "4vcpu-16gb", "8vcpu-32gb", "16vcpu-64g
 const sandboxesUsage = `Usage:
   rzv sandboxes list [--workspace <id>] [--json]
   rzv sandboxes get <sandbox-id> [--workspace <id>] [--json]
-  rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--idempotency-key <key>] [--workspace <id>] [--json]
+  rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--disk <disk-id>] [--idempotency-key <key>] [--workspace <id>] [--json]
   rzv sandboxes start|stop|delete <sandbox-id> [--workspace <id>] [--json]
   rzv sandboxes exec <sandbox-id> [--cwd <dir>] [--timeout <1-3600>] [--env KEY=VALUE,...] [--workspace <id>] [--json] -- <command...>
   rzv sandboxes terminal <sandbox-id> [--workspace <id>]
@@ -48,7 +48,8 @@ argument list, each quoted for the shell. ssh uses system OpenSSH on macOS/Linux
 with certificate authentication and strict host verification. ssh-config enables
 ssh, scp, sftp, rsync and Remote SSH editors; --write maintains an owned Include.
 terminal opens the existing PTY shell and is the fallback when OpenSSH is absent.
-terminal-ticket
+--disk attaches a persistent disk (see "rzv disks"), mounted at /mnt/disk; the
+sandbox then runs on the disk's server or waits for it. terminal-ticket
 prints a terminal URL for a client that cannot send an Authorization header,
 such as a browser; it works once, within about 30 seconds.`
 
@@ -177,6 +178,28 @@ func timeLeft(s api.Sandbox) string {
 
 func credits(value float64) string { return strconv.FormatFloat(value, 'f', -1, 64) + " min" }
 
+// diskState says whether a running sandbox's guest mounted its disk. Nil (not
+// running, or a server that does not report it) keeps the plain description.
+func diskState(state *api.SandboxDiskState) string {
+	if state == nil {
+		return "mounted at /mnt/disk while running"
+	}
+	detail := ""
+	if state.Detail != nil && *state.Detail != "" {
+		detail = " (" + display(*state.Detail) + ")"
+	}
+	switch state.State {
+	case "mounted":
+		return "mounted at /mnt/disk"
+	case "pending":
+		return "checking" + detail
+	case "unavailable":
+		return "not mounted" + detail
+	default:
+		return display(state.State) + detail
+	}
+}
+
 func renderSandbox(s *api.Sandbox, verb string) string {
 	lines := []string{}
 	head := fmt.Sprintf("%s [%s]: %s", display(s.Name), display(s.ID), display(s.Status))
@@ -185,6 +208,9 @@ func renderSandbox(s *api.Sandbox, verb string) string {
 	}
 	lines = append(lines, head)
 	lines = append(lines, fmt.Sprintf("Size: %s, disk %d GiB", display(s.Size), s.DiskGiB))
+	if s.DiskID != nil {
+		lines = append(lines, "Persistent disk: "+display(*s.DiskID)+", "+diskState(s.DiskState))
+	}
 	lines = append(lines, "Time left: "+timeLeft(*s))
 	if s.ExpiresAt != nil {
 		lines = append(lines, "Expires: "+display(*s.ExpiresAt))
@@ -221,7 +247,7 @@ func sandboxAction(a *app, cmd *command, name string, call func(*api.Client, str
 }
 
 func sandboxesCreate(a *app, cmd *command) error {
-	if err := cmd.allow("workspace", "account", "name", "size", "disk-gib", "idempotency-key"); err != nil {
+	if err := cmd.allow("workspace", "account", "name", "size", "disk-gib", "disk", "idempotency-key"); err != nil {
 		return err
 	}
 	if err := cmd.expectArgs(1, "rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>]"); err != nil {
@@ -254,6 +280,15 @@ func sandboxesCreate(a *app, cmd *command) error {
 		}
 		input.DiskGiB = disk
 	}
+	if _, ok := cmd.options["disk"]; ok {
+		text, err := cmd.required("disk")
+		if err != nil {
+			return err
+		}
+		if input.DiskID, err = diskID(text); err != nil {
+			return err
+		}
+	}
 	if key, err := cmd.option("idempotency-key"); err != nil {
 		return err
 	} else if key != "" {
@@ -268,6 +303,9 @@ func sandboxesCreate(a *app, cmd *command) error {
 	}
 	sandbox, err := client.SandboxCreate(a.ctx, workspace, input)
 	if err != nil {
+		if input.DiskID != "" {
+			return diskError(a, client, workspace, input.DiskID, err)
+		}
 		return apiError(err, "")
 	}
 	a.output(cmd, map[string]any{"workspace_id": workspace, "sandbox": sandbox}, renderSandbox(sandbox, "Created"))

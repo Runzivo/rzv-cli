@@ -13,6 +13,7 @@
 | [Sandbox SSH](sandboxes-ssh.md) | Standard ssh, file transfers, local forwarding and Remote SSH editors |
 | [Sandbox terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`                                              |
 | [Sandbox billing and permissions](sandboxes-billing.md) | Charges, credit and the permissions each command needs                                 |
+| [Persistent disks](disks.md) | Disks that outlive a sandbox: create, attach, detach, delete |
 | [AI settings and usage](ai.md)                          | Provider connections, configuration and usage                                          |
 | [Development](development.md)                           | Building, testing and the CI runner                                                    |
 | [Releasing](releasing.md)                               | Tags, release workflow, reproducible builds, signing plan                              |
