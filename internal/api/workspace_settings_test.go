@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -134,5 +135,78 @@ func TestWorkspaceListsRejectEntriesWithoutIDs(t *testing.T) {
 	}
 	if _, err = client.WorkspaceInvitations(context.Background(), "tenant"); err == nil {
 		t.Fatal("invitation without ID accepted")
+	}
+}
+
+func TestWorkspaceSettingsPatchSendsOnlyGivenDockerCacheFields(t *testing.T) {
+	enabled := false
+	size := int64(2048)
+	for _, test := range []struct {
+		name  string
+		patch WorkspaceSettingsPatch
+		want  string
+	}{
+		{"enabled only", WorkspaceSettingsPatch{DockerCache: &WorkspaceDockerCachePatch{Enabled: &enabled}}, `{"docker_cache":{"enabled":false}}`},
+		{"size only", WorkspaceSettingsPatch{DockerCache: &WorkspaceDockerCachePatch{SizeMiB: &size}}, `{"docker_cache":{"size_mib":2048}}`},
+		{"both", WorkspaceSettingsPatch{DockerCache: &WorkspaceDockerCachePatch{Enabled: &enabled, SizeMiB: &size}}, `{"docker_cache":{"enabled":false,"size_mib":2048}}`},
+		{"no cache", WorkspaceSettingsPatch{RemoveLogo: true}, `{"remove_logo":true}`},
+	} {
+		data, err := json.Marshal(test.patch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(data) != test.want {
+			t.Fatalf("%s: got %s want %s", test.name, data, test.want)
+		}
+	}
+}
+
+func TestWorkspaceSettingsDecodesDockerCache(t *testing.T) {
+	var body string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) }))
+	defer server.Close()
+	client, err := New(server.URL, "credential", "test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	body = `{"tenant_id":"t","name":"N","logo":null,"can_update":true,"docker_cache":{"enabled":true,"size_mib":1024,"available":false}}`
+	settings, err := client.WorkspaceSettings(ctx, "t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := settings.DockerCache; got == nil || !got.Enabled || got.SizeMiB != 1024 || got.Available {
+		t.Fatalf("docker cache: %#v", got)
+	}
+	if settings, err = client.UpdateWorkspaceSettings(ctx, "t", WorkspaceSettingsPatch{}); err != nil || settings.DockerCache == nil {
+		t.Fatalf("update docker cache: %#v %v", settings, err)
+	}
+
+	// An older service without docker_cache still decodes, and JSON output omits it.
+	body = `{"tenant_id":"t","name":"N","logo":null,"can_update":true}`
+	if settings, err = client.WorkspaceSettings(ctx, "t"); err != nil || settings.DockerCache != nil {
+		t.Fatalf("without docker cache: %#v %v", settings, err)
+	}
+	if data, _ := json.Marshal(settings); bytes.Contains(data, []byte("docker_cache")) {
+		t.Fatalf("absent docker cache marshalled: %s", data)
+	}
+
+	for _, malformed := range []string{
+		`"docker_cache":null`,
+		`"docker_cache":{"enabled":true,"size_mib":1024}`,
+		`"docker_cache":{"enabled":null,"size_mib":1024,"available":true}`,
+		`"docker_cache":{"enabled":true,"size_mib":63,"available":true}`,
+		`"docker_cache":{"enabled":true,"size_mib":16385,"available":true}`,
+		`"docker_cache":{"enabled":true,"size_mib":1.5,"available":true}`,
+		`"docker_cache":{"enabled":"yes","size_mib":1024,"available":true}`,
+	} {
+		body = `{"tenant_id":"t","name":"N","logo":null,"can_update":true,` + malformed + `}`
+		if _, err = client.WorkspaceSettings(ctx, "t"); err == nil {
+			t.Fatalf("malformed docker cache accepted: %s", malformed)
+		}
+		if _, err = client.UpdateWorkspaceSettings(ctx, "t", WorkspaceSettingsPatch{}); err == nil {
+			t.Fatalf("malformed docker cache accepted on update: %s", malformed)
+		}
 	}
 }
