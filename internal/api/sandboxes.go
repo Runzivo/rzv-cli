@@ -47,12 +47,14 @@ func (s *Sandbox) valid() bool {
 func sandboxPath(tenantID, rest string) string { return tenantPath(tenantID, "/sandboxes"+rest) }
 
 // SandboxListing is listCustomerSandboxes' result: the sandboxes, the number
-// the workspace may run at once, and the sizes this environment offers (a
-// server older than the sizes field sends none).
+// the workspace may run at once, the sizes this environment offers (a
+// server older than the sizes field sends none) and the lifetimes in hours it
+// offers (a subset of 8, 12 and 24; an older server sends none).
 type SandboxListing struct {
 	Sandboxes  []Sandbox `json:"sandboxes"`
 	MaxRunning int       `json:"max_running"`
 	Sizes      []string  `json:"sizes"`
+	Lifetimes  []int     `json:"lifetimes"`
 }
 
 // SandboxList calls listCustomerSandboxes.
@@ -68,6 +70,9 @@ func (c *Client) SandboxList(ctx context.Context, tenantID string) (*SandboxList
 	}
 	if body.Sizes == nil {
 		body.Sizes = []string{}
+	}
+	if body.Lifetimes == nil {
+		body.Lifetimes = []int{}
 	}
 	return &body, nil
 }

@@ -50,3 +50,16 @@ func TestSandboxCreateSurfacesInvalidLifetime(t *testing.T) {
 		t.Fatalf("err = %#v", err)
 	}
 }
+
+func TestSandboxListDecodesLifetimesOnOffer(t *testing.T) {
+	c := newTestClient(t, respond(200, `{"sandboxes":[],"max_running":2,"sizes":["2vcpu-8gb"],"lifetimes":[8,12]}`))
+	listing, err := c.SandboxList(context.Background(), "t-1")
+	if err != nil || len(listing.Lifetimes) != 2 || listing.Lifetimes[0] != 8 || listing.Lifetimes[1] != 12 {
+		t.Fatalf("listing = %+v, err = %v", listing, err)
+	}
+	c = newTestClient(t, respond(200, `{"sandboxes":[],"max_running":2}`))
+	listing, err = c.SandboxList(context.Background(), "t-1")
+	if err != nil || listing.Lifetimes == nil || len(listing.Lifetimes) != 0 {
+		t.Fatalf("older server listing = %+v, err = %v", listing, err)
+	}
+}

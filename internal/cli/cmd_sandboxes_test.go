@@ -826,3 +826,47 @@ func TestSandboxesShowCleanupPendingAsNotDeleted(t *testing.T) {
 		t.Fatalf("delete cleanup_pending: %d %q", code, out)
 	}
 }
+
+func TestSandboxesCreateExplainsUnavailableLifetime(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("POST /v1/customer/tenants/t-1/sandboxes", 409, `{"error":{"code":"lifetime_unavailable"}}`)
+	code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", "24h")
+	if code != exitFailure || !strings.Contains(errOut, "This lifetime is not available here right now. Choose another, or omit --lifetime for 8h.") || strings.Contains(errOut, "409") {
+		t.Fatalf("lifetime_unavailable: %d %q", code, errOut)
+	}
+}
+
+func TestSandboxesListShowsLifetimesOnOffer(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+sandboxJSON+`],"max_running":2,"sizes":["2vcpu-8gb"],"lifetimes":[8,12]}`)
+	code, out, _ := h.run("sandboxes", "list")
+	if code != 0 || !strings.Contains(out, "Sizes on offer here: 2vcpu-8gb.\nLifetimes on offer here: 8h, 12h.") {
+		t.Fatalf("list: %d %q", code, out)
+	}
+	code, out, _ = h.run("sandboxes", "list", "--json")
+	var listed struct {
+		Lifetimes []int `json:"lifetimes"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Lifetimes) != 2 || listed.Lifetimes[1] != 12 {
+		t.Fatalf("list --json: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[],"max_running":2,"lifetimes":[8]}`)
+	if code, out, _ := h.run("sandboxes", "list"); code != 0 || !strings.Contains(out, "Lifetimes on offer here: 8h.") || strings.Contains(out, "Sizes on offer") {
+		t.Fatalf("empty list: %d %q", code, out)
+	}
+	// An older server sends no lifetimes: nothing is claimed.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+sandboxJSON+`],"max_running":2,"sizes":["2vcpu-8gb"]}`)
+	if code, out, _ := h.run("sandboxes", "list"); code != 0 || strings.Contains(out, "Lifetimes on offer") {
+		t.Fatalf("list without lifetimes: %d %q", code, out)
+	}
+}
+
+func TestSandboxesHelpDescribesLifetime(t *testing.T) {
+	h := newHarness(t)
+	code, out, _ := h.run("help", "sandboxes")
+	for _, want := range []string{"[--lifetime 8h|12h|24h]", "Lifetime from when the sandbox first runs: 8h (default), 12h or 24h.", "It cannot be extended.", "12h and 24h are offered only where Runzivo has turned them on."} {
+		if code != 0 || !strings.Contains(strings.Join(strings.Fields(out), " "), want) {
+			t.Fatalf("help sandboxes: %d lacks %q in %q", code, want, out)
+		}
+	}
+}

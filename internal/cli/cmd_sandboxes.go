@@ -43,6 +43,7 @@ the files and stops the compute charge.
 
 --lifetime: Lifetime from when the sandbox first runs: 8h (default), 12h or 24h. The sandbox stops
 and its temporary files are deleted when the timer expires. It cannot be extended.
+12h and 24h are offered only where Runzivo has turned them on.
 
 A workspace runs a limited
 number at once. An API key reads sandboxes with the sandboxes:read or sandboxes:write
@@ -131,7 +132,7 @@ func sandboxesList(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "")
 	}
-	a.output(cmd, map[string]any{"workspace_id": workspace, "sandboxes": listing.Sandboxes, "max_running": listing.MaxRunning, "sizes": listing.Sizes}, renderSandboxList(workspace, listing))
+	a.output(cmd, map[string]any{"workspace_id": workspace, "sandboxes": listing.Sandboxes, "max_running": listing.MaxRunning, "sizes": listing.Sizes, "lifetimes": listing.Lifetimes}, renderSandboxList(workspace, listing))
 	return nil
 }
 
@@ -140,6 +141,16 @@ func renderSandboxList(workspace string, listing *api.SandboxListing) string {
 	offered := ""
 	if len(listing.Sizes) > 0 {
 		offered = "Sizes on offer here: " + display(strings.Join(listing.Sizes, ", ")) + "."
+	}
+	if len(listing.Lifetimes) > 0 {
+		hours := make([]string, len(listing.Lifetimes))
+		for i, h := range listing.Lifetimes {
+			hours[i] = fmt.Sprintf("%dh", h)
+		}
+		if offered != "" {
+			offered += "\n"
+		}
+		offered += "Lifetimes on offer here: " + strings.Join(hours, ", ") + "."
 	}
 	if len(sandboxes) == 0 {
 		text := "No sandboxes in workspace " + display(workspace) + ". Create one with `rzv sandboxes create --name <name>`."

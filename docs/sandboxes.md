@@ -4,7 +4,7 @@ A sandbox is a Linux virtual machine in your workspace. Your files live in `/wor
 
 ## Lifetime
 
-Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default), `12h` or `24h`. No other value is accepted. If you leave the flag out, the sandbox lives 8 hours.
+Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default), `12h` or `24h`. No other value is accepted. If you leave the flag out, the sandbox lives 8 hours. 12h and 24h are offered only where Runzivo has turned them on; `list` shows the lifetimes on offer. Asking for one that is not offered fails with `lifetime_unavailable` (HTTP 409). Choose another, or omit `--lifetime`.
 
 - The timer starts when the sandbox first becomes running. Until then the full lifetime is left and `list` and `get` show "starts when running" for the expiry.
 - Stopping, starting and restarting do not move the timer. Time spent stopped counts.
@@ -28,7 +28,7 @@ rzv sandboxes start <sandbox-id>
 rzv sandboxes delete <sandbox-id>        # deletes the machine and its files
 ```
 
-Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket. A workspace may run a limited number of sandboxes at once; `list` shows the limit and the sizes this Runzivo environment offers.
+Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket. A workspace may run a limited number of sandboxes at once; `list` shows the limit and the sizes and lifetimes this Runzivo environment offers.
 
 `create` takes `--idempotency-key <key>` (8 to 200 characters). Running it again with the same key returns the sandbox the first run created instead of a second one.
 

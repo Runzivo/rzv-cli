@@ -260,6 +260,8 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitFailure, "The sandbox reached its lifetime and cannot start again. Create a new one.")
 	case apiErr.Status == 400 && apiErr.Code == "invalid_lifetime":
 		return newError(apiErr.Code, exitUsage, "The lifetime must be 8h, 12h or 24h.")
+	case apiErr.Status == 409 && apiErr.Code == "lifetime_unavailable":
+		return newError(apiErr.Code, exitFailure, "This lifetime is not available here right now. Choose another, or omit --lifetime for 8h. `rzv sandboxes list` shows the lifetimes on offer.")
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_name_taken":
 		return newError(apiErr.Code, exitFailure, "A sandbox with that name already exists in this workspace.")
 	case apiErr.Status == 409 && apiErr.Code == "no_capacity":
