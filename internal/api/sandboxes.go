@@ -20,13 +20,16 @@ type SandboxError struct {
 	Message string `json:"message"`
 }
 
-// Sandbox is a sandbox as the customer API returns it.
+// Sandbox is a sandbox as the customer API returns it. LifetimeHours is 8, 12
+// or 24; a server older than the lifetime choice leaves it out, which reads as
+// 0 (unknown).
 type Sandbox struct {
 	ID               string        `json:"id"`
 	Name             string        `json:"name"`
 	Size             string        `json:"size"`
 	DiskGiB          int           `json:"disk_gib"`
 	Status           string        `json:"status"`
+	LifetimeHours    int           `json:"lifetime_hours,omitempty"`
 	Error            *SandboxError `json:"error"`
 	CreatedAt        string        `json:"created_at"`
 	StartedAt        *string       `json:"started_at"`
@@ -44,12 +47,16 @@ func (s *Sandbox) valid() bool {
 func sandboxPath(tenantID, rest string) string { return tenantPath(tenantID, "/sandboxes"+rest) }
 
 // SandboxListing is listCustomerSandboxes' result: the sandboxes, the number
-// the workspace may run at once, and the sizes this environment offers (a
-// server older than the sizes field sends none).
+// the workspace may run at once, the sizes this environment offers (a
+// server older than the sizes field sends none) and the lifetimes in hours it
+// offers (a subset of 8, 12 and 24). A server older than the lifetimes field
+// sends none and offers only 8 hours, so a missing field reads as [8]; an
+// empty list (sandboxes off) stays empty.
 type SandboxListing struct {
 	Sandboxes  []Sandbox `json:"sandboxes"`
 	MaxRunning int       `json:"max_running"`
 	Sizes      []string  `json:"sizes"`
+	Lifetimes  []int     `json:"lifetimes"`
 }
 
 // SandboxList calls listCustomerSandboxes.
@@ -66,6 +73,9 @@ func (c *Client) SandboxList(ctx context.Context, tenantID string) (*SandboxList
 	if body.Sizes == nil {
 		body.Sizes = []string{}
 	}
+	if body.Lifetimes == nil {
+		body.Lifetimes = []int{8}
+	}
 	return &body, nil
 }
 
@@ -74,12 +84,13 @@ func (c *Client) SandboxGet(ctx context.Context, tenantID, sandboxID string) (*S
 	return c.sandboxCall(ctx, http.MethodGet, sandboxPath(tenantID, "/"+url.PathEscape(sandboxID)), nil)
 }
 
-// CreateSandboxInput is a create request. DiskGiB 0 and an empty
-// ClientOperationID are left out so the server's defaults apply.
+// CreateSandboxInput is a create request. DiskGiB 0, LifetimeHours 0 and an
+// empty ClientOperationID are left out so the server's defaults apply.
 type CreateSandboxInput struct {
 	Name              string `json:"name"`
 	Size              string `json:"size"`
 	DiskGiB           int    `json:"disk_gib,omitempty"`
+	LifetimeHours     int    `json:"lifetime_hours,omitempty"`
 	ClientOperationID string `json:"client_operation_id,omitempty"`
 }
 
