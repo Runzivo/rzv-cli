@@ -35,6 +35,9 @@ type Sandbox struct {
 	RuntimeSeconds   int64         `json:"runtime_seconds"`
 	// CreditsUsed is equivalent minutes charged so far.
 	CreditsUsed float64 `json:"credits_used"`
+	// DiskID is the attached persistent disk, mounted at /mnt/disk while
+	// running. Nil when none, or from a server without persistent disks.
+	DiskID *string `json:"disk_id,omitempty"`
 }
 
 func (s *Sandbox) valid() bool {
@@ -81,6 +84,8 @@ type CreateSandboxInput struct {
 	Size              string `json:"size"`
 	DiskGiB           int    `json:"disk_gib,omitempty"`
 	ClientOperationID string `json:"client_operation_id,omitempty"`
+	// DiskID attaches an existing persistent disk.
+	DiskID string `json:"disk_id,omitempty"`
 }
 
 // SandboxCreate calls createCustomerSandbox.
