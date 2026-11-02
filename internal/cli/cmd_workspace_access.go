@@ -248,12 +248,13 @@ func renderWorkspaceSettings(id string, settings *api.WorkspaceSettings) string 
 	}
 	text := fmt.Sprintf("Workspace settings for %s:\nName: %s\nLogo: %s\nCan update: %t", display(id), display(settings.Name), display(logo), settings.CanUpdate)
 	if cache := settings.DockerCache; cache != nil {
-		state, availability := "disabled", "not available yet"
+		// Available means hosts in this environment can serve the cache now.
+		state, availability := "disabled", "not available in this environment yet"
 		if cache.Enabled {
 			state = "enabled"
 		}
 		if cache.Available {
-			availability = "available"
+			availability = "available in this environment"
 		}
 		text += fmt.Sprintf("\nDocker cache: %s, %d MiB (%s)", state, cache.SizeMiB, availability)
 	}

@@ -21,7 +21,7 @@ const (
 )
 
 // WorkspaceDockerCache is the workspace's Docker layer cache preference.
-// Available reports whether the environment has the cache turned on; even
+// Available reports whether hosts in this environment can serve the cache; even
 // then, assignments, quotas and host health can still force a cold run.
 type WorkspaceDockerCache struct {
 	Enabled   bool  `json:"enabled"`

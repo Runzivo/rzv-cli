@@ -6,7 +6,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Added
 
-- `rzv workspaces settings update --docker-cache enabled|disabled` and `--docker-cache-size-mib <MiB>` (64 to 16384) set the workspace Docker layer cache. Either flag works alone. `settings show` and `update` print the cache state, size and whether the environment has the cache turned on (`available`); `--json` includes `docker_cache`. Jobs use the cache only after an operator turns it on for the environment. Older services without the setting show no cache line.
+- `rzv workspaces settings update --docker-cache enabled|disabled` and `--docker-cache-size-mib <MiB>` (64 to 16384) set the workspace Docker layer cache. Either flag works alone. `settings show` and `update` print the cache state, size and whether hosts in this environment can serve the cache (`available`); `--json` includes `docker_cache`. The cache is available only after an operator turns it on and an execution host in the environment supports it. Older services without the setting show no cache line.
 
 ## release-2026-11-01-185141 (rzv 0.22.0), 2026-11-01
 

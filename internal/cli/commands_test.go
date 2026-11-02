@@ -632,7 +632,7 @@ const workspaceSettingsDockerCacheJSON = `{"tenant_id":"t-1","name":"Acme","logo
 func TestWorkspaceSettingsDockerCache(t *testing.T) {
 	h := selectedHarness(t)
 	h.json("GET /v1/customer/tenants/t-1/settings", 200, workspaceSettingsDockerCacheJSON)
-	if code, out, _ := h.run("workspaces", "settings", "show"); code != 0 || !strings.Contains(out, "Docker cache: enabled, 1024 MiB (not available yet)") {
+	if code, out, _ := h.run("workspaces", "settings", "show"); code != 0 || !strings.Contains(out, "Docker cache: enabled, 1024 MiB (not available in this environment yet)") {
 		t.Fatalf("settings show cache: %d %q", code, out)
 	}
 	if code, out, _ := h.run("workspaces", "settings", "show", "--json"); code != 0 || !strings.Contains(out, `"docker_cache":{"enabled":true,"size_mib":1024,"available":false}`) {
@@ -669,7 +669,7 @@ func TestWorkspaceSettingsDockerCache(t *testing.T) {
 		args := append([]string{"workspaces", "settings", "update"}, test.args...)
 		code, out, errOut := h.run(args...)
 		got, _ := json.Marshal(patch)
-		if code != 0 || string(got) != test.want || !strings.Contains(out, "Docker cache: disabled, 2048 MiB (available)") {
+		if code != 0 || string(got) != test.want || !strings.Contains(out, "Docker cache: disabled, 2048 MiB (available in this environment)") {
 			t.Fatalf("%v: %d %q %q body %s want %s", test.args, code, out, errOut, got, test.want)
 		}
 	}
