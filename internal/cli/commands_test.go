@@ -627,6 +627,95 @@ func TestWorkspaceLogoAndInvitationAcceptance(t *testing.T) {
 	}
 }
 
+const workspaceSettingsDockerCacheJSON = `{"tenant_id":"t-1","name":"Acme","logo":null,"can_update":true,"docker_cache":{"enabled":true,"size_mib":1024,"available":false}}`
+
+func TestWorkspaceSettingsDockerCache(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("GET /v1/customer/tenants/t-1/settings", 200, workspaceSettingsDockerCacheJSON)
+	if code, out, _ := h.run("workspaces", "settings", "show"); code != 0 || !strings.Contains(out, "Docker cache: enabled, 1024 MiB (not available in this environment yet)") {
+		t.Fatalf("settings show cache: %d %q", code, out)
+	}
+	if code, out, _ := h.run("workspaces", "settings", "show", "--json"); code != 0 || !strings.Contains(out, `"docker_cache":{"enabled":true,"size_mib":1024,"available":false}`) {
+		t.Fatalf("settings show cache json: %d %q", code, out)
+	}
+	// An older service without docker_cache: no cache line, no JSON field.
+	h.json("GET /v1/customer/tenants/t-1/settings", 200, workspaceSettingsJSON)
+	if code, out, _ := h.run("workspaces", "settings", "show"); code != 0 || strings.Contains(out, "Docker cache") {
+		t.Fatalf("settings show without cache: %d %q", code, out)
+	}
+	if code, out, _ := h.run("workspaces", "settings", "show", "--json"); code != 0 || strings.Contains(out, "docker_cache") {
+		t.Fatalf("settings show json without cache: %d %q", code, out)
+	}
+
+	var patch map[string]any
+	response := `{"tenant_id":"t-1","name":"Acme","logo":null,"can_update":true,"docker_cache":{"enabled":false,"size_mib":2048,"available":true}}`
+	h.routes["PATCH /v1/customer/tenants/t-1/settings"] = func(w http.ResponseWriter, r *http.Request) {
+		patch = nil
+		_ = json.NewDecoder(r.Body).Decode(&patch)
+		_, _ = w.Write([]byte(response))
+	}
+	for _, test := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--docker-cache", "disabled"}, `{"docker_cache":{"enabled":false}}`},
+		{[]string{"--docker-cache=enabled"}, `{"docker_cache":{"enabled":true}}`},
+		{[]string{"--docker-cache-size-mib", "2048"}, `{"docker_cache":{"size_mib":2048}}`},
+		{[]string{"--docker-cache-size-mib", "64"}, `{"docker_cache":{"size_mib":64}}`},
+		{[]string{"--docker-cache-size-mib", "16384"}, `{"docker_cache":{"size_mib":16384}}`},
+		{[]string{"--docker-cache", "enabled", "--docker-cache-size-mib", "4096"}, `{"docker_cache":{"enabled":true,"size_mib":4096}}`},
+		{[]string{"--name", "Renamed", "--docker-cache", "disabled"}, `{"docker_cache":{"enabled":false},"name":"Renamed"}`},
+	} {
+		args := append([]string{"workspaces", "settings", "update"}, test.args...)
+		code, out, errOut := h.run(args...)
+		got, _ := json.Marshal(patch)
+		if code != 0 || string(got) != test.want || !strings.Contains(out, "Docker cache: disabled, 2048 MiB (available in this environment)") {
+			t.Fatalf("%v: %d %q %q body %s want %s", test.args, code, out, errOut, got, test.want)
+		}
+	}
+	if code, out, _ := h.run("workspaces", "settings", "update", "--docker-cache", "enabled", "--json"); code != 0 || !strings.Contains(out, `"docker_cache":{"enabled":false,"size_mib":2048,"available":true}`) {
+		t.Fatalf("settings update cache json: %d %q", code, out)
+	}
+
+	calls := len(h.seenAuth)
+	for _, test := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"--docker-cache", "on"}, "--docker-cache: enabled or disabled."},
+		{[]string{"--docker-cache", "Enabled"}, "--docker-cache: enabled or disabled."},
+		{[]string{"--docker-cache", "true"}, "--docker-cache: enabled or disabled."},
+		{[]string{"--docker-cache-size-mib", "63"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache-size-mib", "16385"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache-size-mib", "1e3"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache-size-mib", "-1"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache-size-mib", "+1024"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache-size-mib", "1024.0"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache-size-mib", " 1024"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache-size-mib", "99999999999999999999"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache", "enabled", "--docker-cache-size-mib", "0"}, "Cache size: 64–16384 MiB."},
+		{[]string{"--docker-cache="}, "--docker-cache requires a value."},
+		{nil, "--docker-cache enabled|disabled, --docker-cache-size-mib 64–16384"},
+	} {
+		args := append([]string{"workspaces", "settings", "update"}, test.args...)
+		code, _, errOut := h.run(args...)
+		if code != exitUsage || !strings.Contains(errOut, test.want) || len(h.seenAuth) != calls {
+			t.Fatalf("%v: %d %q requests %d want %d", test.args, code, errOut, len(h.seenAuth), calls)
+		}
+	}
+	if code, _, _ := h.run("workspaces", "settings", "show", "--docker-cache", "enabled"); code != exitUsage || len(h.seenAuth) != calls {
+		t.Fatalf("settings show accepted a cache option: %d", code)
+	}
+
+	h.env["LANG"] = "fr_CA.UTF-8"
+	if code, _, errOut := h.run("workspaces", "settings", "update", "--docker-cache-size-mib", "63"); code != exitUsage || !strings.Contains(errOut, "Taille du cache : 64–16384 Mio.") {
+		t.Fatalf("fr-CA size error: %d %q", code, errOut)
+	}
+	if code, _, errOut := h.run("workspaces", "settings", "update", "--docker-cache", "on"); code != exitUsage || !strings.Contains(errOut, "--docker-cache : enabled ou disabled.") {
+		t.Fatalf("fr-CA state error: %d %q", code, errOut)
+	}
+}
+
 func TestWorkspaceAccessValidationAndConflicts(t *testing.T) {
 	h := selectedHarness(t)
 	calls := len(h.seenAuth)

@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -12,19 +14,69 @@ type WorkspaceLogo struct {
 	Base64      string `json:"base64"`
 }
 
+// Docker layer cache size limits, in MiB, from the customer API contract.
+const (
+	DockerCacheMinSizeMiB = 64
+	DockerCacheMaxSizeMiB = 16384
+)
+
+// WorkspaceDockerCache is the workspace's Docker layer cache preference.
+// Available reports whether hosts in this environment can serve the cache; even
+// then, assignments, quotas and host health can still force a cold run.
+type WorkspaceDockerCache struct {
+	Enabled   bool  `json:"enabled"`
+	SizeMiB   int64 `json:"size_mib"`
+	Available bool  `json:"available"`
+}
+
+func (d *WorkspaceDockerCache) UnmarshalJSON(data []byte) error {
+	type plain WorkspaceDockerCache
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	for _, key := range []string{"enabled", "size_mib", "available"} {
+		if !present(raw, key) || !nonNull(raw[key]) {
+			return fmt.Errorf("missing docker_cache %s", key)
+		}
+	}
+	return json.Unmarshal(data, (*plain)(d))
+}
+
 // WorkspaceSettings is the unwrapped workspace settings response.
+// DockerCache is nil when an older service omits docker_cache.
 type WorkspaceSettings struct {
-	TenantID  string         `json:"tenant_id"`
-	Name      string         `json:"name"`
-	Logo      *WorkspaceLogo `json:"logo"`
-	CanUpdate bool           `json:"can_update"`
+	TenantID    string                `json:"tenant_id"`
+	Name        string                `json:"name"`
+	Logo        *WorkspaceLogo        `json:"logo"`
+	CanUpdate   bool                  `json:"can_update"`
+	DockerCache *WorkspaceDockerCache `json:"docker_cache,omitempty"`
+}
+
+func (s *WorkspaceSettings) UnmarshalJSON(data []byte) error {
+	type plain WorkspaceSettings
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if present(raw, "docker_cache") && !nonNull(raw["docker_cache"]) {
+		return fmt.Errorf("null docker_cache")
+	}
+	return json.Unmarshal(data, (*plain)(s))
+}
+
+// WorkspaceDockerCachePatch changes only the cache fields that are set.
+type WorkspaceDockerCachePatch struct {
+	Enabled *bool  `json:"enabled,omitempty"`
+	SizeMiB *int64 `json:"size_mib,omitempty"`
 }
 
 // WorkspaceSettingsPatch contains only fields the caller intends to change.
 type WorkspaceSettingsPatch struct {
-	Name       *string        `json:"name,omitempty"`
-	Logo       *WorkspaceLogo `json:"logo,omitempty"`
-	RemoveLogo bool           `json:"remove_logo,omitempty"`
+	Name        *string                    `json:"name,omitempty"`
+	Logo        *WorkspaceLogo             `json:"logo,omitempty"`
+	RemoveLogo  bool                       `json:"remove_logo,omitempty"`
+	DockerCache *WorkspaceDockerCachePatch `json:"docker_cache,omitempty"`
 }
 
 // WorkspaceMember is one workspace member and the caller's capabilities for it.
@@ -76,7 +128,7 @@ func (c *Client) WorkspaceSettings(ctx context.Context, tenantID string) (*Works
 	if err := c.do(ctx, http.MethodGet, tenantPath(tenantID, "/settings"), nil, nil, &value); err != nil {
 		return nil, err
 	}
-	if err := required(nonEmpty(value.TenantID)); err != nil {
+	if err := required(validWorkspaceSettings(value)); err != nil {
 		return nil, err
 	}
 	return &value, nil
@@ -87,10 +139,20 @@ func (c *Client) UpdateWorkspaceSettings(ctx context.Context, tenantID string, p
 	if err := c.do(ctx, http.MethodPatch, tenantPath(tenantID, "/settings"), nil, patch, &value); err != nil {
 		return nil, err
 	}
-	if err := required(nonEmpty(value.TenantID)); err != nil {
+	if err := required(validWorkspaceSettings(value)); err != nil {
 		return nil, err
 	}
 	return &value, nil
+}
+
+// validWorkspaceSettings checks required fields and, when the service sends
+// it, the Docker cache size range.
+func validWorkspaceSettings(value WorkspaceSettings) bool {
+	if !nonEmpty(value.TenantID) {
+		return false
+	}
+	cache := value.DockerCache
+	return cache == nil || (cache.SizeMiB >= DockerCacheMinSizeMiB && cache.SizeMiB <= DockerCacheMaxSizeMiB)
 }
 
 func (c *Client) WorkspaceMembers(ctx context.Context, tenantID string) (*WorkspaceMembers, error) {

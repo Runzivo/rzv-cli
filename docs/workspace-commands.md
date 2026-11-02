@@ -1,6 +1,6 @@
 # Workspace commands
 
-Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using a workspace API key, settings, members, and invitations commands require the `all:all` scope. `rzv workspaces invitations accept` always needs your own sign-in. Other workspace commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. Notification commands always require your own sign-in.
+Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using a workspace API key, settings, members, and invitations commands require the `all:all` scope. `rzv workspaces invitations accept` always needs your own sign-in. Other workspace commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. `rzv workspaces settings update` changes the name, logo and Docker layer cache setting; the cache also needs an operator to turn it on for the environment (see [Workspaces](workspaces.md)). Notification commands always require your own sign-in.
 
 | Page                                | Commands                                                                    |
 | ----------------------------------- | --------------------------------------------------------------------------- |
