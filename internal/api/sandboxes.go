@@ -57,6 +57,9 @@ type SandboxListing struct {
 	MaxRunning int       `json:"max_running"`
 	Sizes      []string  `json:"sizes"`
 	Lifetimes  []int     `json:"lifetimes"`
+	// LifetimesReported is true when the server sent a lifetimes list at all.
+	// Only a server from before the lifetime choice omits it.
+	LifetimesReported bool `json:"-"`
 }
 
 // SandboxList calls listCustomerSandboxes.
@@ -73,6 +76,7 @@ func (c *Client) SandboxList(ctx context.Context, tenantID string) (*SandboxList
 	if body.Sizes == nil {
 		body.Sizes = []string{}
 	}
+	body.LifetimesReported = body.Lifetimes != nil
 	if body.Lifetimes == nil {
 		body.Lifetimes = []int{8}
 	}
