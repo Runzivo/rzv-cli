@@ -370,10 +370,15 @@ func sandboxesCreate(a *app, cmd *command) error {
 	sandbox, err := client.SandboxCreate(a.ctx, workspace, input)
 	if err != nil {
 		// A server from before the lifetime choice refuses the unknown
-		// lifetime_hours field as a plain invalid request.
+		// lifetime_hours field as a plain invalid request, and the error
+		// carries no field name. Any other invalid request (a bad name, size
+		// or disk) looks the same, so confirm the server is that old: only it
+		// leaves the lifetimes list out of the sandbox listing.
 		var apiErr *api.Error
 		if input.LifetimeHours != 0 && errors.As(err, &apiErr) && apiErr.Status == 400 && apiErr.Code == "invalid_request" {
-			return newError(apiErr.Code, exitUsage, "This Runzivo server doesn't support choosing a lifetime yet. Omit --lifetime to get 8h.")
+			if listing, listErr := client.SandboxList(a.ctx, workspace); listErr == nil && !listing.LifetimesReported {
+				return newError(apiErr.Code, exitUsage, "This Runzivo server doesn't support choosing a lifetime yet. Omit --lifetime to get 8h.")
+			}
 		}
 		return apiError(err, "")
 	}

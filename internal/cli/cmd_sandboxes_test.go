@@ -729,6 +729,8 @@ func TestSandboxesCreateExplainsInvalidLifetimeFromTheServer(t *testing.T) {
 func TestSandboxesCreateExplainsAServerWithoutTheLifetimeChoice(t *testing.T) {
 	h := selectedHarness(t)
 	h.json("POST /v1/customer/tenants/t-1/sandboxes", 400, `{"error":{"code":"invalid_request"}}`)
+	// A server from before the lifetime choice sends no lifetimes list.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[],"max_running":2}`)
 	code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", "24h")
 	if code != exitUsage || !strings.Contains(errOut, "This Runzivo server doesn't support choosing a lifetime yet. Omit --lifetime to get 8h.") || strings.Contains(errOut, "400") {
 		t.Fatalf("invalid_request with --lifetime: %d %q", code, errOut)
@@ -737,6 +739,13 @@ func TestSandboxesCreateExplainsAServerWithoutTheLifetimeChoice(t *testing.T) {
 	code, _, errOut = h.run("sandboxes", "create", "--name", "dev")
 	if code == 0 || strings.Contains(errOut, "choosing a lifetime") {
 		t.Fatalf("invalid_request without --lifetime: %d %q", code, errOut)
+	}
+	// A server that offers lifetimes refused something else (a bad name, size
+	// or disk), so the lifetime hint would mislead.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[],"max_running":2,"lifetimes":[8]}`)
+	code, _, errOut = h.run("sandboxes", "create", "--name", "dev", "--lifetime", "24h")
+	if code == 0 || strings.Contains(errOut, "choosing a lifetime") {
+		t.Fatalf("invalid_request on a server with lifetimes: %d %q", code, errOut)
 	}
 }
 
