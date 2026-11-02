@@ -22,10 +22,13 @@ import (
 // depends on capacity; the list response's sizes field names those.
 var sandboxSizes = []string{"2vcpu-8gb", "4vcpu-16gb", "8vcpu-32gb", "16vcpu-64gb"}
 
+// sandboxLifetimes are the lifetimes Core accepts at create, in hours.
+var sandboxLifetimes = map[string]int{"8h": 8, "12h": 12, "24h": 24}
+
 const sandboxesUsage = `Usage:
   rzv sandboxes list [--workspace <id>] [--json]
   rzv sandboxes get <sandbox-id> [--workspace <id>] [--json]
-  rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--idempotency-key <key>] [--workspace <id>] [--json]
+  rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--lifetime 8h|12h|24h] [--idempotency-key <key>] [--workspace <id>] [--json]
   rzv sandboxes start|stop|delete <sandbox-id> [--workspace <id>] [--json]
   rzv sandboxes exec <sandbox-id> [--cwd <dir>] [--timeout <1-3600>] [--env KEY=VALUE,...] [--workspace <id>] [--json] -- <command...>
   rzv sandboxes terminal <sandbox-id> [--workspace <id>]
@@ -35,9 +38,13 @@ const sandboxesUsage = `Usage:
   rzv sandboxes ssh-config [<sandbox-id>] [--workspace <workspace>] [--write]
   rzv sandboxes terminal-ticket <sandbox-id> [--workspace <id>] [--json]
 
-A sandbox is a Linux virtual machine with your files in /workspace. It lives eight
-hours from its first start, stopped or not, then it and its files are deleted.
-Stopping keeps the files and stops the compute charge. A workspace runs a limited
+A sandbox is a Linux virtual machine with your files in /workspace. Stopping keeps
+the files and stops the compute charge.
+
+--lifetime: Lifetime from when the sandbox first runs: 8h (default), 12h or 24h. The sandbox stops
+and its temporary files are deleted when the timer expires. It cannot be extended.
+
+A workspace runs a limited
 number at once. An API key reads sandboxes with the sandboxes:read or sandboxes:write
 permission and changes them with sandboxes:write, granted with
 "rzv api-keys create --permissions ...", or with the all:all scope.
@@ -143,9 +150,9 @@ func renderSandboxList(workspace string, listing *api.SandboxListing) string {
 	}
 	var out strings.Builder
 	table := tabwriter.NewWriter(&out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(table, "ID\tNAME\tSIZE\tSTATUS\tTIME LEFT\tCREDITS USED")
+	fmt.Fprintln(table, "ID\tNAME\tSIZE\tSTATUS\tLIFETIME\tTIME LEFT\tEXPIRES\tCREDITS USED")
 	for _, s := range sandboxes {
-		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\n", display(s.ID), display(s.Name), display(s.Size), display(s.Status), timeLeft(s), credits(s.CreditsUsed))
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", display(s.ID), display(s.Name), display(s.Size), statusLabel(s.Status), lifetimeText(s), timeLeft(s), expiryText(s), credits(s.CreditsUsed))
 	}
 	_ = table.Flush()
 	if maxRunning > 0 {
@@ -157,14 +164,62 @@ func renderSandboxList(workspace string, listing *api.SandboxListing) string {
 	return strings.TrimRight(out.String(), "\n")
 }
 
-func timeLeft(s api.Sandbox) string {
-	if s.Status == "deleted" || s.Status == "expired" {
+// localZone is the zone expiry times are shown in. Tests replace it.
+var localZone = func() *time.Location { return time.Local }
+
+// statusLabel is a status as people read it: cleanup_pending is "cleanup
+// pending". Any other status is shown as Core sends it.
+func statusLabel(status string) string {
+	if status == "cleanup_pending" {
+		return "cleanup pending"
+	}
+	return display(status)
+}
+
+// sandboxEnded reports a sandbox that has no time left: it expired or was
+// deleted. cleanup_pending is one of them; its files are not gone yet, so it
+// is not shown as deleted.
+func sandboxEnded(status string) bool {
+	return status == "deleted" || status == "expired" || status == "cleanup_pending"
+}
+
+// lifetimeText is the lifetime chosen at create, or "-" when the server does
+// not say.
+func lifetimeText(s api.Sandbox) string {
+	if s.LifetimeHours <= 0 {
 		return "-"
 	}
-	if s.StartedAt == nil {
-		return "8h (starts when started)"
+	return fmt.Sprintf("%dh", s.LifetimeHours)
+}
+
+// expiryText is the exact expiry in local time and UTC. The timer starts when
+// the sandbox first runs, so until then there is no expiry.
+func expiryText(s api.Sandbox) string {
+	if s.ExpiresAt == nil {
+		if sandboxEnded(s.Status) {
+			return "-"
+		}
+		return "starts when running"
 	}
-	left := time.Duration(s.RemainingSeconds) * time.Second
+	expires, err := time.Parse(time.RFC3339, *s.ExpiresAt)
+	if err != nil {
+		return display(*s.ExpiresAt)
+	}
+	const dateTime = "2006-01-02 15:04"
+	utc := expires.UTC()
+	local := expires.In(localZone())
+	if _, offset := local.Zone(); offset == 0 {
+		return utc.Format(dateTime + " UTC")
+	}
+	utcLayout := "15:04"
+	if local.Format("2006-01-02") != utc.Format("2006-01-02") {
+		utcLayout = dateTime
+	}
+	return local.Format(dateTime+" MST") + " (" + utc.Format(utcLayout) + " UTC)"
+}
+
+// remainingText is a duration as hours and minutes, such as 7h 42m.
+func remainingText(left time.Duration) string {
 	if left <= 0 {
 		return "0m"
 	}
@@ -172,24 +227,43 @@ func timeLeft(s api.Sandbox) string {
 	if hours == 0 {
 		return fmt.Sprintf("%dm", minutes)
 	}
-	return fmt.Sprintf("%dh%02dm", hours, minutes)
+	return fmt.Sprintf("%dh %02dm", hours, minutes)
+}
+
+// timeLeft is the time before the sandbox expires. Before it first runs that
+// is its full lifetime.
+func timeLeft(s api.Sandbox) string {
+	if sandboxEnded(s.Status) {
+		return "-"
+	}
+	if s.ExpiresAt == nil && s.RemainingSeconds <= 0 {
+		if s.LifetimeHours <= 0 {
+			return "-"
+		}
+		return remainingText(time.Duration(s.LifetimeHours) * time.Hour)
+	}
+	return remainingText(time.Duration(s.RemainingSeconds) * time.Second)
 }
 
 func credits(value float64) string { return strconv.FormatFloat(value, 'f', -1, 64) + " min" }
 
 func renderSandbox(s *api.Sandbox, verb string) string {
 	lines := []string{}
-	head := fmt.Sprintf("%s [%s]: %s", display(s.Name), display(s.ID), display(s.Status))
+	head := fmt.Sprintf("%s [%s]: %s", display(s.Name), display(s.ID), statusLabel(s.Status))
 	if verb != "" {
 		head = verb + " sandbox " + head
 	}
 	lines = append(lines, head)
 	lines = append(lines, fmt.Sprintf("Size: %s, disk %d GiB", display(s.Size), s.DiskGiB))
-	lines = append(lines, "Time left: "+timeLeft(*s))
-	if s.ExpiresAt != nil {
-		lines = append(lines, "Expires: "+display(*s.ExpiresAt))
+	if s.LifetimeHours > 0 {
+		lines = append(lines, "Lifetime: "+lifetimeText(*s)+" from first run")
 	}
+	lines = append(lines, "Time left: "+timeLeft(*s))
+	lines = append(lines, "Expires: "+expiryText(*s))
 	lines = append(lines, fmt.Sprintf("Running time: %s, credits used: %s", (time.Duration(s.RuntimeSeconds)*time.Second).String(), credits(s.CreditsUsed)))
+	if s.Status == "cleanup_pending" {
+		lines = append(lines, "Cleanup pending: the sandbox expired or was deleted, but its files are not deleted yet. Runzivo keeps retrying.")
+	}
 	if s.Error != nil {
 		lines = append(lines, "Problem: "+display(s.Error.Message)+" ("+display(s.Error.Code)+")")
 	}
@@ -221,10 +295,10 @@ func sandboxAction(a *app, cmd *command, name string, call func(*api.Client, str
 }
 
 func sandboxesCreate(a *app, cmd *command) error {
-	if err := cmd.allow("workspace", "account", "name", "size", "disk-gib", "idempotency-key"); err != nil {
+	if err := cmd.allow("workspace", "account", "name", "size", "disk-gib", "lifetime", "idempotency-key"); err != nil {
 		return err
 	}
-	if err := cmd.expectArgs(1, "rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>]"); err != nil {
+	if err := cmd.expectArgs(1, "rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--lifetime 8h|12h|24h]"); err != nil {
 		return err
 	}
 	name, err := cmd.required("name")
@@ -253,6 +327,17 @@ func sandboxesCreate(a *app, cmd *command) error {
 			return usageError("--disk-gib must be a whole number from 5 to 64.")
 		}
 		input.DiskGiB = disk
+	}
+	if _, ok := cmd.options["lifetime"]; ok {
+		text, err := cmd.required("lifetime")
+		if err != nil {
+			return err
+		}
+		hours, ok := sandboxLifetimes[text]
+		if !ok {
+			return usageError("--lifetime must be 8h, 12h or 24h.")
+		}
+		input.LifetimeHours = hours
 	}
 	if key, err := cmd.option("idempotency-key"); err != nil {
 		return err
@@ -411,7 +496,7 @@ func execEndedBySandbox(exit api.ExecEvent) error {
 	case "sandbox_stopped":
 		return newError(exit.Reason, code, "The command ended because the sandbox was stopped.")
 	case "sandbox_expired":
-		return newError(exit.Reason, code, "The command ended because the sandbox reached its eight hour lifetime.")
+		return newError(exit.Reason, code, "The command ended because the sandbox reached its lifetime.")
 	case "sandbox_deleted":
 		return newError(exit.Reason, code, "The command ended because the sandbox was deleted.")
 	}
@@ -447,7 +532,7 @@ func sandboxesTerminal(a *app, cmd *command) error {
 		return apiError(err, "")
 	}
 	if sandbox.Status != "running" {
-		return newError("sandbox_not_running", exitFailure, "The sandbox is %s. Start it with `rzv sandboxes start %s`, and try again when it is running.", display(sandbox.Status), display(id))
+		return newError("sandbox_not_running", exitFailure, "The sandbox is %s. Start it with `rzv sandboxes start %s`, and try again when it is running.", statusLabel(sandbox.Status), display(id))
 	}
 	socket, err := client.SandboxTerminal(a.ctx, workspace, id)
 	if err != nil {
@@ -524,7 +609,7 @@ func sandboxTerminalEnded(closed *api.CloseError) error {
 		case "sandbox_stopped":
 			return newError("sandbox_stopped", exitFailure, "The sandbox was stopped.")
 		case "sandbox_expired":
-			return newError("sandbox_expired", exitFailure, "The sandbox reached its eight hour lifetime and was deleted.")
+			return newError("sandbox_expired", exitFailure, "The sandbox reached its lifetime and was deleted.")
 		case "sandbox_deleted":
 			return newError("sandbox_deleted", exitFailure, "The sandbox was deleted.")
 		case "idle_timeout":

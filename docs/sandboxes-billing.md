@@ -2,7 +2,7 @@
 
 ## Billing
 
-Compute is charged per minute while the sandbox runs, at the same equivalent-minute rate as the runner of that size (2 vCPU is 1x, 4 vCPU is 2x, 8 vCPU is 4x, 16 vCPU is 8x). A stopped sandbox is not charged. `list` and `get` show the credits each sandbox has used so far.
+Compute is charged per minute while the sandbox runs, at the same equivalent-minute rate as the runner of that size (2 vCPU is 1x, 4 vCPU is 2x, 8 vCPU is 4x, 16 vCPU is 8x). A stopped sandbox is not charged. Compute billing also stops when the sandbox expires. That is 8, 12 or 24 hours after it first runs, as chosen at create. `list` and `get` show the credits each sandbox has used so far.
 
 Creating or starting a sandbox needs credit in the workspace. If the workspace runs out of credit while a sandbox runs, the sandbox fails with `credit_exhausted` and its machine stops. Start it again once credit is added.
 

@@ -1,12 +1,29 @@
 # Sandboxes
 
-A sandbox is a Linux virtual machine in your workspace. Your files live in `/workspace` and survive a stop and a start. It lasts **eight hours from its first start**, running or stopped; then the machine and its files are deleted. Time stopped counts toward the eight hours, and the lifetime cannot be extended.
+A sandbox is a Linux virtual machine in your workspace. Your files live in `/workspace` and survive a stop and a start until the sandbox expires.
+
+## Lifetime
+
+Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default), `12h` or `24h`. No other value is accepted. If you leave the flag out, the sandbox lives 8 hours.
+
+- The timer starts when the sandbox first becomes running. Until then the full lifetime is left and `list` and `get` show "starts when running" for the expiry.
+- Stopping, starting and restarting do not move the timer. Time spent stopped counts.
+- The lifetime cannot be extended. Create a new sandbox instead.
+- At expiry the virtual machine stops, sessions end, the temporary files (the workspace disk) are deleted and compute billing stops.
+
+`list` and `get` show the lifetime, the exact expiry in your local time and in UTC (for example `2026-11-02 18:04 EST (23:04 UTC)`) and the time left (for example `7h 42m`). `--json` includes `lifetime_hours`, `expires_at` and `remaining_seconds`. An older Runzivo service may not send `lifetime_hours`; the lifetime then shows as `-`.
+
+## Cleanup pending
+
+A sandbox shows `cleanup pending` (`cleanup_pending` in JSON) when it expired or was deleted but its files are not deleted yet. It is not deleted until that finishes. Runzivo operations is alerted and keeps retrying, so you do not need to do anything.
+
+## Commands
 
 ```sh
-rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib 20]
-rzv sandboxes list                       # status, time left and credits used
+rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib 20] [--lifetime 8h|12h|24h]
+rzv sandboxes list                       # status, lifetime, expiry, time left and credits used
 rzv sandboxes get <sandbox-id>
-rzv sandboxes stop <sandbox-id>          # keeps the files, stops the charge
+rzv sandboxes stop <sandbox-id>          # keeps the files until expiry, stops the charge
 rzv sandboxes start <sandbox-id>
 rzv sandboxes delete <sandbox-id>        # deletes the machine and its files
 ```

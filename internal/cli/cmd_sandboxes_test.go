@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -27,10 +28,11 @@ func sandboxWith(status string) string {
 }
 
 func TestSandboxesListAndGet(t *testing.T) {
+	fixedZone(t, "EST", -5*3600)
 	h := selectedHarness(t)
 	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+sandboxJSON+`,`+strings.Replace(sandboxWith("stopped"), `"id":"sbx_0123456789abcdef01234567","name":"dev"`, `"id":"sbx_aaaaaaaaaaaaaaaaaaaaaaaa","name":"build"`, 1)+`],"max_running":2,"sizes":["2vcpu-8gb"]}`)
 	code, out, _ := h.run("sandboxes", "list")
-	if code != 0 || !strings.Contains(out, "ID") || !strings.Contains(out, sbxID) || !strings.Contains(out, "7h30m") || !strings.Contains(out, "20.5 min") || !strings.Contains(out, "This workspace can run 2 at once.") || !strings.Contains(out, "Sizes on offer here: 2vcpu-8gb.") || !strings.Contains(out, "build") {
+	if code != 0 || !strings.Contains(out, "ID") || !strings.Contains(out, sbxID) || !strings.Contains(out, "7h 30m") || !strings.Contains(out, "20.5 min") || !strings.Contains(out, "This workspace can run 2 at once.") || !strings.Contains(out, "Sizes on offer here: 2vcpu-8gb.") || !strings.Contains(out, "build") {
 		t.Fatalf("list: %d %q", code, out)
 	}
 	code, out, _ = h.run("sandboxes", "list", "--json")
@@ -51,7 +53,7 @@ func TestSandboxesListAndGet(t *testing.T) {
 		t.Fatal("a sandbox without its fields was accepted")
 	}
 	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxJSON)
-	if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, "dev ["+sbxID+"]: running") || !strings.Contains(out, "Time left: 7h30m") {
+	if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, "dev ["+sbxID+"]: running") || !strings.Contains(out, "Time left: 7h 30m") {
 		t.Fatalf("get: %d %q", code, out)
 	}
 	for _, args := range [][]string{{"sandboxes", "get"}, {"sandboxes", "get", "dev"}, {"sandboxes", "get", "sbx_short"}, {"sandboxes", "bogus"}, {"sandboxes"}} {
@@ -59,6 +61,26 @@ func TestSandboxesListAndGet(t *testing.T) {
 			t.Errorf("%v exit %d, want usage", args, code)
 		}
 	}
+}
+
+// fixedZone makes the local time zone a fixed one for the test, so the
+// expiry text does not depend on the machine running it.
+func fixedZone(t *testing.T, name string, offset int) {
+	t.Helper()
+	saved := localZone
+	zone := time.FixedZone(name, offset)
+	localZone = func() *time.Location { return zone }
+	t.Cleanup(func() { localZone = saved })
+}
+
+func sandboxLifetimeJSON(status string, hours int, expiresAt string, remaining int) string {
+	s := sandboxWith(status)
+	s = strings.Replace(s, `"expires_at":"2026-10-29T17:00:05Z"`, `"expires_at":`+expiresAt, 1)
+	s = strings.Replace(s, `"remaining_seconds":27000`, `"remaining_seconds":`+strconv.Itoa(remaining), 1)
+	if hours > 0 {
+		s = strings.Replace(s, `"status"`, `"lifetime_hours":`+strconv.Itoa(hours)+`,"status"`, 1)
+	}
+	return s
 }
 
 func TestSandboxesCreateStartStopDelete(t *testing.T) {
@@ -127,7 +149,7 @@ func TestSandboxesExplainRefusalsWithoutHostDetails(t *testing.T) {
 		{"start", 409, "sandbox_limit_reached", exitFailure, "maximum number of sandboxes"},
 		{"start", 409, "credit_exhausted", exitFailure, "out of credit"},
 		{"stop", 409, "sandbox_wrong_state", exitFailure, "not in a state"},
-		{"start", 409, "sandbox_expired", exitFailure, "eight hour lifetime"},
+		{"start", 409, "sandbox_expired", exitFailure, "reached its lifetime"},
 		{"start", 409, "no_capacity", exitFailure, "No capacity"},
 		{"start", 409, "size_unavailable", exitFailure, "not offered on this Runzivo environment"},
 		{"start", 409, "workspace_blocked", exitAccessDenied, "blocked"},
@@ -474,7 +496,7 @@ func TestSandboxesExecExplainsOutputCapAndSandboxEnds(t *testing.T) {
 		t.Fatalf("stopped mid-command: %d %q", code, errOut)
 	}
 	execServer(h, `{"type":"exit","exit_code":0,"timed_out":false,"truncated":false,"reason":"sandbox_expired"}`+"\n", 200, nil)
-	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--", "sleep", "60"); code != exitFailure || !strings.Contains(errOut, "eight hour lifetime") {
+	if code, _, errOut := h.run("sandboxes", "exec", sbxID, "--", "sleep", "60"); code != exitFailure || !strings.Contains(errOut, "reached its lifetime") {
 		t.Fatalf("expired mid-command: %d %q", code, errOut)
 	}
 	code, out, _ := h.run("sandboxes", "exec", sbxID, "--json", "--", "sleep", "60")
@@ -638,5 +660,169 @@ func TestExecCommandGivesTheShellTheExactArguments(t *testing.T) {
 		if got[i] != args[i] {
 			t.Errorf("argument %d: sh saw %q, want %q", i, got[i], args[i])
 		}
+	}
+}
+
+func TestSandboxesCreateLifetime(t *testing.T) {
+	h := selectedHarness(t)
+	var bodies []string
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes"] = func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(data))
+		w.WriteHeader(201)
+		_, _ = w.Write([]byte(sandboxLifetimeJSON("starting", 12, "null", 43200)))
+	}
+	for _, c := range []struct {
+		flag  string
+		hours float64
+	}{{"8h", 8}, {"12h", 12}, {"24h", 24}} {
+		before := len(bodies)
+		code, out, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", c.flag)
+		if code != 0 || len(bodies) != before+1 {
+			t.Fatalf("--lifetime %s: %d %q %q", c.flag, code, out, errOut)
+		}
+		var body map[string]any
+		if err := json.Unmarshal([]byte(bodies[before]), &body); err != nil || body["lifetime_hours"] != c.hours {
+			t.Fatalf("--lifetime %s sent %s", c.flag, bodies[before])
+		}
+	}
+	before := len(bodies)
+	if code, _, errOut := h.run("sandboxes", "create", "--name", "dev"); code != 0 || len(bodies) != before+1 || strings.Contains(bodies[before], "lifetime") {
+		t.Fatalf("create without --lifetime: %d %q sent %v", code, errOut, bodies[before:])
+	}
+	code, out, _ := h.run("sandboxes", "create", "--name", "dev", "--lifetime", "12h", "--json")
+	if code != 0 || !strings.Contains(out, `"lifetime_hours":12`) {
+		t.Fatalf("create --json: %d %q", code, out)
+	}
+	before = len(bodies)
+	for _, value := range []string{"6h", "48h", "25h", "abc", "8", "12", "24", "0h", "8H", "8h30m", "-8h", "1d"} {
+		code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", value)
+		if code != exitUsage || !strings.Contains(errOut, "--lifetime must be 8h, 12h or 24h") {
+			t.Errorf("--lifetime %q: exit %d %q, want usage", value, code, errOut)
+		}
+	}
+	if code, _, _ := h.run("sandboxes", "create", "--name", "dev", "--lifetime"); code != exitUsage {
+		t.Errorf("--lifetime without a value: exit %d, want usage", code)
+	}
+	if len(bodies) != before {
+		t.Fatalf("a refused lifetime reached the API: %v", bodies[before:])
+	}
+	if code, _, _ := h.run("sandboxes", "start", sbxID, "--lifetime", "8h"); code != exitUsage {
+		t.Errorf("start --lifetime exit %d, want usage", code)
+	}
+}
+
+func TestSandboxesCreateExplainsInvalidLifetimeFromTheServer(t *testing.T) {
+	h := selectedHarness(t)
+	h.json("POST /v1/customer/tenants/t-1/sandboxes", 400, `{"error":{"code":"invalid_lifetime"}}`)
+	code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", "12h")
+	if code != exitUsage || !strings.Contains(errOut, "lifetime must be 8h, 12h or 24h") || strings.Contains(errOut, "400") {
+		t.Fatalf("invalid_lifetime: %d %q", code, errOut)
+	}
+}
+
+func TestSandboxesShowLifetimeExpiryAndTimeLeft(t *testing.T) {
+	fixedZone(t, "EST", -5*3600)
+	h := selectedHarness(t)
+	running := sandboxLifetimeJSON("running", 12, `"2026-11-02T23:04:00Z"`, 7*3600+42*60+30)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, running)
+	code, out, _ := h.run("sandboxes", "get", sbxID)
+	for _, want := range []string{"dev [" + sbxID + "]: running", "Lifetime: 12h from first run", "Time left: 7h 42m", "Expires: 2026-11-02 18:04 EST (23:04 UTC)"} {
+		if code != 0 || !strings.Contains(out, want) {
+			t.Fatalf("get running: %d missing %q in %q", code, want, out)
+		}
+	}
+	// Local and UTC dates differ: the UTC part carries its date.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxLifetimeJSON("running", 24, `"2026-11-03T02:30:00Z"`, 3600))
+	if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, "Expires: 2026-11-02 21:30 EST (2026-11-03 02:30 UTC)") || !strings.Contains(out, "Time left: 1h 00m") {
+		t.Fatalf("get across midnight UTC: %d %q", code, out)
+	}
+	fixedZone(t, "UTC", 0)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, running)
+	if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, "Expires: 2026-11-02 23:04 UTC\n") {
+		t.Fatalf("get in UTC: %d %q", code, out)
+	}
+	fixedZone(t, "EST", -5*3600)
+
+	// A stopped sandbox keeps its expiry.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxLifetimeJSON("stopped", 8, `"2026-11-02T23:04:00Z"`, 59*60))
+	if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, "Time left: 59m") || !strings.Contains(out, "Expires: 2026-11-02 18:04 EST (23:04 UTC)") {
+		t.Fatalf("get stopped: %d %q", code, out)
+	}
+
+	// Before the first start there is no expiry and the full lifetime is left.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxLifetimeJSON("stopped", 24, "null", 24*3600))
+	if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, "Time left: 24h 00m") || !strings.Contains(out, "Expires: starts when running") {
+		t.Fatalf("get before first run: %d %q", code, out)
+	}
+
+	// An older server sends no lifetime_hours: it is unknown, never assumed.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxLifetimeJSON("running", 0, `"2026-11-02T23:04:00Z"`, 600))
+	code, out, _ = h.run("sandboxes", "get", sbxID)
+	if code != 0 || strings.Contains(out, "Lifetime:") || !strings.Contains(out, "Time left: 10m") {
+		t.Fatalf("get without lifetime_hours: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxLifetimeJSON("stopped", 0, "null", 0))
+	if code, out, _ := h.run("sandboxes", "get", sbxID); code != 0 || !strings.Contains(out, "Time left: -") {
+		t.Fatalf("get with no lifetime and no remaining time: %d %q", code, out)
+	}
+
+	// The list carries the same facts, one row each.
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+running+`,`+sandboxLifetimeJSON("stopped", 24, "null", 24*3600)+`,`+sandboxLifetimeJSON("running", 0, `"2026-11-02T23:04:00Z"`, 600)+`],"max_running":2}`)
+	code, out, _ = h.run("sandboxes", "list")
+	rows := strings.Split(strings.TrimSpace(out), "\n")
+	if code != 0 || len(rows) < 4 {
+		t.Fatalf("list: %d %q", code, out)
+	}
+	for _, want := range []string{"LIFETIME", "TIME LEFT", "EXPIRES"} {
+		if !strings.Contains(rows[0], want) {
+			t.Errorf("list header %q lacks %s", rows[0], want)
+		}
+	}
+	for i, want := range [][]string{
+		{"running", "12h", "7h 42m", "2026-11-02 18:04 EST (23:04 UTC)"},
+		{"stopped", "24h", "24h 00m", "starts when running"},
+		{"running", "-", "10m", "2026-11-02 18:04 EST (23:04 UTC)"},
+	} {
+		if got := strings.Join(strings.Fields(rows[1+i]), " "); !strings.Contains(got, "2vcpu-8gb "+strings.Join(want, " ")+" 20.5 min") {
+			t.Errorf("list row %d = %q, want %v after the size", i, rows[1+i], want)
+		}
+	}
+
+	// --json passes the API fields through.
+	code, out, _ = h.run("sandboxes", "list", "--json")
+	var listed struct {
+		Sandboxes []map[string]any `json:"sandboxes"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Sandboxes) != 3 || listed.Sandboxes[0]["lifetime_hours"] != float64(12) || listed.Sandboxes[0]["expires_at"] != "2026-11-02T23:04:00Z" || listed.Sandboxes[1]["expires_at"] != nil {
+		t.Fatalf("list --json: %d %q", code, out)
+	}
+	if _, present := listed.Sandboxes[2]["lifetime_hours"]; present {
+		t.Errorf("list --json invented lifetime_hours for an older server: %v", listed.Sandboxes[2])
+	}
+}
+
+func TestSandboxesShowCleanupPendingAsNotDeleted(t *testing.T) {
+	fixedZone(t, "EST", -5*3600)
+	h := selectedHarness(t)
+	pending := sandboxLifetimeJSON("cleanup_pending", 8, `"2026-11-02T23:04:00Z"`, 0)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, pending)
+	code, out, _ := h.run("sandboxes", "get", sbxID)
+	if code != 0 || !strings.Contains(out, "dev ["+sbxID+"]: cleanup pending") || !strings.Contains(out, "Time left: -") || !strings.Contains(out, "files are not deleted yet") || strings.Contains(out, "cleanup_pending") {
+		t.Fatalf("get cleanup_pending: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[`+pending+`],"max_running":2}`)
+	code, out, _ = h.run("sandboxes", "list")
+	if code != 0 || !strings.Contains(out, "cleanup pending") || strings.Contains(out, "cleanup_pending") || strings.Contains(out, "deleted") {
+		t.Fatalf("list cleanup_pending: %d %q", code, out)
+	}
+	// The raw status stays in JSON.
+	if code, out, _ := h.run("sandboxes", "list", "--json"); code != 0 || !strings.Contains(out, `"status":"cleanup_pending"`) {
+		t.Fatalf("list --json cleanup_pending: %d %q", code, out)
+	}
+	// A delete that leaves files behind reports the same status.
+	h.json("DELETE /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, pending)
+	if code, out, _ := h.run("sandboxes", "delete", sbxID); code != 0 || !strings.Contains(out, "Deleting sandbox dev ["+sbxID+"]: cleanup pending") {
+		t.Fatalf("delete cleanup_pending: %d %q", code, out)
 	}
 }

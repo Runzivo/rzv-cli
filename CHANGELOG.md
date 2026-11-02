@@ -6,6 +6,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Added
 
+- `rzv sandboxes create --lifetime 8h|12h|24h` sets how long a sandbox lives from the moment it first runs (default 8h). `sandboxes list` and `get` show the lifetime, the exact expiry in local time and UTC, and the time left. A sandbox shows `cleanup pending` when it expired or was deleted but its files are not deleted yet. Older services without the field show the lifetime as `-`.
 - `rzv workspaces settings update --docker-cache enabled|disabled` and `--docker-cache-size-mib <MiB>` (64 to 16384) set the workspace Docker layer cache. Either flag works alone. `settings show` and `update` print the cache state, size and whether hosts in this environment can serve the cache (`available`); `--json` includes `docker_cache`. The cache is available only after an operator turns it on and an execution host in the environment supports it. Older services without the setting show no cache line.
 
 ## release-2026-11-01-185141 (rzv 0.22.0), 2026-11-01

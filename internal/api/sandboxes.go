@@ -20,13 +20,16 @@ type SandboxError struct {
 	Message string `json:"message"`
 }
 
-// Sandbox is a sandbox as the customer API returns it.
+// Sandbox is a sandbox as the customer API returns it. LifetimeHours is 8, 12
+// or 24; a server older than the lifetime choice leaves it out, which reads as
+// 0 (unknown).
 type Sandbox struct {
 	ID               string        `json:"id"`
 	Name             string        `json:"name"`
 	Size             string        `json:"size"`
 	DiskGiB          int           `json:"disk_gib"`
 	Status           string        `json:"status"`
+	LifetimeHours    int           `json:"lifetime_hours,omitempty"`
 	Error            *SandboxError `json:"error"`
 	CreatedAt        string        `json:"created_at"`
 	StartedAt        *string       `json:"started_at"`
@@ -74,12 +77,13 @@ func (c *Client) SandboxGet(ctx context.Context, tenantID, sandboxID string) (*S
 	return c.sandboxCall(ctx, http.MethodGet, sandboxPath(tenantID, "/"+url.PathEscape(sandboxID)), nil)
 }
 
-// CreateSandboxInput is a create request. DiskGiB 0 and an empty
-// ClientOperationID are left out so the server's defaults apply.
+// CreateSandboxInput is a create request. DiskGiB 0, LifetimeHours 0 and an
+// empty ClientOperationID are left out so the server's defaults apply.
 type CreateSandboxInput struct {
 	Name              string `json:"name"`
 	Size              string `json:"size"`
 	DiskGiB           int    `json:"disk_gib,omitempty"`
+	LifetimeHours     int    `json:"lifetime_hours,omitempty"`
 	ClientOperationID string `json:"client_operation_id,omitempty"`
 }
 
