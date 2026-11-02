@@ -24,7 +24,8 @@ while the sandbox runs. The disk lives on one Runzivo server: a sandbox that use
 it runs on that server or waits for it. It is not copied to another server and is
 not a backup. One sandbox can use a disk at a time; stop the sandbox before you
 detach the disk or attach it to another stopped sandbox. Deleting a disk removes
-its files for good.
+its files for good. A deleted disk shows as "deleting" until its server confirms
+the files are removed, then as "deleted". Sizes are in GiB (1 GiB is 1024^3 bytes).
 
 Persistent disks are off unless Runzivo has turned them on for your environment
 and given your workspace a disk quota. No disk price is published and disk
@@ -81,7 +82,13 @@ func disksList(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "")
 	}
-	a.output(cmd, map[string]any{"workspace_id": workspace, "disks": listing.Disks, "quota": listing.Quota}, renderDiskList(workspace, listing))
+	a.output(cmd, map[string]any{
+		"workspace_id": workspace,
+		"disks":        listing.Disks,
+		"quota":        listing.Quota,
+		"min_size_gib": listing.MinSizeGiB,
+		"max_size_gib": listing.MaxSizeGiB,
+	}, renderDiskList(workspace, listing))
 	return nil
 }
 
@@ -109,8 +116,33 @@ func renderDiskList(workspace string, listing *api.DiskListing) string {
 		fmt.Fprintf(table, "%s\t%s\t%d GiB\t%s\t%s\t%s\n", display(d.ID), display(d.Name), d.SizeGiB, display(d.Status), attachedTo(d), diskUsage(d.Usage))
 	}
 	_ = table.Flush()
+	for _, d := range live {
+		if note := scheduledDeletion(d); note != "" {
+			out.WriteString(display(d.ID) + ": " + note + "\n")
+		}
+	}
 	out.WriteString("\n" + renderDiskQuota(listing.Quota))
 	return out.String()
+}
+
+// scheduledDeletion describes a pending deletion by Runzivo, or "" if none.
+func scheduledDeletion(d api.Disk) string {
+	s := d.ScheduledDeletion
+	if s == nil {
+		return ""
+	}
+	when := display(s.DeleteAfter)
+	if t, err := s.DeleteAfterTime(); err == nil {
+		when = t.UTC().Format("2006-01-02 15:04") + " UTC"
+	}
+	reason := display(s.Reason)
+	switch s.Reason {
+	case "unpaid":
+		reason = "unpaid"
+	case "workspace_closed":
+		reason = "workspace closed"
+	}
+	return "Scheduled for deletion on " + when + " (" + reason + ")"
 }
 
 func attachedTo(d api.Disk) string {
@@ -136,6 +168,9 @@ func renderDisk(d *api.Disk, verb string) string {
 		lines = append(lines, "Not attached")
 	}
 	lines = append(lines, "Usage: "+diskUsage(d.Usage))
+	if note := scheduledDeletion(*d); note != "" {
+		lines = append(lines, note)
+	}
 	return strings.Join(lines, "\n")
 }
 
@@ -158,10 +193,15 @@ func diskAction(a *app, cmd *command, name string, call func(*api.Client, string
 	if err != nil {
 		return apiError(err, "")
 	}
-	if verb == "Deleting" && disk.Status == "deleted" {
-		verb = "Deleted"
+	text := renderDisk(disk, verb)
+	if verb == "Deleting" {
+		if disk.Status == "deleted" {
+			text = renderDisk(disk, "Deleted")
+		} else {
+			text += "\nIt shows as deleting until its server confirms the files are removed. Check with `rzv disks get " + display(disk.ID) + "`."
+		}
 	}
-	a.output(cmd, map[string]any{"workspace_id": workspace, "disk": disk}, renderDisk(disk, verb))
+	a.output(cmd, map[string]any{"workspace_id": workspace, "disk": disk}, text)
 	return nil
 }
 

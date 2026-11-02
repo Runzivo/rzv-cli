@@ -9,7 +9,7 @@ rzv disks list                                  # disks, where they are attached
 rzv sandboxes create --name dev --disk vol_...  # mounted at /mnt/disk while it runs
 rzv disks detach vol_...                        # the sandbox must be stopped
 rzv disks attach vol_... --sandbox sbx_...      # the sandbox must be stopped
-rzv disks delete vol_...                        # detached disks only; files are gone
+rzv disks delete vol_...                        # detached disks only; see below
 ```
 
 Add `--json` to any of them. `create` takes `--idempotency-key <key>`.
@@ -24,15 +24,22 @@ Add `--json` to any of them. `create` takes `--idempotency-key <key>`.
   or attach it to another stopped sandbox. A deleted or expired sandbox releases
   its disk.
 - Disks cannot be resized yet.
+- Sizes are in GiB (1 GiB is 1024^3 bytes).
+- Deleting a disk removes its files for good. The disk shows as `deleting` until
+  its server confirms the files are removed, then as `deleted`. Check with
+  `rzv disks get vol_...`.
 
 ## Availability, quota and charges
 
 Persistent disks are off unless Runzivo has turned them on for your environment
 and given your workspace a disk quota. `rzv disks list` shows the quota. No disk
 price is published and disk charges are off; `list` shows the metered GB-hours
-for information. Disks use the `sandboxes:read` and `sandboxes:write`
-permissions, and API keys need the same scopes.
+(decimal GB of the disk's size, by the hour) for information. Disks use the
+`sandboxes:read` and `sandboxes:write` permissions, and API keys need the same
+scopes.
 
-When a workspace is closed, its disks are deleted once no sandbox holds them.
+When a workspace is unpaid or closed, Runzivo schedules its disks for deletion.
+`rzv disks list` and `rzv disks get` then show the date after which the disk is
+deleted and why, and `--json` carries it as `scheduled_deletion`.
 
 Back to [sandboxes](sandboxes.md) or the [documentation index](README.md).

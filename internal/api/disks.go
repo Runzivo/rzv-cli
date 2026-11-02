@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // Disk is a persistent disk as the customer API returns it. It never names
@@ -18,6 +19,21 @@ type Disk struct {
 	CreatedAt         string    `json:"created_at"`
 	DeletedAt         *string   `json:"deleted_at"`
 	Usage             DiskUsage `json:"usage"`
+	// ScheduledDeletion is set while the disk waits out its grace period
+	// before Runzivo deletes it. Older Core servers leave it out; both read
+	// as nil.
+	ScheduledDeletion *DiskScheduledDeletion `json:"scheduled_deletion"`
+}
+
+// DiskScheduledDeletion is when, and why, Runzivo will delete a disk.
+type DiskScheduledDeletion struct {
+	DeleteAfter string `json:"delete_after"`
+	Reason      string `json:"reason"`
+}
+
+// DeleteAfterTime parses DeleteAfter (RFC 3339).
+func (s *DiskScheduledDeletion) DeleteAfterTime() (time.Time, error) {
+	return time.Parse(time.RFC3339, s.DeleteAfter)
 }
 
 // DiskUsage is the metered allocation, apart from compute minutes. It stays
@@ -44,6 +60,11 @@ type DiskListing struct {
 }
 
 func (d *Disk) valid() bool {
+	if d.ScheduledDeletion != nil {
+		if _, err := d.ScheduledDeletion.DeleteAfterTime(); err != nil || d.ScheduledDeletion.Reason == "" {
+			return false
+		}
+	}
 	return nonEmpty(d.ID, d.Name, d.Status, d.CreatedAt) && d.SizeGiB > 0
 }
 

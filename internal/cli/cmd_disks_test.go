@@ -25,10 +25,13 @@ func TestDisksListShowsQuotaAndAttachment(t *testing.T) {
 	}
 	code, out, _ = h.run("disks", "list", "--json")
 	var listed struct {
-		Disks []map[string]any `json:"disks"`
-		Quota map[string]any   `json:"quota"`
+		Disks      []map[string]any `json:"disks"`
+		Quota      map[string]any   `json:"quota"`
+		MinSizeGiB *int             `json:"min_size_gib"`
+		MaxSizeGiB *int             `json:"max_size_gib"`
 	}
-	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Disks) != 1 || listed.Quota["quota_gib"] != float64(64) {
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Disks) != 1 || listed.Quota["quota_gib"] != float64(64) ||
+		listed.MinSizeGiB == nil || *listed.MinSizeGiB != 1 || listed.MaxSizeGiB == nil || *listed.MaxSizeGiB != 64 {
 		t.Fatalf("list --json: %d %q", code, out)
 	}
 	h.json("GET /v1/customer/tenants/t-1/disks", 200, `{"disks":[],"quota":{"quota_gib":0,"used_gib":0,"max_disks":5,"disks":0},"min_size_gib":1,"max_size_gib":64}`)
@@ -69,7 +72,7 @@ func TestDisksCreateAttachDetachDelete(t *testing.T) {
 		t.Fatalf("detach: %d %q", code, out)
 	}
 	h.json("DELETE /v1/customer/tenants/t-1/disks/"+volID, 200, strings.Replace(diskJSON, `"status":"available"`, `"status":"deleting"`, 1))
-	if code, out, _ := h.run("disks", "delete", volID); code != 0 || !strings.Contains(out, "Deleting disk data") {
+	if code, out, _ := h.run("disks", "delete", volID); code != 0 || !strings.Contains(out, "Deleting disk data") || !strings.Contains(out, "shows as deleting until its server confirms") {
 		t.Fatalf("delete: %d %q", code, out)
 	}
 	h.json("DELETE /v1/customer/tenants/t-1/disks/"+volID, 409, `{"error":{"code":"disk_attached"}}`)
@@ -94,6 +97,57 @@ func TestDisksCreateAttachDetachDelete(t *testing.T) {
 		if code, _, _ := h.run(args...); code != exitUsage {
 			t.Errorf("%v exit %d, want usage", args, code)
 		}
+	}
+}
+
+func TestDisksScheduledDeletion(t *testing.T) {
+	h := selectedHarness(t)
+	scheduled := strings.Replace(diskJSON, `"usage":`, `"scheduled_deletion":{"delete_after":"2026-12-01T09:30:00Z","reason":"unpaid"},"usage":`, 1)
+	closed := strings.Replace(scheduled, `"reason":"unpaid"`, `"reason":"workspace_closed"`, 1)
+	h.json("GET /v1/customer/tenants/t-1/disks", 200, `{"disks":[`+scheduled+`],"quota":{"quota_gib":64,"used_gib":10,"max_disks":5,"disks":1},"min_size_gib":1,"max_size_gib":64}`)
+	if code, out, _ := h.run("disks", "list"); code != 0 || !strings.Contains(out, volID+": Scheduled for deletion on 2026-12-01 09:30 UTC (unpaid)") {
+		t.Fatalf("list: %d %q", code, out)
+	}
+	code, out, _ := h.run("disks", "list", "--json")
+	var listed struct {
+		Disks []struct {
+			ScheduledDeletion map[string]string `json:"scheduled_deletion"`
+		} `json:"disks"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || len(listed.Disks) != 1 ||
+		listed.Disks[0].ScheduledDeletion["delete_after"] != "2026-12-01T09:30:00Z" || listed.Disks[0].ScheduledDeletion["reason"] != "unpaid" {
+		t.Fatalf("list --json: %d %q", code, out)
+	}
+	h.json("GET /v1/customer/tenants/t-1/disks/"+volID, 200, closed)
+	if code, out, _ := h.run("disks", "get", volID); code != 0 || !strings.Contains(out, "Scheduled for deletion on 2026-12-01 09:30 UTC (workspace closed)") {
+		t.Fatalf("get: %d %q", code, out)
+	}
+	code, out, _ = h.run("disks", "get", volID, "--json")
+	var got struct {
+		Disk map[string]any `json:"disk"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &got) != nil || got.Disk["scheduled_deletion"] == nil {
+		t.Fatalf("get --json: %d %q", code, out)
+	}
+	// Null, and absent (an older Core), both read as no scheduled deletion.
+	for _, body := range []string{strings.Replace(diskJSON, `"usage":`, `"scheduled_deletion":null,"usage":`, 1), diskJSON} {
+		h.json("GET /v1/customer/tenants/t-1/disks/"+volID, 200, body)
+		if code, out, _ := h.run("disks", "get", volID); code != 0 || strings.Contains(out, "Scheduled for deletion") {
+			t.Fatalf("not scheduled: %d %q", code, out)
+		}
+		code, out, _ := h.run("disks", "get", volID, "--json")
+		got.Disk = nil
+		if code != 0 || json.Unmarshal([]byte(out), &got) != nil {
+			t.Fatalf("not scheduled --json: %d %q", code, out)
+		}
+		if value, ok := got.Disk["scheduled_deletion"]; !ok || value != nil {
+			t.Fatalf("not scheduled --json: %q", out)
+		}
+	}
+	// A deadline that is not RFC 3339 is a malformed response.
+	h.json("GET /v1/customer/tenants/t-1/disks/"+volID, 200, strings.Replace(scheduled, "2026-12-01T09:30:00Z", "soon", 1))
+	if code, _, _ := h.run("disks", "get", volID); code == 0 {
+		t.Fatal("a malformed delete_after was accepted")
 	}
 }
 
