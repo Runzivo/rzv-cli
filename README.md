@@ -52,6 +52,9 @@ Runzivo is in Early Access. Sign in with your Runzivo account, then select a wor
 
 ## Help and security
 
+- Product ideas and voting: [Runzivo community](COMMUNITY.md), covering all Runzivo products.
+- Priorities and progress: [public roadmap](https://github.com/orgs/Runzivo/projects/3/views/1).
+
 - Questions: support@runzivo.dev
 - Security issues: see [SECURITY.md](SECURITY.md).
 
