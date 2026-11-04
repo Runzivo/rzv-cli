@@ -18,9 +18,8 @@ The [public roadmap](https://github.com/orgs/Runzivo/projects/3/views/1) tracks 
 | Planned     | Selected for future work, with no promised delivery date. |
 | In progress | Work has started.                                         |
 | Shipped     | Available to customers, with a release link.              |
-| Not planned | Not being pursued, with an explanation.                   |
 
-The board starts empty while the first ideas are reviewed. Discussion upvotes are the voting mechanism. The board records decisions and progress.
+Discussion upvotes are the voting mechanism. The board records decisions and progress.
 
 ## Bugs, private help, and code contributions
 
