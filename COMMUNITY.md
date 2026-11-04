@@ -6,7 +6,7 @@ This repository hosts product feedback for all of Runzivo, alongside the CLI sou
 
 - Search [Ideas](https://github.com/Runzivo/rzv-cli/discussions/categories/ideas) before opening a request.
 - Upvote an existing idea with the upvote arrow and add your use case in a comment.
-- [Suggest a feature](https://github.com/Runzivo/rzv-cli/discussions/new?category=ideas) when no existing idea covers your problem. Explain the problem, desired outcome, impact, and current workaround.
+- [Suggest a feature](https://github.com/orgs/Runzivo/discussions/new?category=ideas) when no existing idea covers your problem. Explain the problem, desired outcome, impact, and current workaround.
 
 ## Follow the decision
 
