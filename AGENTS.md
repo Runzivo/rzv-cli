@@ -23,8 +23,8 @@ servers and throwaway keys; they never reach Runzivo or use real credentials.
 
 ## API contract and parity
 
-- `internal/api` is written by hand against the Core customer contract
-  (`api/customer.openapi.yaml` in `rzv-core`) and covers only the operations
+- `internal/api` is written by hand against the Runzivo customer API contract
+  (`api/customer.openapi.yaml` in the Runzivo service) and covers only the operations
   `rzv` calls. Match field names and error shapes to that contract.
 - Every customer action in the portal needs an `rzv` command, with `--json`
   output. Document new commands in `docs/` and the `## Unreleased` section of
