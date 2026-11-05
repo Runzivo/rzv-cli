@@ -163,18 +163,23 @@ func runOrca(a *app, cmd *command) error {
 	ctx, stop := signal.NotifyContext(a.ctx, orcaStopSignals...)
 	defer stop()
 	a.ctx = ctx
+	var err error
 	switch cmd.args[0] {
 	case "create":
-		return orcaCreate(a, cmd, out)
+		err = orcaCreate(a, cmd, out)
 	case "suspend":
-		return orcaSuspend(a, cmd)
+		err = orcaSuspend(a, cmd)
 	case "resume":
-		return orcaResume(a, cmd, out)
+		err = orcaResume(a, cmd, out)
 	case "destroy":
-		return orcaDestroy(a, cmd)
+		err = orcaDestroy(a, cmd)
 	default:
 		return usageError("%s", orcaUsage)
 	}
+	if err != nil && ctx.Err() != nil {
+		return newError("cancelled", exitFailure, "Cancelled.")
+	}
+	return err
 }
 
 func (a *app) orcaLog(format string, args ...any) {

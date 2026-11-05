@@ -419,7 +419,7 @@ func TestOrcaCreateCancelledDeletesItsSandbox(t *testing.T) {
 	core.statuses = []string{"starting"}
 	var stdout, stderr bytes.Buffer
 	code := Run(ctx, []string{"orca", "create"}, Deps{Stdout: &stdout, Stderr: &stderr, Store: h.store, Getenv: func(k string) string { return h.env[k] }})
-	if code == 0 || stdout.Len() != 0 || core.deleted != 1 {
+	if code == 0 || stdout.Len() != 0 || core.deleted != 1 || !strings.Contains(stderr.String(), "rzv: Cancelled.") {
 		t.Fatalf("cancelled create: %d %q deleted %d: %s", code, stdout.String(), core.deleted, stderr.String())
 	}
 }
