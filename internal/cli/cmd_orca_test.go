@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -379,11 +380,10 @@ func TestOrcaNamesAndURLs(t *testing.T) {
 		orcaSandboxName("Fix Login Bug", orcaInstance):                                     "orca-fix-login-bug-4f1d2c3b",
 		orcaSandboxName("", "orca-x"):                                                      "orca-workspace-x",
 		orcaSandboxName(strings.Repeat("a", 100), orcaInstance):                            "orca-" + strings.Repeat("a", 50) + "-4f1d2c3b",
-		stripURLCredentials("https://u:p@github.com/a/b.git"):                              "https://github.com/a/b.git",
-		stripURLCredentials("git@github.com:a/b.git"):                                      "git@github.com:a/b.git",
 		orcaRepoName("", [][2]string{{"origin", "git@github.com:acme/my.repo.git"}}, "/x"): "my.repo",
 		orcaRepoName("", nil, "/home/me/project with space"):                               "project-with-space",
 		orcaRepoName("", nil, "/"):                                                         "repo",
+		orcaRepoName("", nil, "/src/foo..bar"):                                             "foo.bar",
 	}
 	for got, want := range cases {
 		if got != want {
@@ -392,6 +392,103 @@ func TestOrcaNamesAndURLs(t *testing.T) {
 	}
 	if n := orcaSandboxName(strings.Repeat("ab ", 60), orcaInstance); len(n) > 80 {
 		t.Errorf("name too long: %d", len(n))
+	}
+	for raw, want := range map[string]string{
+		"https://u:p@github.com/a/b.git": "https://github.com/a/b.git",
+		"git@github.com:a/b.git":         "git@github.com:a/b.git",
+		"HTTPS://tok@github.com/a/b":     "https://github.com/a/b",
+	} {
+		if got, ok := stripURLCredentials(raw); !ok || got != want {
+			t.Errorf("%s: got %q %v", raw, got, ok)
+		}
+	}
+	if got, ok := stripURLCredentials("https://user:bad%zztoken@github.com/a/b"); ok || got != "" {
+		t.Errorf("an unparsable URL with user info was kept: %q", got)
+	}
+}
+
+func TestOrcaCreateCancelledDeletesItsSandbox(t *testing.T) {
+	h, core, _ := orcaHarness(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	create := h.routes["POST "+orcaBase]
+	h.routes["POST "+orcaBase] = func(w http.ResponseWriter, r *http.Request) {
+		create(w, r)
+		cancel() // Orca's SIGTERM arrives while the sandbox starts.
+	}
+	core.statuses = []string{"starting"}
+	var stdout, stderr bytes.Buffer
+	code := Run(ctx, []string{"orca", "create"}, Deps{Stdout: &stdout, Stderr: &stderr, Store: h.store, Getenv: func(k string) string { return h.env[k] }})
+	if code == 0 || stdout.Len() != 0 || core.deleted != 1 {
+		t.Fatalf("cancelled create: %d %q deleted %d: %s", code, stdout.String(), core.deleted, stderr.String())
+	}
+}
+
+func TestOrcaPayloadRejectsBadProfile(t *testing.T) {
+	h, core, _ := orcaHarness(t)
+	bad := strings.Replace(orcaPayloadJSON("/workspace/widgets"), `"profile":"default"`, `"profile":"../../x"`, 1)
+	if code, _, _ := h.runWithTerminal(nil, strings.NewReader(bad), "orca", "destroy"); code != exitUsage || core.deleted != 0 {
+		t.Fatalf("bad profile: %d deleted %d", code, core.deleted)
+	}
+}
+
+// TestOrcaCheckoutScriptRuns runs the remote checkout script with real git
+// and sh, with a local directory standing in for the sandbox.
+func TestOrcaCheckoutScriptRuns(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	repo := t.TempDir()
+	git := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", repo, "-c", "user.name=T", "-c", "user.email=t@example.com"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	git("init", "-q", "-b", "main")
+	git("commit", "-q", "--allow-empty", "-m", "one")
+	first := git("rev-parse", "HEAD")
+	git("commit", "-q", "--allow-empty", "-m", "two")
+	second := git("rev-parse", "HEAD")
+	git("remote", "add", "origin", "https://example.com/acme/widgets.git")
+
+	saved := orcaRun
+	t.Cleanup(func() { orcaRun = saved })
+	orcaRun = func(ctx context.Context, dir string, stdin io.Reader, stdout, stderr io.Writer, name string, args ...string) error {
+		if name == "ssh" {
+			name, args = "sh", []string{"-c", args[len(args)-1]}
+		}
+		return saved(ctx, dir, stdin, stdout, stderr, name, args...)
+	}
+	var log bytes.Buffer
+	a := &app{Deps: Deps{Stdout: &log, Stderr: &log, Getenv: func(string) string { return "" }}, ctx: context.Background()}
+	root := filepath.Join(t.TempDir(), "widgets")
+	src := &orcaSourceInfo{repoPath: repo, commit: first, branch: "feature/x", remotes: [][2]string{{"origin", "https://example.com/acme/widgets.git"}}, userName: "It's me", userEmail: "me@example.com"}
+	for range 2 { // the second run is a retried create: it must change nothing
+		if err := a.orcaPushSource(sbxID, root, src); err != nil {
+			t.Fatalf("push: %v\n%s", err, log.String())
+		}
+	}
+	read := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", root}, args...)...).Output()
+		if err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	if read("rev-parse", "HEAD") != first || read("branch", "--show-current") != "feature/x" || read("remote", "get-url", "origin") != "https://example.com/acme/widgets.git" || read("config", "user.name") != "It's me" {
+		t.Fatal("checkout is wrong")
+	}
+	if refs := read("for-each-ref", "refs/rzv-orca"); refs != "" {
+		t.Fatalf("temporary refs left in the sandbox: %s", refs)
+	}
+	if out, _ := exec.Command("git", "-C", repo, "for-each-ref", "refs/rzv-orca").Output(); len(bytes.TrimSpace(out)) != 0 {
+		t.Fatalf("temporary refs left locally: %s", out)
+	}
+	src.commit = second
+	if err := a.orcaPushSource(sbxID, root, src); err == nil || !strings.Contains(err.Error(), "another checkout") {
+		t.Fatalf("a different commit over an existing checkout: %v", err)
 	}
 }
 

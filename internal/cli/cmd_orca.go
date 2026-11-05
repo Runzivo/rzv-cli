@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
+	"github.com/Runzivo/rzv-cli/internal/config"
 	"github.com/Runzivo/rzv-cli/internal/sshstate"
 )
 
@@ -59,6 +61,8 @@ var (
 	orcaPollEvery   = 2 * time.Second
 	orcaSSHAttempts = 10
 	orcaSSHRetry    = 3 * time.Second
+	// orcaCleanupWait stays inside Orca's 5-second grace before SIGKILL.
+	orcaCleanupWait = 4 * time.Second
 )
 
 var (
@@ -153,6 +157,12 @@ func runOrca(a *app, cmd *command) error {
 	// shared helpers print goes to stderr.
 	out := a.Stdout
 	a.Stdout = a.Stderr
+	// Orca cancels a step with SIGTERM to the process group, then SIGKILL 5
+	// seconds later. Turning SIGTERM into a cancelled context lets a create
+	// delete the sandbox it made in that window.
+	ctx, stop := signal.NotifyContext(a.ctx, orcaStopSignals...)
+	defer stop()
+	a.ctx = ctx
 	switch cmd.args[0] {
 	case "create":
 		return orcaCreate(a, cmd, out)
@@ -394,7 +404,7 @@ func orcaCreate(a *app, cmd *command, out io.Writer) error {
 		return err
 	}
 	if v := a.Getenv("ORCA_RECIPE_RESULT_SCHEMA_VERSION"); v != "2" {
-		return newError("orca_schema_unsupported", exitUsage, "The Runzivo recipe gives each workspace its own sandbox checkout (Orca recipe schema 2), but Orca asked for schema %q. Update Orca to 1.4.245 or later.", v)
+		return newError("orca_schema_unsupported", exitUsage, "The Runzivo recipe gives each workspace its own sandbox checkout (Orca recipe schema 2), but Orca asked for schema %q. Update Orca to 1.4.246 or later.", v)
 	}
 	instance := strings.TrimSpace(a.Getenv("ORCA_VM_INSTANCE_ID"))
 	if !orcaInstancePattern.MatchString(instance) {
@@ -432,6 +442,10 @@ func orcaCreate(a *app, cmd *command, out io.Writer) error {
 	a.orcaLog("Creating Runzivo sandbox %s (%s, %s)...", input.Name, sizeText(input.Size), lifetimeHoursText(input.LifetimeHours))
 	sandbox, err := client.SandboxCreate(a.ctx, workspace, input)
 	if err != nil {
+		if a.ctx.Err() != nil {
+			// Core may have made it before the request was cut off.
+			a.orcaCleanupByName(client, workspace, input.Name)
+		}
 		return apiError(err, "")
 	}
 	// From here on a failure removes the sandbox: Orca has no result to
@@ -561,10 +575,27 @@ func (a *app) orcaWriteSSHConfig(cmd *command, id, workspace string, client *api
 	return a.writeSSHConfig(id, config)
 }
 
+// orcaCleanupByName deletes the sandbox a cut-off create request may have
+// made; the name is unique in the workspace.
+func (a *app) orcaCleanupByName(client *api.Client, workspace, name string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), orcaCleanupWait)
+	defer cancel()
+	listing, err := client.SandboxList(ctx, workspace)
+	if err != nil {
+		a.orcaLog("Could not check for a sandbox named %s after the cancelled create. Check with `rzv orca status`.", name)
+		return
+	}
+	for _, s := range listing.Sandboxes {
+		if s.Name == name {
+			a.orcaCleanup(client, workspace, s.ID)
+		}
+	}
+}
+
 // orcaCleanup deletes a sandbox create made, on a context that outlives a
-// cancelled create.
+// cancelled create but ends before Orca's SIGKILL.
 func (a *app) orcaCleanup(client *api.Client, workspace, id string) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), orcaCleanupWait)
 	defer cancel()
 	if _, err := client.SandboxDelete(ctx, workspace, id); err != nil && !isSandboxGone(err) {
 		a.orcaLog("Could not delete sandbox %s after the failed create: %s. Delete it with `rzv sandboxes delete %s`.", id, displayLog(asError(apiError(err, "")).Message), id)
@@ -670,7 +701,11 @@ func (a *app) orcaSource() (*orcaSourceInfo, error) {
 		if err != nil || u == "" {
 			continue
 		}
-		s.remotes = append(s.remotes, [2]string{name, stripURLCredentials(u)})
+		if clean, ok := stripURLCredentials(u); ok {
+			s.remotes = append(s.remotes, [2]string{name, clean})
+		} else {
+			a.orcaLog("Leaving out remote %s: its URL could not be checked for credentials.", name)
+		}
 	}
 	s.repoName = orcaRepoName(a.Getenv("ORCA_REPO_URL"), s.remotes, repoPath)
 	s.userName, _ = a.orcaGit(repoPath, "config", "user.name")
@@ -680,13 +715,23 @@ func (a *app) orcaSource() (*orcaSourceInfo, error) {
 
 // stripURLCredentials drops a user and password from an http(s) URL so a
 // token in a local remote never reaches the sandbox.
-func stripURLCredentials(raw string) string {
+// An http(s) URL that does not parse but may hold user info is dropped
+// rather than copied as it is.
+func stripURLCredentials(raw string) (string, bool) {
+	lower := strings.ToLower(raw)
+	web := strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.User == nil {
-		return raw
+	if err != nil {
+		if web {
+			return "", false
+		}
+		return raw, true
+	}
+	if !web || u.User == nil {
+		return raw, true
 	}
 	u.User = nil
-	return u.String()
+	return u.String(), true
 }
 
 func orcaRepoName(repoURL string, remotes [][2]string, repoPath string) string {
@@ -706,7 +751,11 @@ func orcaRepoName(repoURL string, remotes [][2]string, repoPath string) string {
 			c = c[i+1:]
 		}
 		c = strings.TrimSuffix(c, ".git")
-		c = strings.Trim(orcaRepoNameUnsafe.ReplaceAllString(c, "-"), "-.")
+		c = orcaRepoNameUnsafe.ReplaceAllString(c, "-")
+		for strings.Contains(c, "..") {
+			c = strings.ReplaceAll(c, "..", ".")
+		}
+		c = strings.Trim(c, "-.")
 		if c != "" {
 			return c[:min(len(c), 80)]
 		}
@@ -843,6 +892,9 @@ func (a *app) orcaPayload(cmd *command) (*orcaLifecyclePayload, error) {
 		return nil, newError("orca_payload", exitUsage, "Orca's lifecycle input has no valid workspace.")
 	}
 	if u.Profile != "" && u.Profile != a.profileName() {
+		if err := config.ValidProfileName(u.Profile); err != nil {
+			return nil, newError("orca_payload", exitUsage, "Orca's lifecycle input names an invalid rzv profile.")
+		}
 		if a.Store == nil {
 			return nil, newError("no_config", exitFailure, "No configuration directory is available.")
 		}
@@ -879,8 +931,11 @@ func orcaSuspend(a *app, cmd *command) error {
 		if s, err = client.SandboxGet(a.ctx, workspace, id); err != nil {
 			return apiError(err, "")
 		}
-		if s.Status != "stopping" && s.Status != "running" {
+		if s.Status == "stopped" {
 			break
+		}
+		if s.Status != "stopping" && s.Status != "running" {
+			return newError("sandbox_stop", exitFailure, "Sandbox %s is %s instead of stopped.", id, statusLabel(s.Status))
 		}
 		if a.Now().After(deadline) {
 			return newError("sandbox_stop_timeout", exitFailure, "Sandbox %s did not stop within %s.", id, orcaStoppedWait)
@@ -915,7 +970,10 @@ func orcaResume(a *app, cmd *command, out io.Writer) error {
 		if s.Status == "stopping" {
 			// Start is refused mid-stop, so let the stop finish first.
 			deadline := a.Now().Add(orcaStoppedWait)
-			for s.Status == "stopping" && !a.Now().After(deadline) {
+			for s.Status == "stopping" {
+				if a.Now().After(deadline) {
+					return newError("sandbox_stop_timeout", exitFailure, "Sandbox %s is still stopping. Wake the workspace again in a minute.", id)
+				}
 				if err := sleepContext(a.ctx, orcaPollEvery); err != nil {
 					return err
 				}
