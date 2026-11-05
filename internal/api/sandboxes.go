@@ -57,6 +57,9 @@ type SandboxListing struct {
 	MaxRunning int       `json:"max_running"`
 	Sizes      []string  `json:"sizes"`
 	Lifetimes  []int     `json:"lifetimes"`
+	// SSHEnabled is the environment's SSH switch; nil from a server that
+	// does not report it.
+	SSHEnabled *bool `json:"ssh_enabled,omitempty"`
 	// LifetimesReported is true when the server sent a lifetimes list at all.
 	// Only a server from before the lifetime choice omits it.
 	LifetimesReported bool `json:"-"`

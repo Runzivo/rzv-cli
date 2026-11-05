@@ -538,18 +538,7 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 				return err
 			}
 		}
-		state, _, err := a.sshStateForWorkspace(cmd, id, workspace, client)
-		if err != nil {
-			return err
-		}
-		host, err := client.SandboxSSHHost(a.ctx, state.Binding.Workspace, id)
-		if err != nil {
-			return a.sshAPIError(err)
-		}
-		if err := state.SaveHost(host.HostKeyAlias, host.HostCAPublicKey); err != nil {
-			return err
-		}
-		config, err := a.sshConfig(state)
+		config, err := a.sandboxSSHConfigText(cmd, id, workspace, client)
 		if err != nil {
 			return err
 		}
@@ -564,6 +553,23 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 		}
 	}
 	return nil
+}
+
+// sandboxSSHConfigText saves the sandbox's host CA in its private state and
+// returns its generated OpenSSH config block.
+func (a *app) sandboxSSHConfigText(cmd *command, id, workspace string, client *api.Client) (string, error) {
+	state, _, err := a.sshStateForWorkspace(cmd, id, workspace, client)
+	if err != nil {
+		return "", err
+	}
+	host, err := client.SandboxSSHHost(a.ctx, state.Binding.Workspace, id)
+	if err != nil {
+		return "", a.sshAPIError(err)
+	}
+	if err := state.SaveHost(host.HostKeyAlias, host.HostCAPublicKey); err != nil {
+		return "", err
+	}
+	return a.sshConfig(state)
 }
 
 func (a *app) writeSSHConfig(id, config string) error {

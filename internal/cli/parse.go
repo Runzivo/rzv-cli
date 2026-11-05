@@ -36,6 +36,7 @@ var booleanOptions = map[string]bool{
 	"stdio":                   true,
 	"write":                   true,
 	"refresh":                 true,
+	"reset":                   true,
 }
 
 func parse(argv []string) (*command, error) {
