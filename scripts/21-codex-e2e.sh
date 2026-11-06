@@ -73,6 +73,24 @@ on 'codex login status; stat -c "%a" ~/.codex/auth.json' 2>&1 | redact > "$evide
 grep -qx 600 "$evidence/login-status.txt" || fail "auth.json is not mode 600 (login-status.txt)"
 log "2. signed in with the key over SSH stdin"
 
+# Functional check of the image's own bubblewrap, before this script installs
+# one: a write inside the workspace works and a write outside it is blocked.
+run_in image-bwrap.txt <<'EOF'
+dir=/workspace/codex-image-check
+mkdir -p "$dir"
+if command -v bwrap >/dev/null; then
+  codex sandbox -P :workspace -C "$dir" -- sh -c "touch $dir/ok && ! touch /home/user/x" && echo image-bwrap-ok || echo image-bwrap-failed
+else
+  echo "skipped: no bwrap in this image"
+fi
+EOF
+if grep -q "skipped: no bwrap in this image" "$evidence/image-bwrap.txt"; then
+  log "2b. skipped: no bwrap in this image"
+else
+  grep -q image-bwrap-ok "$evidence/image-bwrap.txt" || fail "Codex sandbox with the image's bwrap (image-bwrap.txt)"
+  log "2b. Codex sandbox with the image's bwrap: inside write ok, outside write blocked"
+fi
+
 run_in workspace-write.txt <<EOF
 set -u
 mkdir -p /workspace/codex-e2e && cd /workspace/codex-e2e && git init -q
