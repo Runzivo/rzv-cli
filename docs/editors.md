@@ -45,7 +45,7 @@ Use the editor's **Ports** view, or `LocalForward` in your own SSH config, to re
 
 Known limitation: stopping and starting a sandbox currently clears everything outside `/workspace`, including `~/.vscode-server` and `~/.cursor-server`. After a start, the editor installs its server again on the next connection, so that connection is slower. Extensions you installed on the remote side are gone and must be installed again. Your files in `/workspace` are kept. Open windows don't resume after a stop. Reconnect to the sandbox.
 
-Tested with VS Code 1.145.0 and Remote - SSH 0.128.0 on macOS against an Ubuntu 24.04 sandbox. Cursor uses the same configuration but has not been tested against a live sandbox yet.
+Tested with VS Code 1.145.0 and Remote - SSH 0.128.0 on macOS against an Ubuntu 24.04 sandbox. The tests covered the first connection, reconnecting after the login certificate expired, and a stop and start with `localServerDownload` set to `always`. After the start the first connection took about 75 seconds, against about 6 seconds with the server already installed. Cursor uses the same configuration but has not been tested against a live sandbox yet.
 
 References: [VS Code Remote SSH](https://code.visualstudio.com/docs/remote/ssh), [VS Code remote troubleshooting](https://code.visualstudio.com/docs/remote/troubleshooting) and [Cursor network troubleshooting](https://cursor.com/help/troubleshooting/network).
 
