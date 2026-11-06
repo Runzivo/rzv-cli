@@ -57,6 +57,7 @@ func TestRunnerProfiles(t *testing.T) {
 		{"runners", "profiles", "create", "--name", "X", "--label", "rzv-x1", "--vcpu", "2"},
 		{"runners", "profiles", "create", "--name", "X", "--label", "rzv-x1", "--vcpu", "two", "--mem-gib", "4"},
 		{"runners", "profiles", "delete"},
+		{"runners", "profiles", "delete", "wide"},
 		{"runners", "profiles", "bogus"},
 		{"runners", "profiles"},
 	} {
@@ -94,11 +95,11 @@ func TestRunnerAvailability(t *testing.T) {
 	h.routes["GET /v1/customer/tenants/t-1/custom-runner-profiles/availability"] = func(w http.ResponseWriter, r *http.Request) {
 		queries = append(queries, r.URL.RawQuery)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"shapes":[{"profile_id":"rpf_0123456789abcdef01234567","workflow_label":"env-rzv-wide","equivalent_minutes_per_minute":"12.5","vcpu":32,"mem_gib":16,"disk_gib":64,"status":"available","overcommitted":true,"regions":[{"region":"yow1","status":"available","overcommitted":true},{"region":"yul1","status":"not_supported","overcommitted":false}]}]}`))
+		_, _ = w.Write([]byte(`{"shapes":[{"profile_id":"rpf_0123456789abcdef01234567","workflow_label":"env-rzv-wide","equivalent_minutes_per_minute":"12.5","vcpu":32,"mem_gib":16,"disk_gib":64,"status":"available","overcommitted":true,"regions":[{"region":"region-a","status":"available","overcommitted":true},{"region":"region-b","status":"not_supported","overcommitted":false}]}]}`))
 	}
 	code, out, _ := h.run("runners", "availability")
 	if code != 0 || !strings.Contains(out, "- env-rzv-wide (32 vCPU, 16 GiB memory, 64 GiB disk): Available now, shared CPU (overcommitted); 12.5 equivalent minutes per minute") ||
-		!strings.Contains(out, "    yow1: available now, shared CPU") || !strings.Contains(out, "    yul1: not supported in this region") {
+		!strings.Contains(out, "    region-a: available now, shared CPU") || !strings.Contains(out, "    region-b: not supported in this region") {
 		t.Fatalf("availability: %d %q", code, out)
 	}
 	if code, _, _ := h.run("runners", "availability", "--vcpu", "8", "--mem-gib", "32"); code != 0 {
@@ -111,7 +112,7 @@ func TestRunnerAvailability(t *testing.T) {
 		{"runners", "availability", "--vcpu", "8"},
 		{"runners", "availability", "--disk-gib", "32"},
 		{"runners", "availability", "extra"},
-		{"runners", "availability", "--region", "yul1"},
+		{"runners", "availability", "--region", "region-b"},
 	} {
 		if code, _, _ := h.run(args...); code != exitUsage {
 			t.Errorf("%v accepted: %d", args, code)
@@ -143,5 +144,56 @@ func TestRunnerProfilesHelp(t *testing.T) {
 	}
 	if code, out, _ := h.run("help", "runners"); code != 0 || !strings.Contains(out, "rzv runners <repository-id>") {
 		t.Fatalf("help runners: %d %q", code, out)
+	}
+}
+
+func TestRunnerProfilesRefusalsAndJSON(t *testing.T) {
+	h := selectedHarness(t)
+	base := "/v1/customer/tenants/t-1/custom-runner-profiles"
+	item := base + "/rpf_0123456789abcdef01234567"
+	createArgs := []string{"runners", "profiles", "create", "--name", "Wide", "--label", "rzv-wide", "--vcpu", "32", "--mem-gib", "16"}
+
+	h.json("POST "+base, 201, runnerProfileJSON)
+	code, out, _ := h.run(append(createArgs, "--json")...)
+	var created struct {
+		WorkspaceID string `json:"workspace_id"`
+		Profile     struct {
+			ID            string `json:"id"`
+			WorkflowLabel string `json:"workflow_label"`
+		} `json:"profile"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &created) != nil || created.WorkspaceID != "t-1" || created.Profile.ID != "rpf_0123456789abcdef01234567" || created.Profile.WorkflowLabel != "env-rzv-wide" {
+		t.Fatalf("create --json: %d %q", code, out)
+	}
+	h.routes["DELETE "+item] = func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
+	code, out, _ = h.run("runners", "profiles", "delete", "rpf_0123456789abcdef01234567", "--json")
+	var deleted map[string]string
+	if code != 0 || json.Unmarshal([]byte(out), &deleted) != nil || deleted["archived_profile_id"] != "rpf_0123456789abcdef01234567" || deleted["workspace_id"] != "t-1" {
+		t.Fatalf("delete --json: %d %q", code, out)
+	}
+
+	for _, c := range []struct {
+		name, route string
+		status      int
+		code        string
+		args        []string
+		exit        int
+		message     string
+	}{
+		{"list unavailable", "GET " + base, 503, "runner_profiles_unavailable", []string{"runners", "profiles", "list"}, exitUnavailable, "not available on this Runzivo environment"},
+		{"create unavailable", "POST " + base, 503, "runner_profiles_unavailable", createArgs, exitUnavailable, "not available on this Runzivo environment"},
+		{"delete unavailable", "DELETE " + item, 503, "runner_profiles_unavailable", []string{"runners", "profiles", "delete", "rpf_0123456789abcdef01234567"}, exitUnavailable, "not available on this Runzivo environment"},
+		{"availability profiles unavailable", "GET " + base + "/availability", 503, "runner_profiles_unavailable", []string{"runners", "availability"}, exitUnavailable, "not available on this Runzivo environment"},
+		{"availability unavailable", "GET " + base + "/availability", 503, "runner_availability_unavailable", []string{"runners", "availability"}, exitUnavailable, "Runner availability is unavailable"},
+		{"delete disabled", "DELETE " + item, 404, "runner_profiles_disabled", []string{"runners", "profiles", "delete", "rpf_0123456789abcdef01234567"}, exitUnavailable, "not turned on"},
+		{"limit", "POST " + base, 409, "runner_profile_limit", createArgs, exitFailure, "most live profiles"},
+		{"permission", "POST " + base, 403, "permission_required", createArgs, exitAccessDenied, ""},
+		{"key scope", "GET " + base, 403, "api_key_scope_required", []string{"runners", "profiles", "list"}, exitAccessDenied, "scope does not allow"},
+	} {
+		h.json(c.route, c.status, `{"error":{"code":"`+c.code+`"}}`)
+		code, _, errOut := h.run(c.args...)
+		if code != c.exit || !strings.Contains(errOut, c.message) {
+			t.Errorf("%s: %d %q, want exit %d with %q", c.name, code, errOut, c.exit, c.message)
+		}
 	}
 }

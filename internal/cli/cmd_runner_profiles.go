@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,8 @@ Without a shape, shows every custom runner profile. With --vcpu and
 will queue" or "Not supported", overall and per region, with the
 equivalent-minute rate. Shared CPU (overcommitted) means the shape has more
 vCPU than the host's physical CPU.`
+
+var profileIDPattern = regexp.MustCompile(`^rpf_[0-9a-f]{24}$`)
 
 const runnerProfileNotFound = "That custom runner profile was not found in this workspace. List them with `rzv runners profiles list`."
 
@@ -61,7 +64,9 @@ func runnerProfileError(err error) error {
 	if errors.As(err, &apiErr) {
 		switch {
 		case apiErr.Status == 404 && apiErr.Code == "runner_profiles_disabled":
-			return newError(apiErr.Code, exitFailure, "Custom runner profiles are not turned on for this Runzivo environment.")
+			return newError(apiErr.Code, exitUnavailable, "Custom runner profiles are not turned on for this Runzivo environment.")
+		case apiErr.Status == 503 && apiErr.Code == "runner_profiles_unavailable":
+			return newError(apiErr.Code, exitUnavailable, "Custom runner profiles are not available on this Runzivo environment.")
 		case apiErr.Status == 404 && apiErr.Code == "runner_profile_not_found":
 			return notFoundError("%s", runnerProfileNotFound)
 		case apiErr.Status == 400 && apiErr.Code == "invalid_runner_profile":
@@ -193,6 +198,9 @@ func runnerProfilesDelete(a *app, cmd *command) error {
 	if err := cmd.expectArgs(3, "rzv runners profiles delete <profile-id>"); err != nil {
 		return err
 	}
+	if !profileIDPattern.MatchString(cmd.args[2]) {
+		return usageError("<profile-id> is a profile id such as rpf_0123456789abcdef01234567. See `rzv runners profiles list`.")
+	}
 	id, client, err := a.workspaceClient(cmd)
 	if err != nil {
 		return err
@@ -235,7 +243,7 @@ func runRunnerAvailability(a *app, cmd *command) error {
 var availabilityStatusText = map[string]string{
 	"available":     "Available now",
 	"busy":          "Busy - jobs will queue",
-	"not_supported": "Not supported on any host",
+	"not_supported": "Not supported",
 }
 
 var availabilityRegionText = map[string]string{
