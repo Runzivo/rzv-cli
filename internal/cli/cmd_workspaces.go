@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
+	"github.com/Runzivo/rzv-cli/internal/config"
 )
 
 const workspaceSelectionHint = "With a login session, a workspace can be an id, slug or display name.\nQuote names containing spaces. API keys require an exact workspace id."
@@ -209,7 +210,7 @@ func workspacesSelect(a *app, cmd *command) error {
 		return err
 	}
 	id := cmd.args[1]
-	client, creds, err := a.humanClient()
+	client, _, err := a.humanClient()
 	if err != nil {
 		return err
 	}
@@ -225,8 +226,7 @@ func workspacesSelect(a *app, cmd *command) error {
 	if id == "" {
 		return accessError("You are not a member of workspace %s.", display(cmd.args[1]))
 	}
-	creds.SelectedWorkspace = id
-	if err := a.Store.Write(creds); err != nil {
+	if err := a.Store.Update(a.ctx, credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = id; return nil }); err != nil {
 		return err
 	}
 	a.output(cmd, map[string]string{"selected_workspace_id": id}, a.text("Selected workspace: ", "Espace de travail sélectionné : ")+workspaceLabel(memberships, id))
@@ -248,7 +248,7 @@ func workspacesCreate(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	client, creds, err := a.humanClient()
+	client, _, err := a.humanClient()
 	if err != nil {
 		return err
 	}
@@ -259,8 +259,7 @@ func workspacesCreate(a *app, cmd *command) error {
 	if err != nil {
 		return createWorkspaceError(err, slug)
 	}
-	creds.SelectedWorkspace = workspace.TenantID
-	if err := a.Store.Write(creds); err != nil {
+	if err := a.Store.Update(a.ctx, credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = workspace.TenantID; return nil }); err != nil {
 		return err
 	}
 	a.output(cmd, map[string]any{"workspace": workspace, "selected_workspace_id": workspace.TenantID},

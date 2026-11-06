@@ -142,12 +142,23 @@ func profilesRemove(a *app, cmd *command) error {
 		return usageError("%s", err.Error())
 	}
 	store := a.Store.ForProfile(name)
+	unlock, err := store.Lock(a.ctx, credentialLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	creds, err := store.Read()
 	if err != nil {
 		return err
 	}
 	if creds == nil {
 		return notFoundError("No sign-in for profile %s.", display(name))
+	}
+	revoked := "Its session is ended."
+	if creds.RefreshToken == "" {
+		revoked = "Its session is not revoked; it expires as usual."
+	} else if !a.revokeStored(store) {
+		revoked = "The identity provider did not confirm the session ended, so it ends when it expires."
 	}
 	if err := store.Clear(); err != nil {
 		return err
@@ -162,6 +173,6 @@ func profilesRemove(a *app, cmd *command) error {
 		}
 	}
 	a.output(cmd, map[string]string{"removed_profile": name},
-		"Removed profile "+display(name)+" from this machine. Its session is not revoked.")
+		"Removed profile "+display(name)+" from this machine. "+revoked)
 	return nil
 }
