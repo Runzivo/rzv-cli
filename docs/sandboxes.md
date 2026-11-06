@@ -42,5 +42,6 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
 | [OpenCode](opencode.md)                         | Run OpenCode with your own AI provider key        |
 | [Claude Code](claude-code.md)                   | Run Claude Code with your own key or Claude login |
+| [Cursor Cloud Agents](cursor-worker.md)         | A Cursor worker for Cloud Agents (not yet verified) |
 
 Back to the [documentation index](README.md).
