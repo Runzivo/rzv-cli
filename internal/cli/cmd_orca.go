@@ -451,7 +451,7 @@ func orcaCreate(a *app, cmd *command, out io.Writer) error {
 			// Core may have made it before the request was cut off.
 			a.orcaCleanupByName(client, workspace, input.Name)
 		}
-		return apiError(err, "")
+		return a.sandboxCreateError(err, input.Size)
 	}
 	// From here on a failure removes the sandbox: Orca has no result to
 	// destroy, so nothing else would.

@@ -57,6 +57,9 @@ type SandboxListing struct {
 	MaxRunning int       `json:"max_running"`
 	Sizes      []string  `json:"sizes"`
 	Lifetimes  []int     `json:"lifetimes"`
+	// SizeAvailability is every size of the catalogue with its regional
+	// status and plan fields. A server from before it sends none.
+	SizeAvailability []SandboxSize `json:"size_availability,omitempty"`
 	// SSHEnabled is the environment's SSH switch; nil from a server that
 	// does not report it.
 	SSHEnabled *bool `json:"ssh_enabled,omitempty"`
@@ -64,6 +67,24 @@ type SandboxListing struct {
 	// Only a server from before the lifetime choice omits it.
 	LifetimesReported bool `json:"-"`
 }
+
+// SandboxSize is one size_availability entry. Status is the regional state
+// (available, busy or unsupported) with Reason. The plan fields come from a
+// server with plan-based sizes; an older one sends none, so they are pointers
+// and a missing PlanEligible reads as eligible.
+type SandboxSize struct {
+	Size                       string  `json:"size"`
+	Status                     string  `json:"status"`
+	Reason                     string  `json:"reason,omitempty"`
+	VCPU                       *int    `json:"vcpu,omitempty"`
+	MemMiB                     *int    `json:"mem_mib,omitempty"`
+	EquivalentMinutesPerMinute string  `json:"equivalent_minutes_per_minute,omitempty"`
+	PlanEligible               *bool   `json:"plan_eligible,omitempty"`
+	RequiredPlan               *string `json:"required_plan"`
+}
+
+// Locked reports a size the workspace's plan does not allow creating.
+func (s SandboxSize) Locked() bool { return s.PlanEligible != nil && !*s.PlanEligible }
 
 // SandboxList calls listCustomerSandboxes.
 func (c *Client) SandboxList(ctx context.Context, tenantID string) (*SandboxListing, error) {

@@ -13,6 +13,29 @@ Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default
 
 `list` and `get` show the lifetime, the exact expiry in your local time and in UTC (for example `2026-11-02 18:04 EST (23:04 UTC)`) and the time left (for example `7h 42m`). `--json` includes `lifetime_hours`, `expires_at` and `remaining_seconds`. An older Runzivo service may not send `lifetime_hours`; the lifetime then shows as `-`.
 
+## Sizes and plans
+
+`rzv sandboxes sizes` lists every supported size, including the ones your plan does not allow:
+
+```text
+SIZE         VCPU  RAM     RATE (eq-min/min)  PLAN                 AVAILABILITY
+2vcpu-8gb    2     8 GiB   2                  included             available
+4vcpu-16gb   4     16 GiB  4                  included             busy (all pools full now)
+8vcpu-32gb   8     32 GiB  8                  Team (locked)        available
+16vcpu-64gb  16    64 GiB  16                 Enterprise (locked)  unsupported (no host fits)
+
+Locked: 8vcpu-32gb needs the Team plan. Upgrade: <portal link>
+Locked by a custom limit on this workspace: 16vcpu-64gb. Contact Runzivo to change it.
+```
+
+- RATE is the equivalent minutes a running minute costs.
+- PLAN is `included` or the plan the size needs. A locked size stays listed and visible. It does not affect sandboxes that already exist: starting one is never refused for its plan.
+- AVAILABILITY is the capacity now: `available`, `busy` (every pool that can hold it is full; try later or a smaller size) or `unsupported` here.
+- The upgrade link points at the billing page of the portal that belongs to the Runzivo environment you are signed in to.
+- `--json` returns the server's entries as `size_availability` (`vcpu`, `mem_mib`, `equivalent_minutes_per_minute`, `plan_eligible`, `required_plan`). `rzv sandboxes list --json` includes the same `size_availability` when the server sends it.
+
+Creating a locked size fails with exit code 4 and names the plan, for example `16vcpu-64gb needs the Team plan. Upgrade: <portal link>`. When the limit is a custom one set on your workspace the message tells you to contact Runzivo. While Runzivo has no plan limits turned on, every size shows `included`. A Runzivo service from before plan-based sizes shows `-` for vCPU, RAM and rate and treats every size as included.
+
 ## Cleanup pending
 
 A sandbox shows `cleanup pending` (`cleanup_pending` in JSON) when it expired or was deleted but its files are not deleted yet. It is not deleted until that finishes. Runzivo operations is alerted and keeps retrying, so you do not need to do anything.
@@ -22,6 +45,7 @@ A sandbox shows `cleanup pending` (`cleanup_pending` in JSON) when it expired or
 ```sh
 rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib 20] [--lifetime 8h|12h|24h]
 rzv sandboxes list                       # status, lifetime, expiry, time left and credits used
+rzv sandboxes sizes                      # every size: vCPU, RAM, rate, plan and availability
 rzv sandboxes get <sandbox-id>
 rzv sandboxes stop <sandbox-id>          # keeps the files until expiry, stops the charge
 rzv sandboxes start <sandbox-id>

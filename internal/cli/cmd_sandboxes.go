@@ -27,6 +27,7 @@ var sandboxLifetimes = map[string]int{"8h": 8, "12h": 12, "24h": 24}
 
 const sandboxesUsage = `Usage:
   rzv sandboxes list [--workspace <id>] [--json]
+  rzv sandboxes sizes [--workspace <id>] [--json]
   rzv sandboxes get <sandbox-id> [--workspace <id>] [--json]
   rzv sandboxes create --name <name> [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib <5-64>] [--lifetime 8h|12h|24h] [--idempotency-key <key>] [--workspace <id>] [--json]
   rzv sandboxes start|stop|delete <sandbox-id> [--workspace <id>] [--json]
@@ -86,6 +87,8 @@ func runSandboxes(a *app, cmd *command) error {
 	switch cmd.args[0] {
 	case "list":
 		return sandboxesList(a, cmd)
+	case "sizes":
+		return sandboxesSizes(a, cmd)
 	case "get":
 		return sandboxAction(a, cmd, "get", func(c *api.Client, ws, id string) (*api.Sandbox, error) { return c.SandboxGet(a.ctx, ws, id) }, "")
 	case "create":
@@ -133,7 +136,11 @@ func sandboxesList(a *app, cmd *command) error {
 	if err != nil {
 		return apiError(err, "")
 	}
-	a.output(cmd, map[string]any{"workspace_id": workspace, "sandboxes": listing.Sandboxes, "max_running": listing.MaxRunning, "sizes": listing.Sizes, "lifetimes": listing.Lifetimes}, renderSandboxList(workspace, listing))
+	result := map[string]any{"workspace_id": workspace, "sandboxes": listing.Sandboxes, "max_running": listing.MaxRunning, "sizes": listing.Sizes, "lifetimes": listing.Lifetimes}
+	if len(listing.SizeAvailability) > 0 {
+		result["size_availability"] = listing.SizeAvailability
+	}
+	a.output(cmd, result, renderSandboxList(workspace, listing))
 	return nil
 }
 
@@ -325,7 +332,7 @@ func sandboxesCreate(a *app, cmd *command) error {
 		return err
 	} else if size != "" {
 		if !slices.Contains(sandboxSizes, size) {
-			return usageError("--size must be one of %s. `rzv sandboxes list` shows the sizes on offer now.", strings.Join(sandboxSizes, ", "))
+			return usageError("--size must be one of %s. `rzv sandboxes sizes` shows the sizes, their plans and what is on offer now.", strings.Join(sandboxSizes, ", "))
 		}
 		input.Size = size
 	}
@@ -380,7 +387,7 @@ func sandboxesCreate(a *app, cmd *command) error {
 				return newError(apiErr.Code, exitUsage, "This Runzivo server doesn't support choosing a lifetime yet. Omit --lifetime to get 8h.")
 			}
 		}
-		return apiError(err, "")
+		return a.sandboxCreateError(err, input.Size)
 	}
 	a.output(cmd, map[string]any{"workspace_id": workspace, "sandbox": sandbox}, renderSandbox(sandbox, "Created"))
 	return nil
