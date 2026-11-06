@@ -15,6 +15,7 @@
 | [Sandbox terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`                                              |
 | [Sandbox billing and permissions](sandboxes-billing.md) | Charges, credit and the permissions each command needs                                 |
 | [OpenCode in a sandbox](opencode.md)                   | Install OpenCode in a sandbox and use your own AI key                                  |
+| [Codex in a sandbox](codex.md)                         | Use the preinstalled Codex CLI with your own OpenAI key or ChatGPT sign-in             |
 | [Herdr in a sandbox](herdr.md)                         | Agent panes that keep running while you are disconnected                               |
 | [Orca workspaces](orca.md)                              | `rzv orca`: the commands the Runzivo plugin for Orca runs                              |
 | [AI settings and usage](ai.md)                          | Provider connections, configuration and usage                                          |

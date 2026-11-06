@@ -41,5 +41,6 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [Herdr](herdr.md)                               | Agent panes that outlive the SSH connection       |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
 | [OpenCode](opencode.md)                         | Run OpenCode with your own AI provider key        |
+| [Codex](codex.md)                               | Run the preinstalled Codex CLI with your own key  |
 
 Back to the [documentation index](README.md).

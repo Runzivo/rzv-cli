@@ -1,0 +1,45 @@
+# Codex in a sandbox
+
+Every sandbox includes OpenAI's [Codex CLI](https://github.com/openai/codex) (Apache-2.0) as `codex`. It runs with your own OpenAI API key or ChatGPT sign-in. Codex sends requests straight from the sandbox to OpenAI, and OpenAI bills you for them. Runzivo charges only the sandbox's compute ([billing](sandboxes-billing.md)) and keeps no copy of your key or sign-in.
+
+## Sign in
+
+Connect once with `rzv sandboxes ssh-config <sandbox-id> --write` ([SSH](sandboxes-ssh.md)). With an API key, pipe it from your password manager over SSH, which is encrypted from your computer to the sandbox:
+
+```sh
+<password-manager-command> | ssh <sandbox-id>.rzv 'codex login --with-api-key'
+```
+
+With a ChatGPT plan, run `codex login --device-auth` in the sandbox (`rzv sandboxes ssh <sandbox-id>`). Open the link it prints on your computer and enter the code. OpenAI calls device code sign-in beta. It must be turned on in your ChatGPT security settings, or by your workspace admin.
+
+Either way, Codex saves the sign-in in `~/.codex/auth.json` in the sandbox. Treat that file like a password, and never copy it into `/workspace`. `codex login status` shows how you are signed in.
+
+Do not pass keys with `rzv sandboxes exec --env` or in an `exec` command. Runzivo keeps the exec request until the sandbox host receives it, and your local shell history records it.
+
+## Sandbox mode
+
+Codex's own `workspace-write` sandbox needs `bubblewrap`, which the sandbox image does not include yet. Without it, Codex cannot edit files and says that bubblewrap is unavailable. Choose one of these:
+
+- Install it for this run: `sudo apt-get update && sudo apt-get install -y bubblewrap`. `workspace-write` then works as on any Linux machine.
+- Turn off Codex's own sandbox. The sandbox is already its own virtual machine, which is the isolation boundary. Add this to `~/.codex/config.toml`:
+
+```toml
+sandbox_mode = "danger-full-access"
+```
+
+`codex exec --sandbox danger-full-access` does the same for one run. In this mode Codex can change any file in the sandbox and reach the network.
+
+## After a stop and start
+
+At the moment a stop and start removes every file outside `/workspace`: `~/.codex` (your sign-in, `config.toml` and history) and any `bubblewrap` you installed. Your project in `/workspace` is kept. After each `start`, and in each new sandbox, sign in again and set the sandbox mode again.
+
+## Sign out and clean up
+
+`codex logout` deletes `~/.codex/auth.json`. Stopping, expiry or `rzv sandboxes delete <sandbox-id>` also removes it. To stop using a key everywhere, revoke it in the OpenAI dashboard.
+
+## Limits
+
+- The sandbox needs outbound HTTPS to OpenAI.
+- Codex can run commands and change files in the sandbox. Review what it does before you push.
+
+Back to [Sandboxes](sandboxes.md).

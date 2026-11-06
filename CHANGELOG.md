@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- [Codex in a sandbox](docs/codex.md): sign in to the preinstalled Codex CLI with your own OpenAI API key (piped over SSH) or ChatGPT device code sign-in, choose the sandbox mode (`sandbox_mode` in `~/.codex/config.toml`), and see what a stop and start removes and how to sign out.
+
 ## release-2026-11-06-113624 (rzv 0.25.0), 2026-11-06
 
 ### Added
