@@ -33,7 +33,7 @@ herdr machine add <sandbox-id>.rzv           # or keep the sandbox in the sideba
 
 Open a pane, `cd /workspace` and start an agent. `claude` and `codex` are preinstalled. Detach with `ctrl+b q`, or close the terminal. While the sandbox keeps running, the server, its panes and their processes keep running, and the same command reattaches to them. It also works from another computer once you have run `ssh-config --write` there.
 
-Each new SSH connection gets a fresh 15-minute certificate, so you can reattach after the last certificate expired as long as your `rzv` sign-in is valid. Herdr keeps one shared OpenSSH connection open for up to 10 idle minutes.
+Each new SSH connection gets a fresh 15-minute certificate. A client that stays attached keeps working after its certificate expires, and you can reattach later as long as your `rzv` sign-in is valid. Herdr keeps one shared OpenSSH connection open for up to 10 idle minutes.
 
 ## Stop, start and expiry
 

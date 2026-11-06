@@ -3,11 +3,11 @@
 # Runzivo sandbox, following docs/herdr.md. Uses the signed-in rzv profile
 # (RZV_PROFILE) and needs ssh, curl, shasum or sha256sum, and python3.
 #
-#   RZV_PROFILE=<profile> [E2E_WORKSPACE=<id>] [E2E_ENVIRONMENT=<name>] scripts/20-herdr-e2e.sh
+#   RZV_PROFILE=<profile> [E2E_WORKSPACE=<id>] scripts/20-herdr-e2e.sh
 #
-# It refuses to run unless `rzv whoami` reports the environment named by
-# E2E_ENVIRONMENT (default: shared), so a profile mix-up cannot reach another
-# environment.
+# It runs only against the shared test environment: it stops unless
+# `rzv whoami` reports `Environment: shared`, so a profile mix-up cannot reach
+# production.
 # It creates one sandbox and deletes it on exit, including after a failure.
 # Evidence goes to $E2E_EVIDENCE (default: a temp directory, printed at the
 # end). No credential is written there.
@@ -40,8 +40,12 @@ cleanup() {
   status=$?
   if [ -n "$sandbox" ]; then
     log "cleanup: deleting $sandbox"
-    "$rzv" sandboxes delete "$sandbox" ${ws[@]+"${ws[@]}"} --json >/dev/null 2>&1 || true
-    rm -f "$HOME/.ssh/rzv/$sandbox.conf"
+    if "$rzv" sandboxes delete "$sandbox" ${ws[@]+"${ws[@]}"} --json >/dev/null 2>"$work/delete.err"; then
+      rm -f "$HOME/.ssh/rzv/$sandbox.conf"
+    else
+      log "FAIL: could not delete $sandbox ($(head -c 300 "$work/delete.err")); delete it with: rzv sandboxes delete $sandbox"
+      status=1
+    fi
   fi
   rm -rf "$work/herdr-local" "$work/herdr"
   if [ "$status" -eq 0 ]; then log "PASS"; else log "exit $status"; fi
@@ -67,8 +71,7 @@ rh() { on "\$HOME/.local/bin/herdr $*"; }
 lh() { XDG_CONFIG_HOME="$work/herdr-local/c" XDG_STATE_HOME="$work/herdr-local/s" "$local_herdr" "$@" </dev/null; }
 
 log "rzv: $("$rzv" --version)"
-want_env="${E2E_ENVIRONMENT:-shared}"
-"$rzv" whoami | grep -q "^Environment: $want_env " || fail "the rzv profile is not signed in to the $want_env environment"
+"$rzv" whoami | grep -q "^Environment: shared " || fail "the rzv profile is not signed in to the shared environment"
 
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) asset=macos-aarch64 sum=$sha_macos_aarch64 ;;
@@ -84,8 +87,14 @@ chmod +x "$local_herdr"
 log "local: $("$local_herdr" --version) ($asset)"
 
 log "1. create a sandbox and its SSH config"
-"$rzv" sandboxes create --name "herdr-e2e-$(date +%s)" --size "$size" ${ws[@]+"${ws[@]}"} --json > "$work/create.json"
-sandbox="$(field sandbox.id < "$work/create.json")"
+name="herdr-e2e-$(date +%s)-$$"
+# If create fails or its id cannot be read, find the sandbox by its unique
+# name so the exit trap still deletes it.
+by_name() { "$rzv" sandboxes list ${ws[@]+"${ws[@]}"} --json | python3 -I -c 'import json,sys
+print(next((s["id"] for s in json.load(sys.stdin)["sandboxes"] if s["name"]==sys.argv[1] and s["status"]!="deleted"),""))' "$name"; }
+"$rzv" sandboxes create --name "$name" --size "$size" ${ws[@]+"${ws[@]}"} --json > "$work/create.json" || { sandbox="$(by_name || true)"; fail "create failed"; }
+sandbox="$(field sandbox.id < "$work/create.json" 2>/dev/null || true)"
+[ -n "$sandbox" ] || { sandbox="$(by_name || true)"; fail "could not read the new sandbox id"; }
 alias="$sandbox.rzv"
 wait_status running 600
 "$rzv" sandboxes ssh-config "$sandbox" ${ws[@]+"${ws[@]}"} --write >/dev/null
@@ -112,12 +121,13 @@ grep -q "herdr $herdr_version" "$evidence/install.txt" || fail "wrong Herdr vers
 log "3. start the Herdr server and run panes (first SSH connection)"
 # setsid: Herdr treats only a session-leader server as its detached daemon,
 # which saved machines require. Herdr's own clients start it the same way.
+# shellcheck disable=SC2016 # $HOME expands in the sandbox
 start_server='setsid -f "$HOME/.local/bin/herdr" server >/dev/null 2>&1 </dev/null; sleep 3'
 on "$start_server; pgrep -x herdr | head -1" > "$work/pid1"
 rh status server > "$evidence/status-1.txt" || fail "server not running"
 rh workspace create --cwd /workspace --label e2e --no-focus > "$work/ws.json"
 pane="$(field result.root_pane.pane_id < "$work/ws.json")"
-rh pane run "$pane" "'echo shell=\$\$ > /workspace/herdr-pane.txt; claude --version; echo HERDR_E2E_MARK'"
+rh pane run "$pane" "'echo shell=\$\$ > /workspace/herdr-pane.txt; claude --version; echo HERDR_E2E_\"\"MARK'"
 rh pane wait-output "$pane" --match HERDR_E2E_MARK --timeout 30000 > "$evidence/pane-1.json" || fail "pane output not seen"
 shell_pid="$(on 'cut -d= -f2 /workspace/herdr-pane.txt')"
 log "   server pid $(cat "$work/pid1"), pane $pane shell pid $shell_pid"
@@ -144,6 +154,7 @@ wait_status stopped 300
 wait_status running 600
 "$rzv" sandboxes ssh-config "$sandbox" ${ws[@]+"${ws[@]}"} --write >/dev/null
 [ "$(on 'cat /proc/sys/kernel/random/boot_id')" != "$boot1" ] || fail "the sandbox did not restart"
+# shellcheck disable=SC2016 # $HOME and $f expand in the sandbox
 on 'for f in /workspace/herdr-pane.txt "$HOME/.local/bin/herdr" "$HOME/.config/herdr/session.json"; do if test -e "$f"; then echo "kept $f"; else echo "lost $f"; fi; done; pgrep -x herdr >/dev/null && echo "herdr running" || echo "no herdr process"' > "$evidence/after-start.txt"
 cat "$evidence/after-start.txt" >&2
 grep -q '^kept /workspace/herdr-pane.txt' "$evidence/after-start.txt" || fail "/workspace lost across stop"

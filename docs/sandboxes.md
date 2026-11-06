@@ -38,7 +38,7 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [SSH and file transfers](sandboxes-ssh.md) | OpenSSH, scp, sftp, rsync and Remote SSH editors |
 | [VS Code and Cursor](editors.md)                | Remote SSH editors in `/workspace`                |
 | [Terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`         |
-| [Herdr](herdr.md) | Herdr panes and agents that keep running while you are disconnected |
+| [Herdr](herdr.md)                               | Agent panes that outlive the SSH connection       |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
 | [OpenCode](opencode.md)                         | Run OpenCode with your own AI provider key        |
 
