@@ -39,5 +39,6 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [VS Code and Cursor](editors.md)                | Remote SSH editors in `/workspace`                |
 | [Terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`         |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
+| [OpenCode](opencode.md)                         | Run OpenCode with your own AI provider key        |
 
 Back to the [documentation index](README.md).
