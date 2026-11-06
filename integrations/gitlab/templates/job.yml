@@ -1,0 +1,22 @@
+spec:
+  inputs:
+    job-name:
+      type: string
+      default: test
+      regex: "^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$"
+      description: Suffix for the generated runzivo- job name. Choose a unique value for each inclusion.
+    stage:
+      type: string
+      default: test
+      description: An existing stage in the consuming pipeline.
+    script:
+      type: array
+      description: Trusted job commands, as a YAML array of strings. Do not pass secrets as inputs.
+---
+"runzivo-$[[ inputs.job-name ]]":
+  stage: $[[ inputs.stage ]]
+  inherit:
+    default: false
+  tags:
+    - runzivo
+  script: $[[ inputs.script ]]
