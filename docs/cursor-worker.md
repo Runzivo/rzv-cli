@@ -6,7 +6,7 @@ Cursor's [Self-Hosted Machines](https://cursor.com/docs/cloud-agent/self-hosted)
 
 ## What you need
 
-- A Cursor plan with Cloud Agents. Cursor lists "Premium and higher, Teams, Enterprise, or a legacy paid plan".
+- A Cursor plan with Cloud Agents. Cursor lists "Premium and higher, Teams, Enterprise, or a legacy paid plan". My Machines needs no Enterprise plan or service account.
 - For one sandbox of your own ([My Machines](https://cursor.com/docs/cloud-agent/self-hosted/my-machines)): a user API key from Cursor Dashboard, API Keys. On a team, an admin must allow personal or self-hosted machines.
 - Team pools ([Self-Hosted Pool](https://cursor.com/docs/cloud-agent/self-hosted/pool)) need Cursor Enterprise and a service-account key. This page covers My Machines only.
 - A running sandbox and the SSH alias from `rzv sandboxes ssh-config <sandbox-id> --write` ([SSH](sandboxes-ssh.md)).
@@ -34,10 +34,12 @@ Run it in a terminal you keep open, for example `rzv sandboxes ssh <sandbox-id>`
 ```sh
 export PATH="$HOME/.local/bin:$PATH"
 cd /workspace
-CURSOR_API_KEY="$(cat ~/.config/cursor-worker/api-key)" agent worker start --worker-dir /workspace --name <sandbox-id>
+CURSOR_API_KEY="$(cat ~/.config/cursor-worker/api-key)" agent worker --worker-dir /workspace --name <sandbox-id> start
 ```
 
-The sandbox then appears in Cursor's machine picker for Cloud Agents. Choose it when you start an agent. The worker runs until you stop it with Ctrl-C or the sandbox stops.
+The sandbox then appears in Cursor's environment picker for Cloud Agents. Choose it when you start an agent. The worker runs until you stop it with Ctrl-C or the sandbox stops. After an hour with no work it exits with code 0. Change that with `--idle-release-timeout <seconds>`, or set `0` to turn it off.
+
+With no key, the worker stops with `Authentication required for worker mode`. With a wrong key, it prints `The provided API key is invalid` and exits with code 1. Check the key, or create a new one in Cursor Dashboard.
 
 ## Lifetime and limits
 
