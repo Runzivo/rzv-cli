@@ -49,7 +49,7 @@ Do not pass keys with `rzv sandboxes exec --env` or in an `exec` command. Runziv
 ## Limits
 
 - The sandbox needs outbound HTTPS to your provider and to `github.com` for the download.
-- A wrong or missing key fails with the provider's own authentication error.
+- A wrong key fails with the provider's own authentication error, such as `invalid x-api-key` from Anthropic. With no key set, OpenCode 1.19.5 prints `UnknownError` with the message `Unexpected server error`. That error does not name the key. Add your key and run it again.
 - OpenCode can run commands and change files in the sandbox. Review what it does before you push.
 
 Back to [Sandboxes](sandboxes.md).
