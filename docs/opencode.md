@@ -34,7 +34,7 @@ read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY   # paste, then Enter
 opencode                                                  # or: opencode run -m anthropic/<model> "..."
 ```
 
-The key lasts only as long as that shell. Use `OPENAI_API_KEY` for OpenAI. Once a key is set, `opencode models <provider>` lists that provider's models. To use the key in other shells while the sandbox runs, run `opencode auth login` (or `/connect` in OpenCode). OpenCode then saves it in `~/.local/share/opencode/auth.json` in the sandbox. A stop, expiry or deletion removes that file; `opencode auth logout` removes it sooner. Never put a key in `/workspace`.
+The key lasts only as long as that shell. Use `OPENAI_API_KEY` for OpenAI. Once a key is set, `opencode models <provider>` lists that provider's models. To use the key in other shells while the sandbox runs, run `opencode auth login` (or `/connect` in OpenCode). OpenCode then saves it in `~/.local/share/opencode/auth.json` in the sandbox. Expiry or deletion removes that file; a stop keeps it. `opencode auth logout` removes it sooner. Never put a key in `/workspace`.
 
 To copy a key from a password manager, pipe it over SSH, which is encrypted from your computer to the sandbox. This needs the SSH alias from `rzv sandboxes ssh-config <sandbox-id> --write` ([SSH](sandboxes-ssh.md)):
 

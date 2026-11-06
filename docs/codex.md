@@ -30,11 +30,11 @@ sandbox_mode = "danger-full-access"
 
 ## After a stop and start
 
-A stop and start keeps the sandbox's disk: `/workspace` and `~/.codex` (your sign-in, `config.toml` and history) are still there after `start`. Running sessions end. A new sandbox always starts without them.
+A stop and start keeps the sandbox's disk: `/workspace` and `~/.codex` (your sign-in, `config.toml` and history) are still there after `start`. Running sessions end. A new sandbox always starts without `~/.codex`.
 
 ## Sign out and clean up
 
-`codex logout` deletes `~/.codex/auth.json`. Run it before you stop a sandbox if you don't want the sign-in kept, because a stop keeps the file. `rzv sandboxes delete <sandbox-id>` removes the sandbox and the file. To stop using a key everywhere, revoke it in the OpenAI dashboard.
+`codex logout` deletes `~/.codex/auth.json`. Run it before you stop a sandbox if you don't want the sign-in kept, because a stop keeps the file. Expiry and `rzv sandboxes delete <sandbox-id>` remove the sandbox and the file. To stop using a key everywhere, revoke it in the OpenAI dashboard.
 
 ## Limits
 

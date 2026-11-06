@@ -43,11 +43,11 @@ By default (`"remote.SSH.localServerDownload": "auto"`) the sandbox downloads th
 
 Use the editor's **Ports** view, or `LocalForward` in your own SSH config, to reach services on the sandbox's localhost. The configuration doesn't enable agent forwarding, X11 forwarding or remote forwarding. A stopped, expired or deleted sandbox disconnects the editor. Windows clients are not supported yet.
 
-A stop and start keeps the sandbox's disk, including `~/.vscode-server`, `~/.cursor-server` and the extensions you installed on the remote side, so the next connection doesn't reinstall the server. In a test on shared, Cursor reconnected in 8 seconds after a start, against 27 seconds for its first connection. Open windows don't resume after a stop. Reconnect to the sandbox.
+A stop and start keeps the sandbox's disk, including `~/.vscode-server`, `~/.cursor-server` and the extensions you installed on the remote side, so the next connection doesn't reinstall the server. Open windows don't resume after a stop. Reconnect to the sandbox.
 
-Tested with VS Code 1.145.0 and Remote - SSH 0.128.0 on macOS against an Ubuntu 24.04 sandbox. The tests covered the first connection, reconnecting after the login certificate expired, and a stop and start with `localServerDownload` set to `always`. After the start the first connection took about 75 seconds, against about 6 seconds with the server already installed.
+Tested with VS Code 1.145.0 and Remote - SSH 0.128.0 on macOS against an Ubuntu 24.04 sandbox. The tests covered the first connection and reconnecting after the login certificate expired. With the server already installed, a connection took about 6 seconds. In a later test, `~/.vscode-server` was still installed after a stop and start.
 
-Also tested with Cursor 3.29.9 and Anysphere Remote - SSH 1.1.17 on macOS, opened with `cursor --remote`. The sandbox downloaded the Cursor server for the editor's commit and started it in about 29 seconds. After a stop and start, Cursor installed the server again on its own and connected in about 26 seconds, with `/workspace` kept.
+Also tested with Cursor 3.29.9 and Anysphere Remote - SSH 1.1.17 on macOS, opened with `cursor --remote`. The sandbox downloaded the Cursor server for the editor's commit and started it in about 27 seconds. After a stop and start, Cursor reconnected in about 8 seconds, with its server and `/workspace` kept.
 
 References: [VS Code Remote SSH](https://code.visualstudio.com/docs/remote/ssh), [VS Code remote troubleshooting](https://code.visualstudio.com/docs/remote/troubleshooting) and [Cursor network troubleshooting](https://cursor.com/help/troubleshooting/network).
 

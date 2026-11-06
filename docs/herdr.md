@@ -42,7 +42,7 @@ A stop and start keeps the sandbox's disk. After `rzv sandboxes start <sandbox-i
 - Herdr, its configuration and its saved session in `~/.config/herdr` are still there, and so are `/workspace` and agent sign-ins in the home directory, such as `~/.claude`.
 - The Herdr server and every pane and process have ended.
 
-Run `herdr --remote <sandbox-id>.rzv` again to start the server, then start new panes. At expiry the sandbox stops for good and `/workspace` is deleted too. The lifetime cannot be extended.
+Run `herdr --remote <sandbox-id>.rzv` again to start the server, then start new panes. At expiry the sandbox stops for good and everything in it is deleted, including Herdr and `/workspace`. The lifetime cannot be extended.
 
 ## Other limits
 
