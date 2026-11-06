@@ -220,7 +220,7 @@ func TestSSHProxyBinaryHalfCloseAndConfig(t *testing.T) {
 	if code := Run(context.Background(), []string{"sandboxes", "ssh-config", sbxID, "--write"}, deps); code != 0 {
 		t.Fatal(code, stderr.String())
 	}
-	for _, s := range []string{"Updated SSH configuration for " + sbxID + ".rzv", "Terminal: ssh " + sbxID + ".rzv\n", "VS Code: code --remote ssh-remote+" + sbxID + ".rzv /workspace\n", "choose " + sbxID + ".rzv", "Install 'code' command in PATH"} {
+	for _, s := range []string{"Updated SSH configuration for " + sbxID + ".rzv", "Terminal: ssh " + sbxID + ".rzv\n", "VS Code: code --remote ssh-remote+" + sbxID + ".rzv /workspace\n", "Cursor: cursor --remote ssh-remote+" + sbxID + ".rzv /workspace\n", "Or run Remote-SSH: Connect to Host in Cursor, choose " + sbxID + ".rzv, then open /workspace.", "Install 'cursor' command", "Install 'code' command in PATH"} {
 		if !strings.Contains(output.String(), s) {
 			t.Fatalf("missing hint %q in %q", s, output.String())
 		}
