@@ -1,6 +1,6 @@
 # Sandboxes
 
-A sandbox is a Linux virtual machine in your workspace. Your files live in `/workspace` and survive a stop and a start until the sandbox expires.
+A sandbox is a Linux virtual machine in your workspace. A stop and a start keep its whole disk until the sandbox expires: `/workspace`, your home directory (tool installs, settings and saved sign-ins) and packages you installed. Running processes end at a stop. Expiry or deletion removes all of it.
 
 ## Lifetime
 
@@ -9,7 +9,7 @@ Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default
 - The timer starts when the sandbox first becomes running. Until then the full lifetime is left and `list` and `get` show "starts when running" for the expiry.
 - Stopping, starting and restarting do not move the timer. Time spent stopped counts.
 - The lifetime cannot be extended. Create a new sandbox instead.
-- At expiry the virtual machine stops, sessions end, the temporary files (the workspace disk) are deleted and compute billing stops.
+- At expiry the virtual machine stops, sessions end, both disks (the system disk with your home directory and tools, and the workspace disk) are deleted and compute billing stops.
 
 `list` and `get` show the lifetime, the exact expiry in your local time and in UTC (for example `2026-11-02 18:04 EST (23:04 UTC)`) and the time left (for example `7h 42m`). `--json` includes `lifetime_hours`, `expires_at` and `remaining_seconds`. An older Runzivo service may not send `lifetime_hours`; the lifetime then shows as `-`.
 
