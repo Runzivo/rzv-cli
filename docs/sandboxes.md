@@ -38,5 +38,6 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [SSH and file transfers](sandboxes-ssh.md) | OpenSSH, scp, sftp, rsync and Remote SSH editors |
 | [Terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`         |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
+| [OpenCode](opencode.md)                         | Run OpenCode with your own AI provider key        |
 
 Back to the [documentation index](README.md).

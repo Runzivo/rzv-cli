@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- [OpenCode in a sandbox](docs/opencode.md): install a pinned, checksummed OpenCode 1.19.5 in a sandbox and use it with your own AI provider key. The key stays in the sandbox. Runzivo charges only the sandbox's compute.
+
 ## release-2026-11-06-005258 (rzv 0.24.0), 2026-11-06
 
 ### Changed

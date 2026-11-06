@@ -13,6 +13,7 @@
 | [Sandbox SSH](sandboxes-ssh.md) | Standard ssh, file transfers, local forwarding and Remote SSH editors |
 | [Sandbox terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`                                              |
 | [Sandbox billing and permissions](sandboxes-billing.md) | Charges, credit and the permissions each command needs                                 |
+| [OpenCode in a sandbox](opencode.md)                   | Install OpenCode in a sandbox and use your own AI key                                  |
 | [Orca workspaces](orca.md)                              | `rzv orca`: the commands the Runzivo plugin for Orca runs                              |
 | [AI settings and usage](ai.md)                          | Provider connections, configuration and usage                                          |
 | [Development](development.md)                           | Building, testing and the CI runner                                                    |
