@@ -1,5 +1,10 @@
 # rzv documentation
 
+New to Runzivo? Start with [CLI setup](https://runzivo.dev/docs/cli/),
+[sign-in and sessions](https://runzivo.dev/docs/sign-in/) or the
+[Agent Sandboxes overview](https://runzivo.dev/sandboxes/) on the website.
+Use the reference guides below for command arguments and tool-specific setup.
+
 | Guide                                                   | What it covers                                                                         |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | [Install](install.md)                                   | Installer options, platforms, manual download and checksums                            |
