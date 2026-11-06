@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
 )
@@ -21,7 +22,11 @@ independently, saved under a label. Put its workflow label in runs-on.
 --vcpu is 2, 4, 8, 16 or 32; --mem-gib 4 to 128; --disk-gib 16 to 256
 (default 16, which is included). The label is rzv- then lowercase letters,
 digits or single hyphens. delete archives the profile: jobs already admitted
-keep their shape.`
+keep their shape.
+
+New profiles are limited by plan: up to 4 vCPU on Free and Developer, 16 on
+Team, 32 on Business, custom on Enterprise. A larger one is refused with the
+plan it needs (exit code 4); see "rzv runners availability".`
 
 const runnerAvailabilityUsage = `Usage:
   rzv runners availability [--vcpu <n> --mem-gib <n> [--disk-gib <n>]] [--workspace <id>] [--json]
@@ -30,7 +35,11 @@ Without a shape, shows every custom runner profile. With --vcpu and
 --mem-gib, shows that shape. Each answer is "Available now", "Busy - jobs
 will queue" or "Not supported", overall and per region, with the
 equivalent-minute rate. Shared CPU (overcommitted) means the shape has more
-vCPU than the host's physical CPU.`
+vCPU than the host's physical CPU.
+
+The plan is shown apart from availability: "included", or the plan a shape
+needs marked locked, with a table of every vCPU option and an upgrade hint.
+Saved profiles keep working after a plan change.`
 
 var profileIDPattern = regexp.MustCompile(`^rpf_[0-9a-f]{24}$`)
 
@@ -82,6 +91,16 @@ func runnerProfileError(err error) error {
 		}
 	}
 	return apiError(err, runnerProfileNotFound)
+}
+
+// runnerProfileCreateError maps a failed create. plan_required names the plan
+// to move to, as for sandboxes; everything else is runnerProfileError's.
+func (a *app) runnerProfileCreateError(err error, vcpu int64) error {
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) && apiErr.Status == 403 && apiErr.Code == "plan_required" {
+		return a.sandboxCreateError(err, fmt.Sprintf("A %d vCPU runner profile", vcpu))
+	}
+	return runnerProfileError(err)
 }
 
 func runnerProfilesList(a *app, cmd *command) error {
@@ -184,7 +203,7 @@ func runnerProfilesCreate(a *app, cmd *command) error {
 	}
 	profile, err := client.CreateCustomRunnerProfile(a.ctx, id, api.CreateCustomRunnerProfileInput{Name: name, Label: label, VCPU: shape.VCPU, MemGiB: shape.MemGiB, DiskGiB: shape.DiskGiB})
 	if err != nil {
-		return runnerProfileError(err)
+		return a.runnerProfileCreateError(err, shape.VCPU)
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "profile": profile},
 		fmt.Sprintf("Created custom runner profile %s [%s]: %s.\nUse runs-on: %s", display(profile.Name), display(profile.ID), shapeText(profile.VCPU, profile.MemMiB/1024, profile.DiskGiB), display(profile.WorkflowLabel)))
@@ -232,11 +251,15 @@ func runRunnerAvailability(a *app, cmd *command) error {
 	if present {
 		query = &shape
 	}
-	answers, err := client.CustomRunnerProfileAvailability(a.ctx, id, query)
+	answer, err := client.CustomRunnerProfileAvailability(a.ctx, id, query)
 	if err != nil {
 		return runnerProfileError(err)
 	}
-	a.output(cmd, map[string]any{"workspace_id": id, "shapes": answers}, renderAvailability(id, answers))
+	result := map[string]any{"workspace_id": id, "shapes": answer.Shapes}
+	if len(answer.VCPUOptions) > 0 {
+		result["vcpu_options"] = answer.VCPUOptions
+	}
+	a.output(cmd, result, a.renderAvailability(id, answer))
 	return nil
 }
 
@@ -264,11 +287,12 @@ func statusText(table map[string]string, status string) string {
 	return display(status)
 }
 
-func renderAvailability(workspaceID string, answers []api.CustomRunnerShapeAvailability) string {
-	if len(answers) == 0 {
-		return "No custom runner profiles in workspace " + display(workspaceID) + ". Check a shape with --vcpu and --mem-gib."
-	}
+func (a *app) renderAvailability(workspaceID string, availability *api.CustomRunnerAvailability) string {
+	answers := availability.Shapes
 	lines := []string{"Runner availability for workspace " + display(workspaceID) + ":"}
+	if len(answers) == 0 {
+		lines = []string{"No custom runner profiles in workspace " + display(workspaceID) + ". Check a shape with --vcpu and --mem-gib."}
+	}
 	for _, answer := range answers {
 		name := shapeText(answer.VCPU, answer.MemGiB, answer.DiskGiB)
 		if answer.WorkflowLabel != "" {
@@ -287,7 +311,11 @@ func renderAvailability(workspaceID string, answers []api.CustomRunnerShapeAvail
 		if answer.Rate != "" {
 			rate = display(answer.Rate) + " equivalent minutes per minute"
 		}
-		lines = append(lines, fmt.Sprintf("- %s: %s; %s", name, status, rate))
+		line := fmt.Sprintf("- %s: %s; %s", name, status, rate)
+		if answer.PlanEligible != nil {
+			line += "; plan: " + planColumn(answer.Locked(), answer.RequiredPlan)
+		}
+		lines = append(lines, line)
 		for _, region := range answer.Regions {
 			text := statusText(availabilityRegionText, region.Status)
 			if region.Overcommitted {
@@ -296,5 +324,72 @@ func renderAvailability(workspaceID string, answers []api.CustomRunnerShapeAvail
 			lines = append(lines, fmt.Sprintf("    %s: %s", display(region.Region), text))
 		}
 	}
-	return strings.Join(lines, "\n")
+	out := strings.Join(lines, "\n")
+	if table := vcpuPlanTable(availability.VCPUOptions); table != "" {
+		out += "\n\n" + table
+	}
+	return out + a.lockedHints(availability)
+}
+
+// vcpuPlanTable lists every vCPU option with the plan it needs, locked ones
+// included. It is empty from a server that sends no options.
+func vcpuPlanTable(options []api.CustomRunnerVCPUOption) string {
+	if len(options) == 0 {
+		return ""
+	}
+	var out strings.Builder
+	table := tabwriter.NewWriter(&out, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(table, "VCPU\tPLAN")
+	for _, o := range options {
+		fmt.Fprintf(table, "%d\t%s\n", o.VCPU, planColumn(o.Locked(), o.RequiredPlan))
+	}
+	_ = table.Flush()
+	return strings.TrimRight(out.String(), "\n")
+}
+
+// lockedHints are the lines under the output for what the plan locks: the
+// vCPU options when the server sends them, else the shapes. Enterprise-only
+// sizes say to contact Runzivo; the rest say where to upgrade.
+func (a *app) lockedHints(availability *api.CustomRunnerAvailability) string {
+	type locked struct {
+		name         string
+		requiredPlan *string
+	}
+	var found []locked
+	if len(availability.VCPUOptions) > 0 {
+		for _, o := range availability.VCPUOptions {
+			if o.Locked() {
+				found = append(found, locked{fmt.Sprintf("%d vCPU", o.VCPU), o.RequiredPlan})
+			}
+		}
+	} else {
+		for _, s := range availability.Shapes {
+			if s.Locked() {
+				name := fmt.Sprintf("%d vCPU", s.VCPU)
+				if s.WorkflowLabel != "" {
+					name = display(s.WorkflowLabel)
+				}
+				found = append(found, locked{name, s.RequiredPlan})
+			}
+		}
+	}
+	var upgrade, enterprise []string
+	for _, l := range found {
+		switch {
+		case l.requiredPlan != nil && *l.requiredPlan == "enterprise":
+			enterprise = append(enterprise, l.name+" needs the Enterprise plan")
+		case l.requiredPlan != nil && *l.requiredPlan != "":
+			upgrade = append(upgrade, l.name+" needs the "+planLabel(*l.requiredPlan)+" plan")
+		default:
+			upgrade = append(upgrade, l.name+" is not in your plan")
+		}
+	}
+	var out strings.Builder
+	if len(upgrade) > 0 {
+		fmt.Fprintf(&out, "\nLocked: %s. %s", strings.Join(upgrade, "; "), a.upgradeHint())
+	}
+	if len(enterprise) > 0 {
+		fmt.Fprintf(&out, "\nLocked: %s. Contact Runzivo.", strings.Join(enterprise, "; "))
+	}
+	return out.String()
 }

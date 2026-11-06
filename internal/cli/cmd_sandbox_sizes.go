@@ -139,13 +139,19 @@ func sizeRate(s api.SandboxSize) string {
 // sizePlan is "included" for a size the plan allows. A locked size names the
 // plan it needs and is marked locked.
 func sizePlan(s api.SandboxSize) string {
-	if !s.Locked() {
+	return planColumn(s.Locked(), s.RequiredPlan)
+}
+
+// planColumn is the PLAN text for a size or shape: "included", or the plan it
+// needs marked locked.
+func planColumn(locked bool, requiredPlan *string) string {
+	if !locked {
 		return "included"
 	}
-	if s.RequiredPlan == nil || *s.RequiredPlan == "" {
+	if requiredPlan == nil || *requiredPlan == "" {
 		return "locked"
 	}
-	return planLabel(*s.RequiredPlan) + " (locked)"
+	return planLabel(*requiredPlan) + " (locked)"
 }
 
 // sizeStatus is the regional status, with the reason a size is not available.

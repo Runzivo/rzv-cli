@@ -27,6 +27,17 @@ rzv runners availability --vcpu 32 --mem-gib 16 --disk-gib 64
   means the shape has more vCPU than the host's physical CPU.
 - The rate is equivalent minutes per runner minute, billed from the same
   balance as every other runner.
+- New profiles are limited by plan: up to 4 vCPU on Free and Developer, 16 on
+  Team, 32 on Business, custom on Enterprise. Locked sizes stay visible.
+  `rzv runners availability` shows `plan: included` or `plan: Team (locked)`
+  on each shape, apart from availability, then a `VCPU` / `PLAN` table of
+  every vCPU option and a `Locked: ... Upgrade: <portal link>` line (or
+  `Contact Runzivo.` for the Enterprise plan). `--json` adds `plan_eligible`
+  and `required_plan` to each shape, and `vcpu_options`. A server from before
+  plan limits shows none of this.
+- Creating a size above your plan fails with exit code 4 and names the plan,
+  for example "A 16 vCPU runner profile needs the Team plan" and an upgrade
+  link. Profiles you already saved keep working after a plan change.
 - With an API key, the reads need `runners:read` or `runners:write`; create
   and delete need `runners:write`. Availability may be asked 60 times a
   minute per workspace.
