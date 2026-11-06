@@ -4,6 +4,10 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ## Unreleased
 
+### Added
+
+- [Claude Code in a sandbox](docs/claude-code.md): use the preinstalled Claude Code with your own Anthropic API key or Claude subscription login. The key or login stays in the sandbox, and only `/workspace` survives a stop and start. Runzivo charges only the sandbox's compute.
+
 ### Changed
 
 - `rzv sandboxes ssh-config <sandbox-id> --write` now prints `cursor --remote ssh-remote+<sandbox-id>.rzv /workspace` for Cursor. [VS Code and Cursor Remote SSH](docs/editors.md) records a live test with Cursor 3.29.9 and Anysphere Remote - SSH 1.1.17, covering the first connection and a reconnect after a stop and start.
