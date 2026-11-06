@@ -30,11 +30,11 @@ sandbox_mode = "danger-full-access"
 
 ## After a stop and start
 
-At the moment a stop and start removes every file outside `/workspace`, including `~/.codex` (your sign-in, `config.toml` and history). Your project in `/workspace` is kept. After each `start`, and in each new sandbox, sign in again and set the sandbox mode again.
+A stop and start keeps your project in `/workspace`. Do not count on files outside it, such as `~/.codex` (your sign-in, `config.toml` and history), being either kept or removed. After each `start`, run `codex login status` and check `~/.codex/config.toml`; sign in and set the sandbox mode again if they are gone. A new sandbox always starts without them.
 
 ## Sign out and clean up
 
-`codex logout` deletes `~/.codex/auth.json`. Stopping, expiry or `rzv sandboxes delete <sandbox-id>` also removes it. To stop using a key everywhere, revoke it in the OpenAI dashboard.
+`codex logout` deletes `~/.codex/auth.json`. Run it before you stop a sandbox, because a stop may keep the file. `rzv sandboxes delete <sandbox-id>` removes the sandbox and the file. To stop using a key everywhere, revoke it in the OpenAI dashboard.
 
 ## Limits
 

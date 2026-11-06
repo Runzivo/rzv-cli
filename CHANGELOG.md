@@ -7,7 +7,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 ### Added
 
 - [Claude Code in a sandbox](docs/claude-code.md): use the preinstalled Claude Code with your own Anthropic API key or Claude subscription login. The key or login stays in the sandbox, and only `/workspace` survives a stop and start. Runzivo charges only the sandbox's compute.
-- [Codex in a sandbox](docs/codex.md): sign in to the preinstalled Codex CLI with your own OpenAI API key (piped over SSH) or ChatGPT device code sign-in, choose the sandbox mode (`sandbox_mode` in `~/.codex/config.toml`), and see what a stop and start removes and how to sign out.
+- [Codex in a sandbox](docs/codex.md): sign in to the preinstalled Codex CLI with your own OpenAI API key (piped over SSH) or ChatGPT device code sign-in, choose the sandbox mode (`sandbox_mode` in `~/.codex/config.toml`), and how to sign out. Only `/workspace` is sure to survive a stop and start.
 
 ## release-2026-11-06-113624 (rzv 0.25.0), 2026-11-06
 
