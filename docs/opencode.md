@@ -30,7 +30,7 @@ read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY   # paste, then Enter
 opencode                                                  # or: opencode run -m anthropic/<model> "..."
 ```
 
-The key lasts only as long as that shell. Use `OPENAI_API_KEY` for OpenAI. `opencode models <provider>` lists the models available to you. To keep a key across sessions, run `opencode auth login` (or `/connect` in OpenCode). OpenCode then saves the key in `~/.local/share/opencode/auth.json` in the sandbox. The file is removed when the sandbox stops, expires or is deleted. `opencode auth logout` removes it sooner.
+The key lasts only as long as that shell. Use `OPENAI_API_KEY` for OpenAI. Once a key is set, `opencode models <provider>` lists that provider's models. To keep a key across sessions, run `opencode auth login` (or `/connect` in OpenCode). OpenCode then saves the key in `~/.local/share/opencode/auth.json` in the sandbox. The file is removed when the sandbox stops, expires or is deleted. `opencode auth logout` removes it sooner.
 
 To copy a key from a password manager, pipe it over SSH, which is encrypted from your computer to the sandbox:
 
