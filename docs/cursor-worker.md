@@ -48,4 +48,6 @@ With no key, the worker stops with `Authentication required for worker mode`. Wi
 - The agent can run commands and change files in the sandbox. Review its work before you push.
 - Remove the key early with `rm ~/.config/cursor-worker/api-key`, and revoke it in Cursor Dashboard when you no longer need it.
 
+`scripts/21-cursor-worker-e2e.sh` checks the install and the key errors against one sandbox. With `E2E_CURSOR_KEY_FILE` set, it also starts the worker with that key.
+
 Back to [Sandboxes](sandboxes.md).
