@@ -40,6 +40,7 @@ Runzivo is in Early Access. Sign in with your Runzivo account, then select a wor
 
 ## Documentation
 
+- Start with the website's [CLI setup](https://runzivo.dev/docs/cli/), [sign-in guide](https://runzivo.dev/docs/sign-in/) and [Agent Sandboxes overview](https://runzivo.dev/sandboxes/). The guides here cover command arguments and tool-specific setup.
 - [docs/README.md](docs/README.md): index of the guides below
 - [Sign-in and credentials](docs/login.md)
 - [Commands](docs/commands.md), [workspace commands](docs/workspace-commands.md), [support tickets](docs/tickets.md), [notifications](docs/notifications.md), and [AI settings and usage](docs/ai.md), and [sandboxes](docs/sandboxes.md)
@@ -53,7 +54,7 @@ Runzivo is in Early Access. Sign in with your Runzivo account, then select a wor
 ## Help and security
 
 - Product ideas and voting: [Runzivo community](COMMUNITY.md), covering all Runzivo products.
-- Priorities and progress: [public roadmap](https://github.com/orgs/Runzivo/projects/3/views/1).
+- Priorities and progress: [roadmap and voting guide](https://runzivo.dev/roadmap/) or the [public GitHub board](https://github.com/orgs/Runzivo/projects/3/views/1).
 
 - Questions: support@runzivo.dev
 - Security issues: see [SECURITY.md](SECURITY.md).
