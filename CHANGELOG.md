@@ -15,6 +15,12 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 - Sign-ins renew themselves. `rzv login` keeps the identity provider's refresh token in the owner-only credentials file, and any command (including SSH, `rzv orca` and editors that run `rzv`) renews the access token shortly before it expires. Sessions follow the customer session policy: 14 days without use or 30 days after sign-in. Parallel runs renew once under a lock. `rzv logout` and `rzv profiles remove` end the session at the identity provider. Sign-ins from before this release keep working until their access token expires; then run `rzv login` once.
 
+## Unreleased
+
+### Added
+
+- [Herdr in a sandbox](docs/herdr.md) explains how to run [Herdr](https://github.com/herdrdev/herdr) 0.9.5 against a sandbox over the `<sandbox-id>.rzv` SSH alias with `herdr --remote`, `ssh -t` or `herdr machine add`. It covers Herdr's own install prompt and a pinned, checksum-verified manual install. Panes and agents keep running while you are disconnected and the sandbox runs. A stop removes Herdr, its server and its panes; only `/workspace` is kept. `scripts/20-herdr-e2e.sh` checks these steps against one sandbox and deletes it afterwards.
+
 ## release-2026-11-05-233903 (rzv 0.23.0), 2026-11-05
 
 ### Added
