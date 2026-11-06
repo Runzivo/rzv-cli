@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"testing"
@@ -147,7 +148,7 @@ func TestLogoutRevokesTheSession(t *testing.T) {
 	h.login()
 	h.provider.Server.Close()
 	code, _, errOut := h.run("logout")
-	if code != 0 || !strings.Contains(errOut, "Could not reach the identity provider") {
+	if code != 0 || !strings.Contains(errOut, "did not confirm the session ended") {
 		t.Fatalf("offline logout: %d %q", code, errOut)
 	}
 	if c, _ := h.store.Read(); c != nil {
@@ -155,7 +156,20 @@ func TestLogoutRevokesTheSession(t *testing.T) {
 	}
 }
 
-func TestLockTakesOverAStaleLock(t *testing.T) {
+// TestHelperHoldsLockAndDies is run as a child process by
+// TestLockOfAKilledProcessIsReleased; it exits while holding the lock.
+func TestHelperHoldsLockAndDies(t *testing.T) {
+	dir := os.Getenv("RZV_TEST_LOCK_DIR")
+	if dir == "" {
+		t.Skip("helper process only")
+	}
+	if _, err := (&config.Store{Dir: dir}).Lock(time.Second); err != nil {
+		os.Exit(3)
+	}
+	os.Exit(0) // no unlock: the operating system must release it
+}
+
+func TestLockOfAKilledProcessIsReleased(t *testing.T) {
 	store := &config.Store{Dir: t.TempDir()}
 	unlock, err := store.Lock(time.Second)
 	if err != nil {
@@ -165,18 +179,53 @@ func TestLockTakesOverAStaleLock(t *testing.T) {
 		t.Fatal("a held lock was taken")
 	}
 	unlock()
-	unlock, err = store.Lock(time.Second)
+	child := exec.Command(os.Args[0], "-test.run=^TestHelperHoldsLockAndDies$")
+	child.Env = append(os.Environ(), "RZV_TEST_LOCK_DIR="+store.Dir)
+	if out, err := child.CombinedOutput(); err != nil {
+		t.Fatalf("helper: %v %s", err, out)
+	}
+	again, err := store.Lock(200 * time.Millisecond)
+	if err != nil {
+		t.Fatal("the lock of an exited process was not released")
+	}
+	again()
+}
+
+func TestLogoutWaitsForARefreshInFlight(t *testing.T) {
+	h := newHarness(t)
+	h.login()
+	unlock, err := h.store.ForProfile("default").Lock(time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer unlock()
-	stale := time.Now().Add(-2 * time.Minute)
-	if err := os.Chtimes(store.Dir+"/credentials.json.lock", stale, stale); err != nil {
-		t.Fatal(err)
+	done := make(chan int)
+	go func() { code, _, _ := h.run("logout"); done <- code }()
+	select {
+	case <-done:
+		t.Fatal("logout did not wait for the credential lock")
+	case <-time.After(300 * time.Millisecond):
 	}
-	if again, err := store.Lock(time.Second); err != nil {
-		t.Fatal("a stale lock was not taken over")
-	} else {
-		again()
+	if c, _ := h.store.Read(); c == nil {
+		t.Fatal("logout removed the file while another process held the lock")
+	}
+	unlock()
+	if code := <-done; code != 0 || h.provider.Revocations != 1 {
+		t.Fatalf("logout after the lock: %d, %d revocations", code, h.provider.Revocations)
+	}
+}
+
+func TestSelectingAWorkspaceKeepsARotatedToken(t *testing.T) {
+	h := newHarness(t)
+	h.login()
+	h.json("GET /v1/customer/memberships", 200, `{"memberships":[{"tenant_id":"t-1","tenant_slug":"demo","tenant_name":"Demo","role":"owner"}]}`)
+	// Another rzv process rotated the refresh token after this one started.
+	creds, _ := h.store.Read()
+	creds.RefreshToken = "rotated-elsewhere"
+	_ = h.store.Write(creds)
+	if code, _, errOut := h.run("workspaces", "select", "t-1"); code != 0 {
+		t.Fatal(errOut)
+	}
+	if after, _ := h.store.Read(); after.RefreshToken != "rotated-elsewhere" || after.SelectedWorkspace != "t-1" {
+		t.Fatalf("select wrote a stale token back: %+v", after)
 	}
 }

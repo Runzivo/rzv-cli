@@ -50,6 +50,10 @@ func (a *app) credentials() (*config.Credentials, error) {
 	return a.refreshCredentials()
 }
 
+// credentialLockWait bounds how long a command waits for another rzv process
+// to finish with the credentials file.
+var credentialLockWait = 45 * time.Second
+
 // refreshLeeway renews an access token this long before it expires, so a
 // request never starts with a token that runs out on the way.
 const refreshLeeway = 60 * time.Second
@@ -60,7 +64,11 @@ func (a *app) accessTokenExpiring(creds *config.Credentials) bool {
 		return false // the service decides; an unreadable token is not ours to judge
 	}
 	exp := claims.Time("exp")
-	return !exp.IsZero() && !a.Now().Add(refreshLeeway).Before(exp)
+	leeway := time.Duration(0)
+	if creds.RefreshToken != "" {
+		leeway = refreshLeeway // only a renewable sign-in renews early
+	}
+	return !exp.IsZero() && !a.Now().Add(leeway).Before(exp)
 }
 
 // refreshCredentials renews the stored sign-in under the profile's lock. It
@@ -68,7 +76,7 @@ func (a *app) accessTokenExpiring(creds *config.Credentials) bool {
 // an Orca step, an editor) may already have renewed it, and the provider
 // accepts each refresh token only once.
 func (a *app) refreshCredentials() (*config.Credentials, error) {
-	unlock, err := a.Store.Lock(15 * time.Second)
+	unlock, err := a.Store.Lock(credentialLockWait)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +102,11 @@ func (a *app) refreshCredentials() (*config.Credentials, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// Once started, a refresh finishes even if the command is cancelled
+	// (Orca's SIGTERM, Ctrl-C): the provider spends the old refresh token as
+	// soon as it answers, so dropping its answer would end the session.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
 	result, err := oidc.Refresh(ctx, oidc.RefreshOptions{
 		Issuer: creds.Issuer, ClientID: creds.ClientID, Audience: creds.Audience, BrokerClaim: creds.GitHubBrokerClaim,
 		Subject: subject, RefreshToken: creds.RefreshToken, HTTPClient: a.HTTPClient, Now: a.Now,

@@ -4,7 +4,7 @@
 
 - `--no-browser` prints the sign-in URL instead of opening a browser.
 - The sign-in renews itself. The access token lasts minutes; shortly before it expires, `rzv` exchanges the stored refresh token for a new access token and a new refresh token. Your session follows Runzivo's customer session policy: it ends after 14 days without use or 30 days after sign-in, whichever comes first, or when you log out. Then commands stop with exit code 3; run `rzv login` again. `rzv whoami` shows when the session ends if unused.
-- Renewal works for SSH, Orca, editors and scripts too, because they all run `rzv`. Parallel `rzv` runs renew once: a lock beside the credentials file makes them take turns, since each refresh token works only once.
+- Renewal works for SSH, Orca, editors and scripts too, because they all run `rzv`. Parallel `rzv` runs renew once: an operating-system lock on a file beside the credentials makes them take turns, since each refresh token works only once. If `rzv` is killed in the moment between the provider issuing a new token and `rzv` saving it, the session ends and you sign in again.
 
 ## Environments
 
@@ -33,7 +33,7 @@ The `default` profile is `credentials.json`; every other profile is `profiles/<n
 | macOS   | `~/Library/Application Support/runzivo`           |
 | Windows | `%AppData%\runzivo`                               |
 
-`RZV_CONFIG_DIR` overrides the folder. On Linux and macOS the folder is `0700` and the file `0600`; on Windows the file inherits your profile's permissions. `rzv` refuses a credentials file that is a symbolic link. The file holds the access token and the refresh token; `rzv` never prints or logs either, and never passes them to SSH, sandboxes or plugins. `rzv logout` ends the session at the identity provider (so a copy of the file stops working) and deletes the profile in use's file. If the provider cannot be reached, logout still deletes the file and the session ends when it expires.
+`RZV_CONFIG_DIR` overrides the folder. On Linux and macOS the folder is `0700` and the file `0600`; on Windows the file inherits your profile's permissions. `rzv` refuses a credentials file that is a symbolic link. The file holds the access token and the refresh token; `rzv` never prints or logs either, and never passes them to SSH, sandboxes or plugins. `rzv logout` ends the session at the identity provider, so a copy of the file can no longer renew (an access token already issued keeps working until it expires, at most 15 minutes), and deletes the profile in use's file. If the provider does not confirm, logout still deletes the file and the session ends when it expires.
 
 ## API keys
 

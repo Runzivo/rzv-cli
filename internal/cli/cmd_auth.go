@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"strings"
@@ -144,7 +145,13 @@ func runLogin(a *app, cmd *command) error {
 		}
 		creds.SelectedWorkspace = id
 	}
-	if err := a.Store.Write(creds); err != nil {
+	unlock, err := a.Store.Lock(credentialLockWait)
+	if err != nil {
+		return err
+	}
+	err = a.Store.Write(creds)
+	unlock()
+	if err != nil {
 		return err
 	}
 	profile := a.profileName()
@@ -169,15 +176,18 @@ func runLogout(a *app, cmd *command) error {
 		return err
 	}
 	if a.Store != nil {
-		// End the session at the identity provider first, so a copied
-		// credentials file stops working too. Logging out locally still
-		// succeeds when the provider cannot be reached.
-		if creds, err := a.Store.Read(); err == nil && creds != nil && creds.RefreshToken != "" {
-			if err := oidc.Revoke(a.ctx, creds.Issuer, creds.ClientID, creds.RefreshToken, insecureLoopback(creds.Issuer), a.HTTPClient); err != nil {
-				fmt.Fprintln(a.Stderr, "rzv: Could not reach the identity provider to end the session; it ends on its own when it expires.")
-			}
+		// Under the lock, so a refresh in flight cannot write a new token
+		// back after the file is gone.
+		unlock, err := a.Store.Lock(credentialLockWait)
+		if err != nil {
+			return err
 		}
-		if err := a.Store.Clear(); err != nil {
+		if !a.revokeStored(a.Store) {
+			fmt.Fprintln(a.Stderr, "rzv: The identity provider did not confirm the session ended; it ends on its own when it expires.")
+		}
+		err = a.Store.Clear()
+		unlock()
+		if err != nil {
 			return err
 		}
 		active, err := a.Store.ActiveProfile()
@@ -271,4 +281,17 @@ func formatTime(t time.Time) string {
 		return "unknown"
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+// revokeStored ends the stored sign-in's session at the identity provider
+// (RFC 7009). It reports false when the provider did not confirm it; the
+// caller holds the store's lock.
+func (a *app) revokeStored(store *config.Store) bool {
+	creds, err := store.Read()
+	if err != nil || creds == nil || creds.RefreshToken == "" {
+		return true // nothing renewable to revoke
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), 15*time.Second)
+	defer cancel()
+	return oidc.Revoke(ctx, creds.Issuer, creds.ClientID, creds.RefreshToken, insecureLoopback(creds.Issuer), a.HTTPClient) == nil
 }

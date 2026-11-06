@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
+	"github.com/Runzivo/rzv-cli/internal/config"
 	"github.com/Runzivo/rzv-cli/internal/githubauth"
 )
 
@@ -233,7 +234,7 @@ func githubWorkspaceComplete(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	client, creds, err := a.humanClient()
+	client, _, err := a.humanClient()
 	if err != nil {
 		return err
 	}
@@ -246,8 +247,7 @@ func githubWorkspaceComplete(a *app, cmd *command) error {
 		return githubWorkspaceError(err)
 	}
 	if connection.Workspace != nil {
-		creds.SelectedWorkspace = connection.Workspace.TenantID
-		if err := a.Store.Write(creds); err != nil {
+		if err := a.Store.Update(credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = connection.Workspace.TenantID; return nil }); err != nil {
 			return err
 		}
 	}

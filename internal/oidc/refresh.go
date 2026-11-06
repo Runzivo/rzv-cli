@@ -120,10 +120,10 @@ func Revoke(ctx context.Context, issuerValue, clientID, refreshToken string, all
 		return unavailable("Identity provider revocation is unavailable.")
 	}
 	resp.Body.Close()
-	// RFC 7009: 200 for a revoked or unknown token; 400 invalid_grant style
-	// answers mean there was nothing left to revoke.
-	if resp.StatusCode >= 500 {
-		return unavailable("Identity provider revocation is unavailable.")
+	// RFC 7009: the provider answers 200 for a revoked or unknown token. Any
+	// other answer leaves the session's end unconfirmed.
+	if resp.StatusCode != http.StatusOK {
+		return unavailable("Identity provider did not confirm the revocation.")
 	}
 	return nil
 }

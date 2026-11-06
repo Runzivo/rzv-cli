@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/Runzivo/rzv-cli/internal/config"
-	"github.com/Runzivo/rzv-cli/internal/oidc"
 )
 
 const profilesUsage = `Usage: rzv profiles list [--json]
@@ -143,6 +142,11 @@ func profilesRemove(a *app, cmd *command) error {
 		return usageError("%s", err.Error())
 	}
 	store := a.Store.ForProfile(name)
+	unlock, err := store.Lock(credentialLockWait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	creds, err := store.Read()
 	if err != nil {
 		return err
@@ -153,8 +157,8 @@ func profilesRemove(a *app, cmd *command) error {
 	revoked := "Its session is ended."
 	if creds.RefreshToken == "" {
 		revoked = "Its session is not revoked; it expires as usual."
-	} else if err := oidc.Revoke(a.ctx, creds.Issuer, creds.ClientID, creds.RefreshToken, insecureLoopback(creds.Issuer), a.HTTPClient); err != nil {
-		revoked = "The identity provider could not be reached, so its session ends when it expires."
+	} else if !a.revokeStored(store) {
+		revoked = "The identity provider did not confirm the session ended, so it ends when it expires."
 	}
 	if err := store.Clear(); err != nil {
 		return err

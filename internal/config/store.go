@@ -158,11 +158,17 @@ func writeAtomic(path string, data []byte) error {
 		_ = os.Remove(tmp)
 		return fail
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fail
+	// Windows can refuse the replace briefly while another rzv reads the
+	// file, so retry before giving up.
+	var renameErr error
+	for attempt := 0; attempt < 10; attempt++ {
+		if renameErr = os.Rename(tmp, path); renameErr == nil {
+			return nil
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	return nil
+	_ = os.Remove(tmp)
+	return fail
 }
 
 // Clear removes the credentials file. A missing file is not an error.
@@ -183,37 +189,62 @@ func (s *Store) Clear() error {
 	return nil
 }
 
-// lockStale is how old a lock file must be before another process takes it
-// over: longer than any one token refresh, which is bounded by network
-// timeouts.
-const lockStale = 60 * time.Second
-
-// Lock takes this profile's credential lock, waiting up to wait. Only one
-// process at a time may spend a refresh token, because the identity provider
-// rotates it and refuses the old one. The returned function releases it.
+// Lock takes this profile's credential lock, waiting up to wait. It is an
+// operating-system file lock, so it is released when the process exits, even
+// when killed. Every change to the credentials file happens under it: the
+// identity provider rotates refresh tokens and refuses a spent one, so a
+// stale copy written back would end the session. The returned function
+// releases the lock.
 func (s *Store) Lock(wait time.Duration) (func(), error) {
-	fail := &StoreError{"local_state_unavailable", "Another rzv process is renewing the sign-in. Try again shortly."}
+	fail := &StoreError{"local_state_unavailable", "Another rzv process is using the sign-in. Try again shortly."}
 	path := s.path() + ".lock"
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fail
+	}
+	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
+		return nil, &StoreError{"local_state_invalid", "The rzv credential lock is not a regular file."}
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
 		return nil, fail
 	}
 	deadline := time.Now().Add(wait)
 	for {
-		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err == nil {
+		ok, err := tryLockFile(f)
+		if err != nil {
 			_ = f.Close()
-			return func() { _ = os.Remove(path) }, nil
-		}
-		if !errors.Is(err, fs.ErrExist) {
 			return nil, fail
 		}
-		if info, statErr := os.Lstat(path); statErr == nil && time.Since(info.ModTime()) > lockStale {
-			_ = os.Remove(path)
-			continue
+		if ok {
+			return func() { _ = unlockFile(f); _ = f.Close() }, nil
 		}
 		if time.Now().After(deadline) {
+			_ = f.Close()
 			return nil, fail
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(25 * time.Millisecond)
 	}
+}
+
+// Update changes the stored credentials under the lock: it reads the file
+// again, applies change and writes the result, so a field it does not change
+// (such as a refresh token another process just rotated) is kept.
+func (s *Store) Update(wait time.Duration, change func(*Credentials) error) error {
+	unlock, err := s.Lock(wait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	creds, err := s.Read()
+	if err != nil {
+		return err
+	}
+	if creds == nil {
+		return &StoreError{"authentication_required", "Sign in with `rzv login` first."}
+	}
+	if err := change(creds); err != nil {
+		return err
+	}
+	return s.Write(creds)
 }
