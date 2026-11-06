@@ -1,0 +1,65 @@
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_SOURCE_PROJECT_ID == $CI_PROJECT_ID'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_TAG =~ /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+    - when: never
+
+include:
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/job@$CI_COMMIT_SHA
+    inputs:
+      script:
+        - test "$(uname -s)" = Linux
+        - test "$(uname -m)" = x86_64
+        - mkdir -p .catalog-smoke
+        - printf '%s\n' 'default job passed' > .catalog-smoke/default.txt
+  - component: $CI_SERVER_FQDN/$CI_PROJECT_PATH/job@$CI_COMMIT_SHA
+    inputs:
+      job-name: custom
+      stage: build
+      script:
+        - mkdir -p .catalog-smoke
+        - printf '%s\n' 'custom job passed' > .catalog-smoke/custom.txt
+
+stages: [build, test, verify, release]
+
+runzivo-test:
+  artifacts:
+    paths: [.catalog-smoke/default.txt]
+    expire_in: 1 day
+
+runzivo-custom:
+  artifacts:
+    paths: [.catalog-smoke/custom.txt]
+    expire_in: 1 day
+
+verify-component-results:
+  stage: verify
+  inherit:
+    default: false
+  tags: [runzivo]
+  needs:
+    - job: runzivo-test
+      artifacts: true
+    - job: runzivo-custom
+      artifacts: true
+  script:
+    - sh tests/check-results.sh
+
+# Release tooling needs a container-capable runner. The runzivo Custom
+# executor does not accept image or services declarations.
+publish-catalog-release:
+  stage: release
+  tags: [saas-linux-small-amd64]
+  image:
+    name: registry.gitlab.com/gitlab-org/cli@sha256:f6837b5aea075ca297281b554556d2fc4f8fb291ace6b48286790790dce622cd
+    entrypoint: [""]
+  needs: [verify-component-results]
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/'
+  script:
+    - glab --version
+  release:
+    tag_name: $CI_COMMIT_TAG
+    name: Runzivo CI component $CI_COMMIT_TAG
+    description: Tested Runzivo job component from $CI_COMMIT_SHA.
