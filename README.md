@@ -2,6 +2,10 @@
 
 `rzv` is the Runzivo command-line tool. It signs you in, lists your Runzivo workspaces and shows the status of your jobs.
 
+[![CI](https://github.com/Runzivo/rzv-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Runzivo/rzv-cli/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/Runzivo/rzv-cli?display_name=release&label=release)](https://github.com/Runzivo/rzv-cli/releases/latest) [![License](https://img.shields.io/badge/license-Runzivo%20rzv-blue)](LICENSE)
+
+<img src="assets/demo.gif" width="1200" alt="Animated demo of the Runzivo rzv CLI in a terminal panel: the curl install, rzv login --workspace and rzv whoami, then rzv sandboxes create with size 2vcpu-8gb, ssh-config --write and ssh running uname -sm (Linux x86_64) and writing /workspace/hello.txt, rzv sandboxes get showing running, 7h 59m left and 0.7 min of credits, stop, start followed by ssh showing hello.txt was kept, and delete. The sandbox ID shown is a placeholder." />
+
 This repository holds the source code of `rzv` (Go), its release notes and its releases. It is public so you can read the code you run; it does not accept outside contributions.
 
 ## Install
