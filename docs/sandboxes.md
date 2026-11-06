@@ -22,6 +22,7 @@ A sandbox shows `cleanup pending` (`cleanup_pending` in JSON) when it expired or
 ```sh
 rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib 20] [--lifetime 8h|12h|24h]
 rzv sandboxes list                       # status, lifetime, expiry, time left and credits used
+rzv sandboxes sizes                      # every size: vCPU, RAM, rate, plan and availability
 rzv sandboxes get <sandbox-id>
 rzv sandboxes stop <sandbox-id>          # keeps the files until expiry, stops the charge
 rzv sandboxes start <sandbox-id>
@@ -39,6 +40,7 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [VS Code and Cursor](editors.md)                | Remote SSH editors in `/workspace`                |
 | [Terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`         |
 | [Herdr](herdr.md)                               | Agent panes that outlive the SSH connection       |
+| [Sizes and plans](sandbox-sizes.md)             | `rzv sandboxes sizes`, plan limits and availability |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
 | [OpenCode](opencode.md)                         | Run OpenCode with your own AI provider key        |
 | [Claude Code](claude-code.md)                   | Run Claude Code with your own key or Claude login |

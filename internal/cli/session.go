@@ -349,7 +349,7 @@ func apiError(err error, notFound string) error {
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_wrong_state":
 		return newError(apiErr.Code, exitFailure, "The sandbox is not in a state that allows this. Check `rzv sandboxes list`.")
 	case apiErr.Status == 409 && apiErr.Code == "size_unavailable":
-		return newError(apiErr.Code, exitFailure, "That size is not offered on this Runzivo environment. `rzv sandboxes list` shows the sizes on offer.")
+		return newError(apiErr.Code, exitFailure, "That size is not offered on this Runzivo environment. `rzv sandboxes sizes` shows the sizes on offer.")
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_expired":
 		return newError(apiErr.Code, exitFailure, "The sandbox reached its lifetime and cannot start again. Create a new one.")
 	case apiErr.Status == 400 && apiErr.Code == "invalid_lifetime":
