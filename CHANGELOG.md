@@ -2,10 +2,11 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
-## Unreleased
+## release-2026-11-06-151513 (rzv 0.26.0), 2026-11-06
 
 ### Added
 
+- Plan limits below are awaiting rollout: Runzivo does not enforce them yet, and until it does every size shows as `included`.
 - Custom runner profiles are limited by plan: up to 4 vCPU on Free and Developer, 16 on Team, 32 on Business, custom on Enterprise. `rzv runners availability` shows the plan of each shape (`included` or the plan name, marked locked) apart from regional availability, a table of every vCPU option with its plan, and an upgrade hint for locked sizes. `--json` passes through `plan_eligible`, `required_plan` and `vcpu_options`. `rzv runners profiles create` for a size your plan does not allow now says which plan it needs and where to upgrade (exit code 4), or to contact Runzivo for the Enterprise plan. See [Custom runner profiles](docs/custom-runner-profiles.md).
 - `rzv sandboxes sizes` shows every sandbox size with its vCPU, RAM, equivalent-minute rate, the plan it needs (`included` or the plan name, marked locked) and its regional availability, with an upgrade hint for locked sizes. `rzv sandboxes list --json` and `sizes --json` pass the new `size_availability` fields through. Creating a size your plan does not allow now says which plan it needs and where to upgrade (exit code 4), or to contact Runzivo for the Enterprise plan. See [Sandbox sizes and plans](docs/sandbox-sizes.md).
 - [Claude Code in a sandbox](docs/claude-code.md): use the preinstalled Claude Code with your own Anthropic API key or Claude subscription login. The key or login stays in the sandbox; a stop and start keeps it, and expiry or deletion removes it. Runzivo charges only the sandbox's compute.
