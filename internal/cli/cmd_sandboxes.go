@@ -124,7 +124,7 @@ func runSandboxes(a *app, cmd *command) error {
 const guestSyncTimeout = 20 * time.Second
 
 // syncBeforeStop flushes the sandbox's file system to its disks right before a
-// stop, until Core does this itself (rzv-core #826): today a stop can lose
+// stop, until the Runzivo service does this itself: today a stop can lose
 // writes from the last few seconds. It is best effort. On failure it prints a
 // warning and the stop goes ahead. It runs from / so it does not wait for
 // /workspace.
