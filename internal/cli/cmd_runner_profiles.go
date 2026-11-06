@@ -289,10 +289,10 @@ func statusText(table map[string]string, status string) string {
 
 func (a *app) renderAvailability(workspaceID string, availability *api.CustomRunnerAvailability) string {
 	answers := availability.Shapes
-	if len(answers) == 0 {
-		return "No custom runner profiles in workspace " + display(workspaceID) + ". Check a shape with --vcpu and --mem-gib."
-	}
 	lines := []string{"Runner availability for workspace " + display(workspaceID) + ":"}
+	if len(answers) == 0 {
+		lines = []string{"No custom runner profiles in workspace " + display(workspaceID) + ". Check a shape with --vcpu and --mem-gib."}
+	}
 	for _, answer := range answers {
 		name := shapeText(answer.VCPU, answer.MemGiB, answer.DiskGiB)
 		if answer.WorkflowLabel != "" {

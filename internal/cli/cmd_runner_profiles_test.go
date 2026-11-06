@@ -336,3 +336,32 @@ func TestRunnerProfileCreatePlanRequiredNamesThePlan(t *testing.T) {
 		}
 	}
 }
+
+func TestRunnerAvailabilityEmptyShapesStillShowsPlans(t *testing.T) {
+	h := selectedHarness(t)
+	h.json(runnerAvailabilityPath, 200, `{"shapes":[],"vcpu_options":[{"vcpu":2,"plan_eligible":true,"required_plan":"free"},{"vcpu":8,"plan_eligible":false,"required_plan":"team"},{"vcpu":32,"plan_eligible":false,"required_plan":"enterprise"}]}`)
+	code, out, errOut := h.run("runners", "availability")
+	if code != 0 || errOut != "" {
+		t.Fatalf("empty shapes: %d %q %q", code, out, errOut)
+	}
+	for _, text := range []string{
+		"No custom runner profiles in workspace t-1. Check a shape with --vcpu and --mem-gib.",
+		"VCPU  PLAN",
+		"8     Team (locked)",
+		"Locked: 8 vCPU needs the Team plan. Upgrade in the Runzivo portal under Settings, Billing.",
+		"Locked: 32 vCPU needs the Enterprise plan. Contact Runzivo.",
+	} {
+		if !strings.Contains(out, text) {
+			t.Errorf("output lacks %q:\n%s", text, out)
+		}
+	}
+	if strings.Contains(out, "Runner availability for workspace") {
+		t.Errorf("empty answer printed the shapes header:\n%s", out)
+	}
+	// An old server with no shapes and no options keeps the one sentence.
+	h.json(runnerAvailabilityPath, 200, `{"shapes":[]}`)
+	_, out, _ = h.run("runners", "availability")
+	if strings.TrimSpace(out) != "No custom runner profiles in workspace t-1. Check a shape with --vcpu and --mem-gib." {
+		t.Errorf("old server empty = %q", out)
+	}
+}
