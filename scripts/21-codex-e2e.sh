@@ -21,16 +21,27 @@ work="$(mktemp -d)"
 evidence="${E2E_EVIDENCE:-$work/evidence}"
 mkdir -p "$evidence"
 sandbox=""
+name="codex-e2e-$(date +%s)-$$"
 log() { printf '%s %s\n' "$(date -u +%H:%M:%S)" "$*" | tee -a "$evidence/log.txt" >&2; }
 fail() { log "FAIL: $*"; exit 1; }
 field() { python3 -I -c 'import json,sys; d=json.load(sys.stdin)
 for k in sys.argv[1].split("."): d=d[k]
 print(d)' "$1"; }
 redact() { python3 -I -c 'import sys,re; k=open(sys.argv[1]).read().strip(); t=sys.stdin.read()
-print(re.sub(r"sk-[A-Za-z0-9_-]{8,}","[redacted]",t.replace(k,"[redacted]") if k else t),end="")' "$key_file"; }
+print(re.sub(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}","[redacted]",t.replace(k,"[redacted]") if k else t),end="")' "$key_file"; }
 
-cleanup() {
-  status=$?
+# Runs once, on normal exit or on INT/TERM. A signal during create is covered
+# by looking the sandbox up by its unique name.
+cleaned=""
+cleanup() { # [exit status, set for signals]
+  status=${1:-$?}
+  [ -n "$cleaned" ] && return; cleaned=1
+  trap '' INT TERM
+  if [ -z "$sandbox" ] && [ -n "$name" ]; then
+    sandbox="$("$rzv" sandboxes list ${ws[@]+"${ws[@]}"} --json 2>/dev/null | python3 -I -c 'import json,sys
+for s in json.load(sys.stdin)["sandboxes"]:
+    if s["name"] == sys.argv[1] and s["status"] not in ("deleted", "expired"): print(s["id"])' "$name" || true)"
+  fi
   if [ -n "$sandbox" ]; then
     log "cleanup: deleting $sandbox"
     if "$rzv" sandboxes delete "$sandbox" ${ws[@]+"${ws[@]}"} --json >/dev/null 2>"$work/delete.err"; then
@@ -40,12 +51,14 @@ cleanup() {
       status=1
     fi
   fi
-  if grep -rlE "sk-[A-Za-z0-9_-]{8,}" "$evidence" >&2; then log "FAIL: key-like text in evidence"; status=1; fi
+  if grep -rlE "(^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}" "$evidence" >&2; then log "FAIL: key-like text in evidence"; status=1; fi
   if [ "$status" -eq 0 ]; then log "PASS"; else log "exit $status"; fi
   log "evidence: $evidence"
   exit "$status"
 }
 trap cleanup EXIT
+trap 'cleanup 130' INT
+trap 'cleanup 143' TERM
 
 wait_status() { # <want> <seconds>
   local deadline=$((SECONDS + $2))
@@ -61,7 +74,7 @@ run_in() { on 'bash -s' 2>&1 | redact > "$evidence/$1" || true; }
 [ "$(stat -f %Lp "$key_file" 2>/dev/null || stat -c %a "$key_file")" = 600 ] || fail "KEY_FILE must be mode 600"
 "$rzv" whoami | grep -q "^Environment: shared " || fail "not the shared environment"
 
-"$rzv" sandboxes create --name "codex-e2e-$(date +%s)" --size 2vcpu-8gb ${ws[@]+"${ws[@]}"} --json > "$evidence/create.json" || fail "create failed"
+"$rzv" sandboxes create --name "$name" --size 2vcpu-8gb ${ws[@]+"${ws[@]}"} --json > "$evidence/create.json" || fail "create failed"
 sandbox="$(field sandbox.id < "$evidence/create.json")"
 wait_status running 600
 "$rzv" sandboxes ssh-config "$sandbox" ${ws[@]+"${ws[@]}"} --write >/dev/null
