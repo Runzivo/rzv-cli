@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- [Cursor Cloud Agents on a sandbox](docs/cursor-worker.md): run a Cursor Self-Hosted Machines worker in a sandbox with your own Cursor user API key. The key is sent over SSH into an owner-only file outside `/workspace`. Runzivo charges only the sandbox's compute. Not yet verified with a live Cursor account.
+
 ## release-2026-11-06-113624 (rzv 0.25.0), 2026-11-06
 
 ### Added
