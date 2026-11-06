@@ -19,7 +19,11 @@ export PATH="$HOME/.local/bin:$PATH"
 opencode --version   # 1.19.5
 ```
 
-For a newer release, take its version and the `sha256` digest of `opencode-linux-x64.tar.gz` from the [releases page](https://github.com/anomalyco/opencode/releases). Files outside `/workspace` are removed when a sandbox stops, so install again in each new sandbox and after each `start`. A later sandbox image will come with OpenCode installed. Once your sandboxes use that image, skip this step.
+For a newer release, take its version and the `sha256` digest of `opencode-linux-x64.tar.gz` from the [releases page](https://github.com/anomalyco/opencode/releases).
+
+## After a stop and start
+
+At the moment a stop and start removes every file outside `/workspace`: the OpenCode install, `~/.config/opencode` and any key you saved. After each `start`, and in each new sandbox, install OpenCode and add your key again. A later sandbox image will come with OpenCode installed, so you will only need to add your key again.
 
 ## Add your key
 
@@ -30,11 +34,9 @@ read -rs ANTHROPIC_API_KEY && export ANTHROPIC_API_KEY   # paste, then Enter
 opencode                                                  # or: opencode run -m anthropic/<model> "..."
 ```
 
-The key lasts only as long as that shell. Use `OPENAI_API_KEY` for OpenAI. Once a key is set, `opencode models <provider>` lists that provider's models. To keep a key across sessions, run `opencode auth login` (or `/connect` in OpenCode). OpenCode then saves the key in `~/.local/share/opencode/auth.json` in the sandbox. The file is removed when the sandbox stops, expires or is deleted. `opencode auth logout` removes it sooner.
+The key lasts only as long as that shell. Use `OPENAI_API_KEY` for OpenAI. Once a key is set, `opencode models <provider>` lists that provider's models. To use the key in other shells while the sandbox runs, run `opencode auth login` (or `/connect` in OpenCode). OpenCode then saves it in `~/.local/share/opencode/auth.json` in the sandbox. A stop, expiry or deletion removes that file; `opencode auth logout` removes it sooner. Never put a key in `/workspace`.
 
-To copy a key from a password manager, pipe it over SSH, which is encrypted from your computer to the sandbox:
-
-This needs the SSH alias from `rzv sandboxes ssh-config <sandbox-id> --write` ([SSH](sandboxes-ssh.md)).
+To copy a key from a password manager, pipe it over SSH, which is encrypted from your computer to the sandbox. This needs the SSH alias from `rzv sandboxes ssh-config <sandbox-id> --write` ([SSH](sandboxes-ssh.md)):
 
 ```sh
 <password-manager-command> | ssh <sandbox-id>.rzv 'umask 077; mkdir -p ~/.config/opencode && cat > ~/.config/opencode/anthropic.key'
