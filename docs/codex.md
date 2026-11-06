@@ -10,7 +10,7 @@ Connect once with `rzv sandboxes ssh-config <sandbox-id> --write` ([SSH](sandbox
 <password-manager-command> | ssh <sandbox-id>.rzv 'codex login --with-api-key'
 ```
 
-With a ChatGPT plan, run `codex login --device-auth` in the sandbox (`rzv sandboxes ssh <sandbox-id>`). Open the link it prints on your computer and enter the code. OpenAI calls device code sign-in beta. It must be turned on in your ChatGPT security settings, or by your workspace admin.
+With a ChatGPT plan, run `codex login --device-auth` in the sandbox (`rzv sandboxes ssh <sandbox-id>`). Open the link it prints on your computer and enter the code. OpenAI calls device code sign-in [beta](https://learn.chatgpt.com/docs/auth#login-on-headless-devices). It must be turned on in your ChatGPT security settings, or by your workspace admin.
 
 Either way, Codex saves the sign-in in `~/.codex/auth.json` in the sandbox. Treat that file like a password, and never copy it into `/workspace`. `codex login status` shows how you are signed in.
 
