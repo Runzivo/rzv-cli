@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ type harness struct {
 	routes   map[string]http.HandlerFunc
 	store    *config.Store
 	env      map[string]string
+	mu       sync.Mutex // guards seenAuth; parallel runs hit the fake API at once
 	seenAuth []string
 }
 
@@ -30,8 +32,10 @@ func newHarness(t *testing.T) *harness {
 	h := &harness{t: t, provider: oidctest.New(t), routes: map[string]http.HandlerFunc{}, env: map[string]string{}}
 	h.store = &config.Store{Dir: t.TempDir()}
 	h.api = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.mu.Lock()
 		h.seenAuth = append(h.seenAuth, r.Header.Get("Authorization"))
 		route, ok := h.routes[r.Method+" "+r.URL.Path]
+		h.mu.Unlock()
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"error":{"code":"not_found"}}`))

@@ -108,6 +108,13 @@ func (p *Provider) ValidRefreshTokens() int {
 	return n
 }
 
+// Counts returns RefreshCalls and Revocations under the provider's lock.
+func (p *Provider) Counts() (refreshes, revocations int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.RefreshCalls, p.Revocations
+}
+
 // EndSession makes every refresh token stop working, as an expired or
 // revoked session does.
 func (p *Provider) EndSession() {

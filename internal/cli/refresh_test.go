@@ -53,8 +53,8 @@ func TestExpiredAccessTokenRenewsSilently(t *testing.T) {
 		t.Fatalf("renewal: %d %q", code, errOut)
 	}
 	creds, _ := h.store.Read()
-	if h.provider.RefreshCalls != 1 || creds.AccessToken == old.AccessToken || creds.RefreshToken == old.RefreshToken || creds.RefreshExpiresAt.IsZero() {
-		t.Fatalf("tokens not rotated: %d calls", h.provider.RefreshCalls)
+	if refreshes(h) != 1 || creds.AccessToken == old.AccessToken || creds.RefreshToken == old.RefreshToken || creds.RefreshExpiresAt.IsZero() {
+		t.Fatalf("tokens not rotated: %d calls", refreshes(h))
 	}
 	if strings.Contains(out+errOut, creds.RefreshToken) || strings.Contains(out+errOut, old.RefreshToken) || strings.Contains(out+errOut, creds.AccessToken) {
 		t.Fatal("a token was printed")
@@ -63,8 +63,8 @@ func TestExpiredAccessTokenRenewsSilently(t *testing.T) {
 		t.Fatalf("credentials file mode %v", mode)
 	}
 	// A fresh token is used as it is, with no second refresh.
-	if code, _, _ := h.run("workspaces", "list"); code != 0 || h.provider.RefreshCalls != 1 {
-		t.Fatalf("refreshed again: %d calls", h.provider.RefreshCalls)
+	if code, _, _ := h.run("workspaces", "list"); code != 0 || refreshes(h) != 1 {
+		t.Fatalf("refreshed again: %d calls", refreshes(h))
 	}
 }
 
@@ -90,8 +90,8 @@ func TestConcurrentRunsRefreshOnce(t *testing.T) {
 			t.Fatalf("run %d exit %d", i, code)
 		}
 	}
-	if h.provider.RefreshCalls != 1 || h.provider.ValidRefreshTokens() != 1 {
-		t.Fatalf("refresh calls %d, valid tokens %d", h.provider.RefreshCalls, h.provider.ValidRefreshTokens())
+	if refreshes(h) != 1 || h.provider.ValidRefreshTokens() != 1 {
+		t.Fatalf("refresh calls %d, valid tokens %d", refreshes(h), h.provider.ValidRefreshTokens())
 	}
 }
 
@@ -108,8 +108,8 @@ func TestEndedSessionAsksForLoginAndKeepsProfile(t *testing.T) {
 	if err != nil || creds == nil || creds.RefreshToken != "" || creds.APIBaseURL != before.APIBaseURL || creds.Issuer != before.Issuer {
 		t.Fatalf("profile after an ended session: %+v %v", creds, err)
 	}
-	calls := h.provider.RefreshCalls
-	if code, _, _ := h.run("workspaces", "list"); code != exitAuth || h.provider.RefreshCalls != calls {
+	calls := refreshes(h)
+	if code, _, _ := h.run("workspaces", "list"); code != exitAuth || refreshes(h) != calls {
 		t.Fatal("an ended session was retried")
 	}
 }
@@ -131,8 +131,8 @@ func TestLogoutRevokesTheSession(t *testing.T) {
 	if code, _, errOut := h.run("logout"); code != 0 {
 		t.Fatal(errOut)
 	}
-	if h.provider.Revocations != 1 || h.provider.ValidRefreshTokens() != 0 {
-		t.Fatalf("revocations %d, valid %d", h.provider.Revocations, h.provider.ValidRefreshTokens())
+	if revocations(h) != 1 || h.provider.ValidRefreshTokens() != 0 {
+		t.Fatalf("revocations %d, valid %d", revocations(h), h.provider.ValidRefreshTokens())
 	}
 	if c, _ := h.store.Read(); c != nil {
 		t.Fatal("credentials kept after logout")
@@ -209,8 +209,8 @@ func TestLogoutWaitsForARefreshInFlight(t *testing.T) {
 		t.Fatal("logout removed the file while another process held the lock")
 	}
 	unlock()
-	if code := <-done; code != 0 || h.provider.Revocations != 1 {
-		t.Fatalf("logout after the lock: %d, %d revocations", code, h.provider.Revocations)
+	if code := <-done; code != 0 || revocations(h) != 1 {
+		t.Fatalf("logout after the lock: %d, %d revocations", code, revocations(h))
 	}
 }
 
@@ -229,3 +229,6 @@ func TestSelectingAWorkspaceKeepsARotatedToken(t *testing.T) {
 		t.Fatalf("select wrote a stale token back: %+v", after)
 	}
 }
+
+func refreshes(h *harness) int   { n, _ := h.provider.Counts(); return n }
+func revocations(h *harness) int { _, n := h.provider.Counts(); return n }
