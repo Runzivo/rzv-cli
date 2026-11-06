@@ -197,3 +197,142 @@ func TestRunnerProfilesRefusalsAndJSON(t *testing.T) {
 		}
 	}
 }
+
+const runnerAvailabilityPath = "GET /v1/customer/tenants/t-1/custom-runner-profiles/availability"
+
+// planGatedAvailability is a Free workspace: 2 and 4 vCPU are included, 8 and
+// 16 need Team and Business, 32 needs Enterprise. The 8 vCPU shape is also
+// busy, to show plan and capacity are separate answers.
+const planGatedAvailability = `{"shapes":[
+{"workflow_label":"env-rzv-small","vcpu":4,"mem_gib":8,"disk_gib":16,"status":"available","overcommitted":false,"regions":[],"plan_eligible":true,"required_plan":"free"},
+{"vcpu":8,"mem_gib":16,"disk_gib":16,"status":"busy","overcommitted":false,"regions":[],"plan_eligible":false,"required_plan":"team"}],
+"vcpu_options":[
+{"vcpu":2,"plan_eligible":true,"required_plan":"free"},
+{"vcpu":4,"plan_eligible":true,"required_plan":"free"},
+{"vcpu":8,"plan_eligible":false,"required_plan":"team"},
+{"vcpu":16,"plan_eligible":false,"required_plan":"business"},
+{"vcpu":32,"plan_eligible":false,"required_plan":"enterprise"}]}`
+
+func TestRunnerAvailabilityShowsLockedAndIncludedPlans(t *testing.T) {
+	h := selectedHarness(t)
+	h.json(runnerAvailabilityPath, 200, planGatedAvailability)
+	code, out, errOut := h.run("runners", "availability")
+	if code != 0 || errOut != "" {
+		t.Fatalf("availability: %d %q %q", code, out, errOut)
+	}
+	for _, text := range []string{
+		"- env-rzv-small (4 vCPU, 8 GiB memory, 16 GiB disk): Available now; rate -; plan: included",
+		"- 8 vCPU, 16 GiB memory, 16 GiB disk: Busy - jobs will queue; rate -; plan: Team (locked)",
+		// The test harness API is not a Runzivo environment, so the hint names
+		// the portal page instead of a link.
+		"Locked: 8 vCPU needs the Team plan; 16 vCPU needs the Business plan. Upgrade in the Runzivo portal under Settings, Billing.",
+		"Locked: 32 vCPU needs the Enterprise plan. Contact Runzivo.",
+	} {
+		if !strings.Contains(out, text) {
+			t.Errorf("output lacks %q:\n%s", text, out)
+		}
+	}
+	rows := map[string]string{}
+	for _, line := range strings.Split(out, "\n") {
+		if fields := strings.Fields(line); len(fields) >= 2 && !strings.HasPrefix(line, "-") && !strings.HasPrefix(line, " ") {
+			rows[fields[0]] = strings.Join(fields[1:], " ")
+		}
+	}
+	for vcpu, plan := range map[string]string{"VCPU": "PLAN", "2": "included", "4": "included", "8": "Team (locked)", "16": "Business (locked)", "32": "Enterprise (locked)"} {
+		if rows[vcpu] != plan {
+			t.Errorf("vCPU table row %s = %q, want %q", vcpu, rows[vcpu], plan)
+		}
+	}
+}
+
+func TestRunnerAvailabilityUnlockedHasNoHint(t *testing.T) {
+	h := selectedHarness(t)
+	h.json(runnerAvailabilityPath, 200, `{"shapes":[{"vcpu":4,"mem_gib":8,"disk_gib":16,"status":"available","overcommitted":false,"regions":[],"plan_eligible":true,"required_plan":null}],"vcpu_options":[{"vcpu":2,"plan_eligible":true,"required_plan":null},{"vcpu":4,"plan_eligible":true,"required_plan":null}]}`)
+	code, out, _ := h.run("runners", "availability")
+	if code != 0 || strings.Contains(out, "Locked") || strings.Contains(out, "Upgrade") || !strings.Contains(out, "plan: included") {
+		t.Fatalf("unlocked: %d %q", code, out)
+	}
+}
+
+func TestRunnerAvailabilityOldServerHasNoPlanColumn(t *testing.T) {
+	h := selectedHarness(t)
+	h.json(runnerAvailabilityPath, 200, `{"shapes":[{"vcpu":4,"mem_gib":8,"disk_gib":16,"status":"available","overcommitted":false,"regions":[]}]}`)
+	code, out, _ := h.run("runners", "availability")
+	if code != 0 || strings.Contains(out, "plan") || strings.Contains(out, "Locked") || strings.Contains(out, "VCPU") {
+		t.Fatalf("old server: %d %q", code, out)
+	}
+	code, out, _ = h.run("runners", "availability", "--json")
+	var got map[string]json.RawMessage
+	if code != 0 || json.Unmarshal([]byte(out), &got) != nil {
+		t.Fatalf("old server --json: %d %q", code, out)
+	}
+	if _, has := got["vcpu_options"]; has {
+		t.Errorf("an old server's output invented vcpu_options: %q", out)
+	}
+	if strings.Contains(out, "plan_eligible") || strings.Contains(out, "required_plan") {
+		t.Errorf("an old server's output invented plan fields: %q", out)
+	}
+}
+
+func TestRunnerAvailabilityJSONPassesPlanFieldsThrough(t *testing.T) {
+	h := selectedHarness(t)
+	h.json(runnerAvailabilityPath, 200, planGatedAvailability)
+	code, out, _ := h.run("runners", "availability", "--json")
+	var got struct {
+		Shapes []struct {
+			PlanEligible bool    `json:"plan_eligible"`
+			RequiredPlan *string `json:"required_plan"`
+		} `json:"shapes"`
+		VCPUOptions []struct {
+			VCPU         int     `json:"vcpu"`
+			PlanEligible bool    `json:"plan_eligible"`
+			RequiredPlan *string `json:"required_plan"`
+		} `json:"vcpu_options"`
+	}
+	if code != 0 || json.Unmarshal([]byte(out), &got) != nil || len(got.Shapes) != 2 || len(got.VCPUOptions) != 5 {
+		t.Fatalf("--json: %d %q", code, out)
+	}
+	if !got.Shapes[0].PlanEligible || got.Shapes[1].PlanEligible || got.Shapes[1].RequiredPlan == nil || *got.Shapes[1].RequiredPlan != "team" {
+		t.Errorf("shapes = %+v", got.Shapes)
+	}
+	last := got.VCPUOptions[4]
+	if last.VCPU != 32 || last.PlanEligible || last.RequiredPlan == nil || *last.RequiredPlan != "enterprise" {
+		t.Errorf("last vcpu option = %+v", last)
+	}
+}
+
+func TestRunnerAvailabilityHintsFromShapesWithoutOptions(t *testing.T) {
+	h := selectedHarness(t)
+	h.json(runnerAvailabilityPath, 200, `{"shapes":[{"workflow_label":"env-rzv-wide","vcpu":16,"mem_gib":32,"disk_gib":16,"status":"available","overcommitted":false,"regions":[],"plan_eligible":false,"required_plan":"business"}]}`)
+	code, out, _ := h.run("runners", "availability")
+	if code != 0 || !strings.Contains(out, "plan: Business (locked)") || !strings.Contains(out, "Locked: env-rzv-wide needs the Business plan.") || strings.Contains(out, "VCPU") {
+		t.Fatalf("shapes only: %d %q", code, out)
+	}
+}
+
+func TestRunnerProfileCreatePlanRequiredNamesThePlan(t *testing.T) {
+	h := selectedHarness(t)
+	createArgs := []string{"runners", "profiles", "create", "--name", "Wide", "--label", "rzv-wide", "--vcpu", "16", "--mem-gib", "32"}
+	for _, c := range []struct {
+		body string
+		want []string
+	}{
+		{`{"error":{"code":"plan_required","required_plan":"team","message":"x","message_fr_CA":"y"}}`, []string{"A 16 vCPU runner profile needs the Team plan.", "Upgrade"}},
+		{`{"error":{"code":"plan_required","required_plan":"enterprise"}}`, []string{"A 16 vCPU runner profile needs the Enterprise plan. Contact Runzivo."}},
+		{`{"error":{"code":"plan_required","required_plan":null}}`, []string{"A 16 vCPU runner profile is not included in this workspace's plan"}},
+	} {
+		h.json("POST /v1/customer/tenants/t-1/custom-runner-profiles", 403, c.body)
+		code, out, errOut := h.run(createArgs...)
+		if code != exitAccessDenied || out != "" {
+			t.Errorf("%s: exit %d out %q err %q", c.body, code, out, errOut)
+		}
+		for _, text := range c.want {
+			if !strings.Contains(errOut, text) {
+				t.Errorf("%s: stderr %q lacks %q", c.body, errOut, text)
+			}
+		}
+		if strings.Contains(errOut, "not authorized") {
+			t.Errorf("%s: raw 403 message leaked: %q", c.body, errOut)
+		}
+	}
+}

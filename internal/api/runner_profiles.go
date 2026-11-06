@@ -62,6 +62,31 @@ type CustomRunnerShapeAvailability struct {
 	Reason        string                           `json:"reason,omitempty"`
 	Overcommitted bool                             `json:"overcommitted"`
 	Regions       []CustomRunnerRegionAvailability `json:"regions"`
+	PlanEligible  *bool                            `json:"plan_eligible,omitempty"`
+	RequiredPlan  *string                          `json:"required_plan,omitempty"`
+}
+
+// Locked reports a shape the workspace's plan does not allow creating. A
+// server that sends no plan fields never locks one.
+func (s CustomRunnerShapeAvailability) Locked() bool {
+	return s.PlanEligible != nil && !*s.PlanEligible
+}
+
+// CustomRunnerVCPUOption is the plan answer for one vCPU option.
+type CustomRunnerVCPUOption struct {
+	VCPU         int64   `json:"vcpu"`
+	PlanEligible *bool   `json:"plan_eligible,omitempty"`
+	RequiredPlan *string `json:"required_plan,omitempty"`
+}
+
+// Locked reports a vCPU option the workspace's plan does not allow creating.
+func (o CustomRunnerVCPUOption) Locked() bool { return o.PlanEligible != nil && !*o.PlanEligible }
+
+// CustomRunnerAvailability is the availability answer: the shapes, and the
+// vCPU options with their plan answers (empty from a server that sends none).
+type CustomRunnerAvailability struct {
+	Shapes      []CustomRunnerShapeAvailability
+	VCPUOptions []CustomRunnerVCPUOption
 }
 
 func customRunnerProfilesPath(tenantID, rest string) string {
@@ -112,7 +137,7 @@ func (c *Client) ArchiveCustomRunnerProfile(ctx context.Context, tenantID, profi
 // CustomRunnerProfileAvailability calls
 // getCustomerCustomRunnerProfileAvailability: shape nil answers every live
 // profile.
-func (c *Client) CustomRunnerProfileAvailability(ctx context.Context, tenantID string, shape *RunnerShape) ([]CustomRunnerShapeAvailability, error) {
+func (c *Client) CustomRunnerProfileAvailability(ctx context.Context, tenantID string, shape *RunnerShape) (*CustomRunnerAvailability, error) {
 	var query url.Values
 	if shape != nil {
 		query = url.Values{
@@ -122,7 +147,8 @@ func (c *Client) CustomRunnerProfileAvailability(ctx context.Context, tenantID s
 		}
 	}
 	var body struct {
-		Shapes *[]CustomRunnerShapeAvailability `json:"shapes"`
+		Shapes      *[]CustomRunnerShapeAvailability `json:"shapes"`
+		VCPUOptions []CustomRunnerVCPUOption         `json:"vcpu_options"`
 	}
 	if err := c.do(ctx, http.MethodGet, customRunnerProfilesPath(tenantID, "/availability"), query, nil, &body); err != nil {
 		return nil, err
@@ -135,5 +161,5 @@ func (c *Client) CustomRunnerProfileAvailability(ctx context.Context, tenantID s
 			return nil, err
 		}
 	}
-	return *body.Shapes, nil
+	return &CustomRunnerAvailability{Shapes: *body.Shapes, VCPUOptions: body.VCPUOptions}, nil
 }
