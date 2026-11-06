@@ -42,6 +42,6 @@ At the moment a stop and start removes every file outside `/workspace`: `~/.code
 
 - The sandbox needs outbound HTTPS to OpenAI.
 - Codex can run commands and change files in the sandbox. Review what it does before you push.
-- `scripts/21-codex-e2e.sh` runs these steps against one sandbox on the shared test environment and deletes it afterwards.
+- `scripts/21-codex-e2e.sh` runs these steps against one sandbox and deletes it afterwards.
 
 Back to [Sandboxes](sandboxes.md).
