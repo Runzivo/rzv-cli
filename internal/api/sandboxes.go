@@ -80,7 +80,7 @@ type SandboxSize struct {
 	MemMiB                     *int    `json:"mem_mib,omitempty"`
 	EquivalentMinutesPerMinute string  `json:"equivalent_minutes_per_minute,omitempty"`
 	PlanEligible               *bool   `json:"plan_eligible,omitempty"`
-	RequiredPlan               *string `json:"required_plan"`
+	RequiredPlan               *string `json:"required_plan,omitempty"`
 }
 
 // Locked reports a size the workspace's plan does not allow creating.

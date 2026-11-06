@@ -72,7 +72,7 @@ func (a *app) sandboxCreateError(err error, size string) error {
 	}
 	switch apiErr.RequiredPlan {
 	case "enterprise":
-		return newError(apiErr.Code, exitAccessDenied, "%s is above the limit set for this workspace. Contact Runzivo to change it.", display(size))
+		return newError(apiErr.Code, exitAccessDenied, "%s needs the Enterprise plan. Contact Runzivo.", display(size))
 	case "":
 		return newError(apiErr.Code, exitAccessDenied, "%s is not included in this workspace's plan. %s", display(size), a.upgradeHint())
 	}
@@ -175,12 +175,12 @@ func (a *app) renderSandboxSizes(rows []api.SandboxSize) string {
 		fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\n", display(s.Size), sizeVCPU(s), sizeRAM(s), sizeRate(s), sizePlan(s), sizeStatus(s))
 	}
 	_ = table.Flush()
-	var locked, custom []string
+	var locked, enterprise []string
 	for _, s := range rows {
 		switch {
 		case !s.Locked():
 		case s.RequiredPlan != nil && *s.RequiredPlan == "enterprise":
-			custom = append(custom, display(s.Size))
+			enterprise = append(enterprise, display(s.Size)+" needs the Enterprise plan")
 		default:
 			text := display(s.Size)
 			if s.RequiredPlan != nil && *s.RequiredPlan != "" {
@@ -194,8 +194,8 @@ func (a *app) renderSandboxSizes(rows []api.SandboxSize) string {
 	if len(locked) > 0 {
 		fmt.Fprintf(&out, "\nLocked: %s. %s", strings.Join(locked, "; "), a.upgradeHint())
 	}
-	if len(custom) > 0 {
-		fmt.Fprintf(&out, "\nLocked by a custom limit on this workspace: %s. Contact Runzivo to change it.", strings.Join(custom, ", "))
+	if len(enterprise) > 0 {
+		fmt.Fprintf(&out, "\nLocked: %s. Contact Runzivo.", strings.Join(enterprise, "; "))
 	}
 	return strings.TrimRight(out.String(), "\n")
 }

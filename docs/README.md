@@ -13,6 +13,7 @@
 | [Sandbox SSH](sandboxes-ssh.md) | Standard ssh, file transfers, local forwarding and Remote SSH editors |
 | [VS Code and Cursor](editors.md)                        | Remote SSH editors in a sandbox's `/workspace`                                         |
 | [Sandbox terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`                                              |
+| [Sandbox sizes and plans](sandbox-sizes.md)            | `rzv sandboxes sizes`, the plan each size needs and availability                       |
 | [Sandbox billing and permissions](sandboxes-billing.md) | Charges, credit and the permissions each command needs                                 |
 | [Claude Code in a sandbox](claude-code.md)             | Use the preinstalled Claude Code with your own key or Claude login                     |
 | [OpenCode in a sandbox](opencode.md)                   | Install OpenCode in a sandbox and use your own AI key                                  |

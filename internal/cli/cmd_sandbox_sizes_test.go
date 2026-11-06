@@ -13,7 +13,7 @@ import (
 const sizesPath = "GET /v1/customer/tenants/t-1/sandboxes"
 
 // plansListing is a Free workspace: 2vcpu-8gb is included, 4vcpu-16gb is
-// included but busy, 8vcpu-32gb needs Team, 16vcpu-64gb is a custom limit.
+// included but busy, 8vcpu-32gb needs Team, 16vcpu-64gb needs Enterprise.
 const plansListing = `{"sandboxes":[],"max_running":2,"sizes":["2vcpu-8gb","4vcpu-16gb","8vcpu-32gb"],"lifetimes":[8],"size_availability":[
 {"size":"2vcpu-8gb","status":"available","vcpu":2,"mem_mib":8192,"equivalent_minutes_per_minute":"2","plan_eligible":true,"required_plan":"free"},
 {"size":"4vcpu-16gb","status":"busy","reason":"pool_full","vcpu":4,"mem_mib":16384,"equivalent_minutes_per_minute":"4","plan_eligible":true,"required_plan":"free"},
@@ -46,7 +46,7 @@ func TestSandboxSizesTableShowsLockedBusyAndIncluded(t *testing.T) {
 	// so the hint names the portal page instead of a link.
 	for _, text := range []string{
 		"Locked: 8vcpu-32gb needs the Team plan. Upgrade in the Runzivo portal under Settings, Billing.",
-		"Locked by a custom limit on this workspace: 16vcpu-64gb. Contact Runzivo to change it.",
+		"Locked: 16vcpu-64gb needs the Enterprise plan. Contact Runzivo.",
 	} {
 		if !strings.Contains(out, text) {
 			t.Errorf("sizes output lacks %q:\n%s", text, out)
@@ -120,11 +120,12 @@ func TestSandboxSizesJSONPassesPlanFieldsThrough(t *testing.T) {
 			t.Errorf("%v: locked row = %+v", args, locked)
 		}
 	}
-	// While the setting is off, required_plan stays null.
+	// While the setting is off the server sends null. A pointer cannot tell
+	// null from absent, so the field is left out of the output.
 	h.json(sizesPath, 200, `{"sandboxes":[],"max_running":2,"sizes":["2vcpu-8gb"],"size_availability":[{"size":"2vcpu-8gb","status":"available","vcpu":2,"mem_mib":8192,"equivalent_minutes_per_minute":"2","plan_eligible":true,"required_plan":null}]}`)
 	_, out, _ := h.run("sandboxes", "sizes", "--json")
-	if !strings.Contains(out, `"required_plan": null`) && !strings.Contains(out, `"required_plan":null`) {
-		t.Errorf("null required_plan lost: %q", out)
+	if strings.Contains(out, "required_plan") || !strings.Contains(out, `"plan_eligible":true`) {
+		t.Errorf("null required_plan should be omitted: %q", out)
 	}
 }
 
@@ -136,7 +137,7 @@ func TestSandboxCreatePlanRequiredNamesThePlan(t *testing.T) {
 		want []string
 	}{
 		{`{"error":{"code":"plan_required","required_plan":"team","message":"x","message_fr_CA":"y"}}`, exitAccessDenied, []string{"16vcpu-64gb needs the Team plan.", "Upgrade"}},
-		{`{"error":{"code":"plan_required","required_plan":"enterprise"}}`, exitAccessDenied, []string{"16vcpu-64gb is above the limit set for this workspace", "Contact Runzivo"}},
+		{`{"error":{"code":"plan_required","required_plan":"enterprise"}}`, exitAccessDenied, []string{"16vcpu-64gb needs the Enterprise plan. Contact Runzivo."}},
 		{`{"error":{"code":"plan_required","required_plan":null}}`, exitAccessDenied, []string{"16vcpu-64gb is not included in this workspace's plan"}},
 	}
 	for _, c := range cases {
