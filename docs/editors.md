@@ -41,7 +41,9 @@ By default the sandbox downloads the editor server from the editor vendor over o
 
 ## Ports and limits
 
-Use the editor's **Ports** view, or `LocalForward` in your own SSH config, to reach services on the sandbox's localhost. The configuration doesn't enable agent forwarding, X11 forwarding or remote forwarding. A stopped, expired or deleted sandbox disconnects the editor, and the editor server must be installed again in each new sandbox. Windows clients are not supported yet.
+Use the editor's **Ports** view, or `LocalForward` in your own SSH config, to reach services on the sandbox's localhost. The configuration doesn't enable agent forwarding, X11 forwarding or remote forwarding. A stopped, expired or deleted sandbox disconnects the editor. Windows clients are not supported yet.
+
+Known limitation: stopping and starting a sandbox currently clears everything outside `/workspace`, including `~/.vscode-server` and `~/.cursor-server`. After a start, the editor installs its server again on the next connection, so that connection is slower. Extensions you installed on the remote side are gone and must be installed again. Your files in `/workspace` are kept. Open windows don't resume after a stop. Reconnect to the sandbox.
 
 Tested with VS Code 1.145.0 and Remote - SSH 0.128.0 on macOS against an Ubuntu 24.04 sandbox. Cursor uses the same configuration but has not been tested against a live sandbox yet.
 
