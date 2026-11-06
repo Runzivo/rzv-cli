@@ -32,11 +32,9 @@ ssh -N -L 8080:localhost:3000 <sandbox-id>.rzv
 
 ## VS Code and Cursor
 
-Install your editor's Remote SSH extension. Generate the configuration with `ssh-config --write`, then choose `<sandbox-id>.rzv` in its SSH connection picker and open `/workspace`. Confirm plain `ssh <sandbox-id>.rzv` works first.
+Generate the configuration with `ssh-config <sandbox-id> --write`. It prints the `ssh` and `code --remote` commands for that sandbox. Then connect your editor to `<sandbox-id>.rzv` and open `/workspace`. Steps, settings and limits are in [VS Code and Cursor Remote SSH](editors.md).
 
-Local forwarding reaches services on the sandbox's localhost. It requires the server release that permits local forwarding. Agent forwarding, X11 forwarding and remote forwarding are not enabled by this setup. No password or public guest SSH address is needed. Editor installation and operation have not been tested against a live sandbox in this release.
-
-Editor references: [VS Code Remote SSH](https://code.visualstudio.com/docs/remote/ssh) and [Cursor Remote SSH troubleshooting](https://cursor.com/help/troubleshooting/network).
+Local forwarding reaches services on the sandbox's localhost. It requires the server release that permits local forwarding. Agent forwarding, X11 forwarding and remote forwarding are not enabled by this setup. No password or public guest SSH address is needed.
 
 ## Credentials and reconnection
 
