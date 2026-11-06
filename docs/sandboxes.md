@@ -2,6 +2,8 @@
 
 A sandbox is a Linux virtual machine in your workspace. A stop and a start keep its whole disk until the sandbox expires: `/workspace`, your home directory (tool installs, settings and saved sign-ins) and packages you installed. Running processes end at a stop. Expiry or deletion removes all of it.
 
+Known issue: a stop can lose writes from the last few seconds. `rzv sandboxes stop` and the Orca plugin's Sleep run `sync` in the sandbox first. The portal's Stop button, the API, expiry and automatic sleep don't do that yet, so run `sync` in the sandbox before you stop it another way.
+
 ## Lifetime
 
 Choose how long a sandbox lives when you create it: `--lifetime 8h` (the default), `12h` or `24h`. No other value is accepted. If you leave the flag out, the sandbox lives 8 hours. 12h and 24h are offered only where Runzivo has turned them on; `list` shows the lifetimes on offer. There the timer starts when the sandbox first runs. Elsewhere only 8h is offered and the timer starts at the first start. Asking for one that is not offered fails with `lifetime_unavailable` (HTTP 409). Choose another, or omit `--lifetime`. A Runzivo service from before the lifetime choice refuses `--lifetime 12h` or `24h` as an invalid request; `rzv` checks that the server really sends no lifetimes list, and only then says it does not support choosing a lifetime yet. Any other invalid request is reported as it is.
