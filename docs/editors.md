@@ -15,7 +15,7 @@ Open a sandbox's `/workspace` in desktop VS Code or Cursor over the same SSH con
    `--write` prints the commands for the next step.
 
 3. Open the sandbox:
-   - VS Code: `code --remote ssh-remote+<sandbox-id>.rzv /workspace`, or run **Remote-SSH: Connect to Host...** and choose `<sandbox-id>.rzv`.
+   - VS Code: `code --remote ssh-remote+<sandbox-id>.rzv /workspace`, or run **Remote-SSH: Connect to Host...** and choose `<sandbox-id>.rzv`. On macOS, `code` is on your `PATH` only after you run **Shell Command: Install 'code' command in PATH** once in VS Code.
    - Cursor: run **Remote-SSH: Connect to Host...**, choose `<sandbox-id>.rzv`, then open `/workspace`.
 
 4. If the editor asks for the platform, choose **Linux**. To skip that prompt, set it in user settings:
@@ -23,11 +23,11 @@ Open a sandbox's `/workspace` in desktop VS Code or Cursor over the same SSH con
    ```json
    {
      "remote.SSH.remotePlatform": { "<sandbox-id>.rzv": "linux" },
-     "remote.SSH.connectTimeout": 60
+     "remote.SSH.connectTimeout": 90
    }
    ```
 
-   A sandbox that has just started can take up to 60 seconds before it accepts SSH. The default 15-second timeout can expire first.
+   A sandbox that has just started can take up to 60 seconds before it accepts SSH. Certificate and relay setup come on top of that, so use 90 seconds or more. The default 15-second timeout can expire first.
 
 The editor uses system OpenSSH and your `~/.ssh/config`. If you set `remote.SSH.configFile` to another file, add the `Include` line that `--write` put in `~/.ssh/config` to that file. If `remote.SSH.path` points to a different `ssh`, it must be OpenSSH, because the configuration uses `Match exec`.
 
@@ -37,7 +37,7 @@ Each connection runs the same steps as `ssh <sandbox-id>.rzv`. A `Match exec` st
 
 ## Editor server download
 
-By default the sandbox downloads the editor server from the editor vendor over outbound HTTPS. If the sandbox has no outbound internet, set `"remote.SSH.localServerDownload": "always"`. Your computer then downloads the server and copies it over SSH. Extensions from the Marketplace need outbound access the same way.
+By default (`"remote.SSH.localServerDownload": "auto"`) the sandbox downloads the editor server from the editor vendor over outbound HTTPS. If that fails, your computer downloads the server and copies it over SSH. If the sandbox has no outbound internet, set `"always"` to skip the failed attempt on the sandbox. Extensions from the Marketplace also need outbound access from the sandbox. Without it, download the extension `.vsix` on your computer and run **Extensions: Install from VSIX...** in the remote window.
 
 ## Ports and limits
 
