@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -195,7 +196,7 @@ func (s *Store) Clear() error {
 // identity provider rotates refresh tokens and refuses a spent one, so a
 // stale copy written back would end the session. The returned function
 // releases the lock.
-func (s *Store) Lock(wait time.Duration) (func(), error) {
+func (s *Store) Lock(ctx context.Context, wait time.Duration) (func(), error) {
 	fail := &StoreError{"local_state_unavailable", "Another rzv process is using the sign-in. Try again shortly."}
 	path := s.path() + ".lock"
 	dir := filepath.Dir(path)
@@ -205,7 +206,7 @@ func (s *Store) Lock(wait time.Duration) (func(), error) {
 	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
 		return nil, &StoreError{"local_state_invalid", "The rzv credential lock is not a regular file."}
 	}
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|openNoFollow, 0o600)
 	if err != nil {
 		return nil, fail
 	}
@@ -223,15 +224,20 @@ func (s *Store) Lock(wait time.Duration) (func(), error) {
 			_ = f.Close()
 			return nil, fail
 		}
-		time.Sleep(25 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			_ = f.Close()
+			return nil, &StoreError{"cancelled", "Cancelled."}
+		case <-time.After(25 * time.Millisecond):
+		}
 	}
 }
 
 // Update changes the stored credentials under the lock: it reads the file
 // again, applies change and writes the result, so a field it does not change
 // (such as a refresh token another process just rotated) is kept.
-func (s *Store) Update(wait time.Duration, change func(*Credentials) error) error {
-	unlock, err := s.Lock(wait)
+func (s *Store) Update(ctx context.Context, wait time.Duration, change func(*Credentials) error) error {
+	unlock, err := s.Lock(ctx, wait)
 	if err != nil {
 		return err
 	}

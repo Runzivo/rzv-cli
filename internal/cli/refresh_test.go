@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -163,7 +164,7 @@ func TestHelperHoldsLockAndDies(t *testing.T) {
 	if dir == "" {
 		t.Skip("helper process only")
 	}
-	if _, err := (&config.Store{Dir: dir}).Lock(time.Second); err != nil {
+	if _, err := (&config.Store{Dir: dir}).Lock(context.Background(), time.Second); err != nil {
 		os.Exit(3)
 	}
 	os.Exit(0) // no unlock: the operating system must release it
@@ -171,11 +172,11 @@ func TestHelperHoldsLockAndDies(t *testing.T) {
 
 func TestLockOfAKilledProcessIsReleased(t *testing.T) {
 	store := &config.Store{Dir: t.TempDir()}
-	unlock, err := store.Lock(time.Second)
+	unlock, err := store.Lock(context.Background(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Lock(100 * time.Millisecond); err == nil {
+	if _, err := store.Lock(context.Background(), 100*time.Millisecond); err == nil {
 		t.Fatal("a held lock was taken")
 	}
 	unlock()
@@ -184,7 +185,7 @@ func TestLockOfAKilledProcessIsReleased(t *testing.T) {
 	if out, err := child.CombinedOutput(); err != nil {
 		t.Fatalf("helper: %v %s", err, out)
 	}
-	again, err := store.Lock(200 * time.Millisecond)
+	again, err := store.Lock(context.Background(), 200*time.Millisecond)
 	if err != nil {
 		t.Fatal("the lock of an exited process was not released")
 	}
@@ -194,7 +195,7 @@ func TestLockOfAKilledProcessIsReleased(t *testing.T) {
 func TestLogoutWaitsForARefreshInFlight(t *testing.T) {
 	h := newHarness(t)
 	h.login()
-	unlock, err := h.store.ForProfile("default").Lock(time.Second)
+	unlock, err := h.store.ForProfile("default").Lock(context.Background(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,3 +233,18 @@ func TestSelectingAWorkspaceKeepsARotatedToken(t *testing.T) {
 
 func refreshes(h *harness) int   { n, _ := h.provider.Counts(); return n }
 func revocations(h *harness) int { _, n := h.provider.Counts(); return n }
+
+func TestLockWaitStopsWhenCancelled(t *testing.T) {
+	store := &config.Store{Dir: t.TempDir()}
+	unlock, err := store.Lock(context.Background(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	start := time.Now()
+	if _, err := store.Lock(ctx, 10*time.Second); err == nil || time.Since(start) > 2*time.Second {
+		t.Fatalf("cancelled wait: %v after %s", err, time.Since(start))
+	}
+}

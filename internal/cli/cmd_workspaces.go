@@ -226,7 +226,7 @@ func workspacesSelect(a *app, cmd *command) error {
 	if id == "" {
 		return accessError("You are not a member of workspace %s.", display(cmd.args[1]))
 	}
-	if err := a.Store.Update(credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = id; return nil }); err != nil {
+	if err := a.Store.Update(a.ctx, credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = id; return nil }); err != nil {
 		return err
 	}
 	a.output(cmd, map[string]string{"selected_workspace_id": id}, a.text("Selected workspace: ", "Espace de travail sélectionné : ")+workspaceLabel(memberships, id))
@@ -259,7 +259,7 @@ func workspacesCreate(a *app, cmd *command) error {
 	if err != nil {
 		return createWorkspaceError(err, slug)
 	}
-	if err := a.Store.Update(credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = workspace.TenantID; return nil }); err != nil {
+	if err := a.Store.Update(a.ctx, credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = workspace.TenantID; return nil }); err != nil {
 		return err
 	}
 	a.output(cmd, map[string]any{"workspace": workspace, "selected_workspace_id": workspace.TenantID},

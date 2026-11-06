@@ -247,7 +247,7 @@ func githubWorkspaceComplete(a *app, cmd *command) error {
 		return githubWorkspaceError(err)
 	}
 	if connection.Workspace != nil {
-		if err := a.Store.Update(credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = connection.Workspace.TenantID; return nil }); err != nil {
+		if err := a.Store.Update(a.ctx, credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = connection.Workspace.TenantID; return nil }); err != nil {
 			return err
 		}
 	}

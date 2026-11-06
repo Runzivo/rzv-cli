@@ -76,7 +76,7 @@ func (a *app) accessTokenExpiring(creds *config.Credentials) bool {
 // an Orca step, an editor) may already have renewed it, and the provider
 // accepts each refresh token only once.
 func (a *app) refreshCredentials() (*config.Credentials, error) {
-	unlock, err := a.Store.Lock(credentialLockWait)
+	unlock, err := a.Store.Lock(a.ctx, credentialLockWait)
 	if err != nil {
 		return nil, err
 	}

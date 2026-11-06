@@ -142,7 +142,7 @@ func profilesRemove(a *app, cmd *command) error {
 		return usageError("%s", err.Error())
 	}
 	store := a.Store.ForProfile(name)
-	unlock, err := store.Lock(credentialLockWait)
+	unlock, err := store.Lock(a.ctx, credentialLockWait)
 	if err != nil {
 		return err
 	}

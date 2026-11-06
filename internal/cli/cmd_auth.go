@@ -145,7 +145,7 @@ func runLogin(a *app, cmd *command) error {
 		}
 		creds.SelectedWorkspace = id
 	}
-	unlock, err := a.Store.Lock(credentialLockWait)
+	unlock, err := a.Store.Lock(a.ctx, credentialLockWait)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func runLogout(a *app, cmd *command) error {
 	if a.Store != nil {
 		// Under the lock, so a refresh in flight cannot write a new token
 		// back after the file is gone.
-		unlock, err := a.Store.Lock(credentialLockWait)
+		unlock, err := a.Store.Lock(a.ctx, credentialLockWait)
 		if err != nil {
 			return err
 		}
