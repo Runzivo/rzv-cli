@@ -936,9 +936,31 @@ func TestSandboxesStopWarnsButStopsWhenSyncFails(t *testing.T) {
 		stopped = true
 		_, _ = w.Write([]byte(sandboxWith("stopping")))
 	}
-	code, _, errOut := h.run("sandboxes", "stop", sbxID, "--json")
+	code, out, errOut := h.run("sandboxes", "stop", sbxID, "--json")
 	if code != 0 || !stopped || !strings.Contains(errOut, "Could not flush the sandbox's disk") {
 		t.Fatalf("stop after failed sync: %d stopped=%v %q", code, stopped, errOut)
+	}
+	var result map[string]any
+	if json.Unmarshal([]byte(out), &result) != nil || strings.Contains(out, "flush") {
+		t.Fatalf("stop --json stdout is not clean JSON: %q", out)
+	}
+}
+
+func TestSandboxesStopTriesSyncWhenStatusIsUnknown(t *testing.T) {
+	h := selectedHarness(t)
+	synced, stopped := false, false
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 503, `{"error":{"code":"customer_api_unavailable"}}`)
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/exec"] = func(w http.ResponseWriter, _ *http.Request) {
+		synced = true
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte(`{"type":"exit","exit_code":0,"timed_out":false}` + "\n"))
+	}
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/stop"] = func(w http.ResponseWriter, _ *http.Request) {
+		stopped = true
+		_, _ = w.Write([]byte(sandboxWith("stopping")))
+	}
+	if code, _, errOut := h.run("sandboxes", "stop", sbxID); code != 0 || !synced || !stopped || errOut != "" {
+		t.Fatalf("stop with unknown status: %d synced=%v stopped=%v %q", code, synced, stopped, errOut)
 	}
 }
 

@@ -98,7 +98,9 @@ func runSandboxes(a *app, cmd *command) error {
 		return sandboxAction(a, cmd, "start", func(c *api.Client, ws, id string) (*api.Sandbox, error) { return c.SandboxStart(a.ctx, ws, id) }, "Starting")
 	case "stop":
 		return sandboxAction(a, cmd, "stop", func(c *api.Client, ws, id string) (*api.Sandbox, error) {
-			if s, err := c.SandboxGet(a.ctx, ws, id); err == nil && s.Status == "running" {
+			// Sync only a running sandbox. If the status can't be read, try anyway:
+			// on a sandbox that isn't running, exec fails fast with a warning.
+			if s, err := c.SandboxGet(a.ctx, ws, id); err != nil || s.Status == "running" {
 				syncBeforeStop(a, c, ws, id)
 			}
 			return c.SandboxStop(a.ctx, ws, id)
@@ -125,7 +127,7 @@ const guestSyncTimeout = 20 * time.Second
 
 // syncBeforeStop flushes the sandbox's file system to its disks right before a
 // stop, until the Runzivo service does this itself: today a stop can lose
-// writes from the last few seconds. It is best effort. On failure it prints a
+// recent writes. It is best effort. On failure it prints a
 // warning and the stop goes ahead. It runs from / so it does not wait for
 // /workspace.
 func syncBeforeStop(a *app, client *api.Client, workspace, id string) {
@@ -136,7 +138,7 @@ func syncBeforeStop(a *app, client *api.Client, workspace, id string) {
 	if err == nil && exit.Reason == "" && !exit.TimedOut && exit.ExitCode == 0 {
 		return
 	}
-	fmt.Fprintln(a.Stderr, "rzv: Could not flush the sandbox's disk before stopping it; writes from the last few seconds may be lost.")
+	fmt.Fprintln(a.Stderr, "rzv: Could not flush the sandbox's disk before stopping it; recent writes may be lost.")
 }
 
 func sandboxID(value string) (string, error) {

@@ -2,7 +2,7 @@
 
 A sandbox is a Linux virtual machine in your workspace. A stop and a start keep its whole disk until the sandbox expires: `/workspace`, your home directory (tool installs, settings and saved sign-ins) and packages you installed. Running processes end at a stop. Expiry or deletion removes all of it.
 
-Known issue: a stop can lose writes from the last few seconds. `rzv sandboxes stop` and the Orca plugin's Sleep run `sync` in the sandbox first. The portal's Stop button, the API, expiry and automatic sleep don't do that yet, so run `sync` in the sandbox before you stop it another way.
+Known issue: a stop can lose recent writes. `rzv sandboxes stop` and `rzv orca suspend` ([Orca](orca.md)) run `sync` in the sandbox first, which makes a loss much less likely. Stops from the portal, the API or expiry don't do that yet, so run `sync` in the sandbox before you stop it another way.
 
 ## Lifetime
 

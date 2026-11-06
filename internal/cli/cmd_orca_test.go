@@ -517,3 +517,16 @@ func readBody(r *http.Request) string {
 	data, _ := io.ReadAll(r.Body)
 	return string(data)
 }
+
+func TestOrcaSuspendWarnsAndStopsWhenSyncFails(t *testing.T) {
+	h, core, _ := orcaHarness(t)
+	h.routes["POST "+orcaBase+"/"+sbxID+"/exec"] = func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(503)
+		_, _ = io.WriteString(w, `{"error":{"code":"sandbox_exec_unavailable"}}`)
+	}
+	core.statuses = []string{"running", "stopped"}
+	code, out, errOut := h.runWithTerminal(nil, strings.NewReader(orcaPayloadJSON("/workspace/widgets")), "orca", "suspend")
+	if code != 0 || out != "" || core.stopped != 1 || !strings.Contains(errOut, "Could not flush") {
+		t.Fatalf("suspend after failed sync: %d %q %q stopped %d", code, out, errOut, core.stopped)
+	}
+}

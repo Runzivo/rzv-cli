@@ -6,7 +6,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Fixed
 
-- `rzv sandboxes stop` and `rzv orca suspend` run `sync` in a running sandbox right before stopping it, so writes from the last few seconds are not lost. If the sync fails, `rzv` warns and stops anyway. Stops from the portal, the API, expiry and automatic sleep are not covered yet ([Sandboxes](docs/sandboxes.md)).
+- `rzv sandboxes stop` and `rzv orca suspend` run `sync` in a running sandbox right before stopping it, so recent writes are much less likely to be lost. If the sync fails, `rzv` warns and stops anyway. Stops from the portal, the API or expiry are not covered yet ([Sandboxes](docs/sandboxes.md)).
 
 ## release-2026-11-06-151513 (rzv 0.26.0), 2026-11-06
 
