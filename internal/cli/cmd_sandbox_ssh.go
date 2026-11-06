@@ -552,7 +552,21 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 			}
 		}
 	}
+	if cmd.flags["write"] && len(cmd.args) == 2 && len(ids) == 1 {
+		return a.printSSHConnectHints(ids[0] + ".rzv")
+	}
 	return nil
+}
+
+// printSSHConnectHints shows how to use one freshly written alias from a
+// terminal and from Remote SSH editors.
+func (a *app) printSSHConnectHints(alias string) error {
+	_, err := fmt.Fprintf(a.Stdout, "%s ssh %s\n%s code --remote ssh-remote+%s /workspace\n%s\n",
+		a.text("Terminal:", "Terminal :"), alias,
+		a.text("VS Code:", "VS Code :"), alias,
+		a.text("Cursor: run Remote-SSH: Connect to Host and choose "+alias+", then open /workspace.",
+			"Cursor : lancez Remote-SSH: Connect to Host, choisissez "+alias+", puis ouvrez /workspace."))
+	return err
 }
 
 // sandboxSSHConfigText saves the sandbox's host CA in its private state and
