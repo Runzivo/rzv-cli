@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- [Claude Code in a sandbox](docs/claude-code.md): use the preinstalled Claude Code with your own Anthropic API key or Claude subscription login. The key or login stays in the sandbox, and only `/workspace` survives a stop and start. Runzivo charges only the sandbox's compute.
+
 ## release-2026-11-06-113624 (rzv 0.25.0), 2026-11-06
 
 ### Added
