@@ -95,6 +95,7 @@ type orcaCore struct {
 	deleted  int
 	started  int
 	stopped  int
+	synced   int
 	gets     int
 }
 
@@ -153,6 +154,15 @@ func orcaHarness(t *testing.T) (*harness, *orcaCore, *orcaFake) {
 		core.stopped++
 		core.mu.Unlock()
 		_, _ = io.WriteString(w, sandbox("stopping"))
+	}
+	h.routes["POST "+orcaBase+"/"+sbxID+"/exec"] = func(w http.ResponseWriter, r *http.Request) {
+		core.mu.Lock()
+		if core.stopped == 0 && strings.Contains(readBody(r), `"cmd":"sync"`) {
+			core.synced++
+		}
+		core.mu.Unlock()
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = io.WriteString(w, `{"type":"exit","exit_code":0,"timed_out":false}`+"\n")
 	}
 	h.routes["GET "+orcaBase+"/"+sbxID+"/ssh-host"] = func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(hostJSON)
@@ -318,8 +328,8 @@ func TestOrcaLifecycle(t *testing.T) {
 
 	core.statuses = []string{"running", "stopped"}
 	code, out, errOut := h.runWithTerminal(nil, strings.NewReader(orcaPayloadJSON("/workspace/widgets")), "orca", "suspend")
-	if code != 0 || out != "" || core.stopped != 1 || !strings.Contains(errOut, "compute is not charged") {
-		t.Fatalf("suspend: %d %q %q stopped %d", code, out, errOut, core.stopped)
+	if code != 0 || out != "" || core.stopped != 1 || core.synced != 1 || !strings.Contains(errOut, "compute is not charged") || strings.Contains(errOut, "Could not flush") {
+		t.Fatalf("suspend: %d %q %q stopped %d synced %d", code, out, errOut, core.stopped, core.synced)
 	}
 
 	core.gets, core.statuses = 0, []string{"stopped", "starting", "running"}
@@ -501,4 +511,22 @@ func exitStatus(t *testing.T, status int) error {
 		t.Fatalf("no exit error: %v", err)
 	}
 	return err
+}
+
+func readBody(r *http.Request) string {
+	data, _ := io.ReadAll(r.Body)
+	return string(data)
+}
+
+func TestOrcaSuspendWarnsAndStopsWhenSyncFails(t *testing.T) {
+	h, core, _ := orcaHarness(t)
+	h.routes["POST "+orcaBase+"/"+sbxID+"/exec"] = func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(503)
+		_, _ = io.WriteString(w, `{"error":{"code":"sandbox_exec_unavailable"}}`)
+	}
+	core.statuses = []string{"running", "stopped"}
+	code, out, errOut := h.runWithTerminal(nil, strings.NewReader(orcaPayloadJSON("/workspace/widgets")), "orca", "suspend")
+	if code != 0 || out != "" || core.stopped != 1 || !strings.Contains(errOut, "Could not flush") {
+		t.Fatalf("suspend after failed sync: %d %q %q stopped %d", code, out, errOut, core.stopped)
+	}
 }

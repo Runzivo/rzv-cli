@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -96,7 +97,14 @@ func runSandboxes(a *app, cmd *command) error {
 	case "start":
 		return sandboxAction(a, cmd, "start", func(c *api.Client, ws, id string) (*api.Sandbox, error) { return c.SandboxStart(a.ctx, ws, id) }, "Starting")
 	case "stop":
-		return sandboxAction(a, cmd, "stop", func(c *api.Client, ws, id string) (*api.Sandbox, error) { return c.SandboxStop(a.ctx, ws, id) }, "Stopping")
+		return sandboxAction(a, cmd, "stop", func(c *api.Client, ws, id string) (*api.Sandbox, error) {
+			// Sync only a running sandbox. If the status can't be read, try anyway:
+			// on a sandbox that isn't running, exec fails fast with a warning.
+			if s, err := c.SandboxGet(a.ctx, ws, id); err != nil || s.Status == "running" {
+				syncBeforeStop(a, c, ws, id)
+			}
+			return c.SandboxStop(a.ctx, ws, id)
+		}, "Stopping")
 	case "delete":
 		return sandboxAction(a, cmd, "delete", func(c *api.Client, ws, id string) (*api.Sandbox, error) { return c.SandboxDelete(a.ctx, ws, id) }, "Deleting")
 	case "exec":
@@ -112,6 +120,25 @@ func runSandboxes(a *app, cmd *command) error {
 	default:
 		return usageError("%s", sandboxesUsage)
 	}
+}
+
+// guestSyncTimeout bounds the sync that rzv runs in a sandbox before stopping it.
+const guestSyncTimeout = 20 * time.Second
+
+// syncBeforeStop flushes the sandbox's file system to its disks right before a
+// stop, until the Runzivo service does this itself: today a stop can lose
+// recent writes. It is best effort. On failure it prints a
+// warning and the stop goes ahead. It runs from / so it does not wait for
+// /workspace.
+func syncBeforeStop(a *app, client *api.Client, workspace, id string) {
+	ctx, cancel := context.WithTimeout(a.ctx, guestSyncTimeout+5*time.Second)
+	defer cancel()
+	input := api.ExecInput{Cmd: "sync", Cwd: "/", TimeoutSeconds: int(guestSyncTimeout / time.Second)}
+	exit, err := client.SandboxExec(ctx, workspace, id, input, func(api.ExecEvent) error { return nil })
+	if err == nil && exit.Reason == "" && !exit.TimedOut && exit.ExitCode == 0 {
+		return
+	}
+	fmt.Fprintln(a.Stderr, "rzv: Could not flush the sandbox's disk before stopping it; recent writes may be lost.")
 }
 
 func sandboxID(value string) (string, error) {

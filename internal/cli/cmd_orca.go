@@ -928,6 +928,9 @@ func orcaSuspend(a *app, cmd *command) error {
 		a.orcaLog("Sandbox %s is already %s.", id, statusLabel(s.Status))
 		return nil
 	}
+	if s.Status == "running" {
+		syncBeforeStop(a, client, workspace, id)
+	}
 	if _, err := client.SandboxStop(a.ctx, workspace, id); err != nil {
 		return apiError(err, "")
 	}

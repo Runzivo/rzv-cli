@@ -898,3 +898,79 @@ func TestSandboxesHelpDescribesLifetime(t *testing.T) {
 		}
 	}
 }
+
+func TestSandboxesStopSyncsARunningSandboxFirst(t *testing.T) {
+	h := selectedHarness(t)
+	var order []string
+	var seen map[string]any
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxWith("running"))
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/exec"] = func(w http.ResponseWriter, r *http.Request) {
+		order = append(order, "exec")
+		data, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(data, &seen)
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte(`{"type":"exit","exit_code":0,"timed_out":false}` + "\n"))
+	}
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/stop"] = func(w http.ResponseWriter, _ *http.Request) {
+		order = append(order, "stop")
+		_, _ = w.Write([]byte(sandboxWith("stopping")))
+	}
+	code, out, errOut := h.run("sandboxes", "stop", sbxID)
+	if code != 0 || !strings.Contains(out, "Stopping sandbox dev") || errOut != "" {
+		t.Fatalf("stop: %d %q %q", code, out, errOut)
+	}
+	if strings.Join(order, ",") != "exec,stop" {
+		t.Fatalf("calls = %v, want sync before stop", order)
+	}
+	if seen["cmd"] != "sync" || seen["cwd"] != "/" || seen["timeout_seconds"] != float64(20) {
+		t.Fatalf("sync request = %v", seen)
+	}
+}
+
+func TestSandboxesStopWarnsButStopsWhenSyncFails(t *testing.T) {
+	h := selectedHarness(t)
+	stopped := false
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxWith("running"))
+	execServer(h, `{"error":{"code":"sandbox_exec_unavailable"}}`, 503, nil)
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/stop"] = func(w http.ResponseWriter, _ *http.Request) {
+		stopped = true
+		_, _ = w.Write([]byte(sandboxWith("stopping")))
+	}
+	code, out, errOut := h.run("sandboxes", "stop", sbxID, "--json")
+	if code != 0 || !stopped || !strings.Contains(errOut, "Could not flush the sandbox's disk") {
+		t.Fatalf("stop after failed sync: %d stopped=%v %q", code, stopped, errOut)
+	}
+	var result map[string]any
+	if json.Unmarshal([]byte(out), &result) != nil || strings.Contains(out, "flush") {
+		t.Fatalf("stop --json stdout is not clean JSON: %q", out)
+	}
+}
+
+func TestSandboxesStopTriesSyncWhenStatusIsUnknown(t *testing.T) {
+	h := selectedHarness(t)
+	synced, stopped := false, false
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 503, `{"error":{"code":"customer_api_unavailable"}}`)
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/exec"] = func(w http.ResponseWriter, _ *http.Request) {
+		synced = true
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte(`{"type":"exit","exit_code":0,"timed_out":false}` + "\n"))
+	}
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/stop"] = func(w http.ResponseWriter, _ *http.Request) {
+		stopped = true
+		_, _ = w.Write([]byte(sandboxWith("stopping")))
+	}
+	if code, _, errOut := h.run("sandboxes", "stop", sbxID); code != 0 || !synced || !stopped || errOut != "" {
+		t.Fatalf("stop with unknown status: %d synced=%v stopped=%v %q", code, synced, stopped, errOut)
+	}
+}
+
+func TestSandboxesStopSkipsSyncWhenNotRunning(t *testing.T) {
+	h := selectedHarness(t)
+	execCalled := false
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, sandboxWith("starting"))
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/exec"] = func(w http.ResponseWriter, _ *http.Request) { execCalled = true }
+	h.json("POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/stop", 200, sandboxWith("stopping"))
+	if code, _, errOut := h.run("sandboxes", "stop", sbxID); code != 0 || execCalled || errOut != "" {
+		t.Fatalf("stop of a starting sandbox: %d exec=%v %q", code, execCalled, errOut)
+	}
+}
