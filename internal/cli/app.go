@@ -70,7 +70,7 @@ func Run(ctx context.Context, argv []string, deps Deps) int {
 	}
 	if cmd.name == "" || cmd.name == "help" {
 		if cmd.name == "help" && len(cmd.args) > 0 {
-			cmd.name, cmd.args = cmd.args[0], nil
+			cmd.name, cmd.args = cmd.args[0], cmd.args[1:]
 			cmd.flags["help"] = true
 		} else {
 			if cmd.name == "" && !cmd.flags["help"] && len(cmd.options) > 0 {
@@ -96,6 +96,12 @@ func Run(ctx context.Context, argv []string, deps Deps) int {
 	}
 	if cmd.flags["help"] {
 		usage := commandUsage[name]
+		// A subcommand with its own usage, such as `runners profiles`.
+		if len(cmd.args) > 0 {
+			if sub, ok := commandUsage[name+" "+cmd.args[0]]; ok {
+				usage = sub
+			}
+		}
 		if name == "workspaces" {
 			usage = a.workspaceUsage()
 		}
