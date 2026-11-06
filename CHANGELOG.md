@@ -8,18 +8,13 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 - [OpenCode in a sandbox](docs/opencode.md): install a pinned, checksummed OpenCode 1.19.5 in a sandbox and use it with your own AI provider key. The key stays in the sandbox. Runzivo charges only the sandbox's compute.
 - `rzv sandboxes ssh-config <sandbox-id> --write` prints the commands to connect with `ssh`, VS Code (`code --remote ssh-remote+<sandbox-id>.rzv /workspace`) and Cursor. The new [VS Code and Cursor Remote SSH](docs/editors.md) guide has the editor steps, settings for sandboxes without outbound internet, and the limits. VS Code Remote - SSH has been tested against a live sandbox.
+- [Herdr in a sandbox](docs/herdr.md) explains how to run [Herdr](https://github.com/herdrdev/herdr) 0.9.5 against a sandbox over the `<sandbox-id>.rzv` SSH alias with `herdr --remote`, `ssh -t` or `herdr machine add`. It covers Herdr's own install prompt and a pinned, checksum-verified manual install. Panes and agents keep running while you are disconnected and the sandbox runs. A stop removes Herdr, its server and its panes; only `/workspace` is kept. `scripts/20-herdr-e2e.sh` checks these steps against one sandbox and deletes it afterwards.
 
 ## release-2026-11-06-005258 (rzv 0.24.0), 2026-11-06
 
 ### Changed
 
 - Sign-ins renew themselves. `rzv login` keeps the identity provider's refresh token in the owner-only credentials file, and any command (including SSH, `rzv orca` and editors that run `rzv`) renews the access token shortly before it expires. Sessions follow the customer session policy: 14 days without use or 30 days after sign-in. Parallel runs renew once under a lock. `rzv logout` and `rzv profiles remove` end the session at the identity provider. Sign-ins from before this release keep working until their access token expires; then run `rzv login` once.
-
-## Unreleased
-
-### Added
-
-- [Herdr in a sandbox](docs/herdr.md) explains how to run [Herdr](https://github.com/herdrdev/herdr) 0.9.5 against a sandbox over the `<sandbox-id>.rzv` SSH alias with `herdr --remote`, `ssh -t` or `herdr machine add`. It covers Herdr's own install prompt and a pinned, checksum-verified manual install. Panes and agents keep running while you are disconnected and the sandbox runs. A stop removes Herdr, its server and its panes; only `/workspace` is kept. `scripts/20-herdr-e2e.sh` checks these steps against one sandbox and deletes it afterwards.
 
 ## release-2026-11-05-233903 (rzv 0.23.0), 2026-11-05
 
