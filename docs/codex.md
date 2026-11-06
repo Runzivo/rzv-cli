@@ -18,7 +18,7 @@ Do not pass keys with `rzv sandboxes exec --env` or in an `exec` command. Runziv
 
 ## Sandbox mode
 
-Codex's own `workspace-write` sandbox needs `bubblewrap`, which the sandbox image does not include yet. Without it, Codex cannot edit files and says that bubblewrap is unavailable.
+Codex's own `workspace-write` sandbox needs `bubblewrap`, which the sandbox image does not include. Without it, Codex cannot edit files and says that bubblewrap is unavailable.
 
 The Runzivo sandbox is already its own virtual machine, which is the isolation boundary. So turn off Codex's own sandbox in `~/.codex/config.toml`:
 
@@ -28,11 +28,9 @@ sandbox_mode = "danger-full-access"
 
 `codex exec --sandbox danger-full-access` does the same for one run. In this mode Codex can change any file in the sandbox and reach the network.
 
-To keep Codex's own sandbox, install `bubblewrap` first: `sudo apt-get update && sudo apt-get install -y bubblewrap`. Then `workspace-write` limits Codex's writes to the project folder.
-
 ## After a stop and start
 
-At the moment a stop and start removes every file outside `/workspace`: `~/.codex` (your sign-in, `config.toml` and history) and any `bubblewrap` you installed. Your project in `/workspace` is kept. After each `start`, and in each new sandbox, sign in again and set the sandbox mode again.
+At the moment a stop and start removes every file outside `/workspace`, including `~/.codex` (your sign-in, `config.toml` and history). Your project in `/workspace` is kept. After each `start`, and in each new sandbox, sign in again and set the sandbox mode again.
 
 ## Sign out and clean up
 

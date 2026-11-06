@@ -104,27 +104,35 @@ else
   log "2b. Codex sandbox with the image's bwrap: inside write ok, outside write blocked"
 fi
 
-run_in workspace-write.txt <<EOF
+# Codex's own workspace-write sandbox needs bwrap. When the image has none,
+# try the Ubuntu package and record why it failed; the run then goes on to
+# the documented danger-full-access path.
+run_in bwrap-install.txt <<'EOF'
+command -v bwrap >/dev/null && { echo "bwrap already present"; exit 0; }
+sudo apt-get update 2>&1 | tail -5
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y bubblewrap 2>&1 | tail -5
+command -v bwrap >/dev/null && bwrap --version || echo "bwrap unavailable"
+EOF
+if grep -q "bwrap unavailable" "$evidence/bwrap-install.txt"; then
+  log "3. skipped workspace-write: bubblewrap could not be installed (bwrap-install.txt)"
+else
+  run_in workspace-write.txt <<EOF
 set -u
-mkdir -p /workspace/codex-e2e && cd /workspace/codex-e2e && git init -q
-command -v bwrap || echo "no system bwrap"
-codex sandbox -c sandbox_mode=workspace-write -C /workspace/codex-e2e -- true 2>&1 | grep -o "bubblewrap is unavailable" || true
-sudo apt-get update -q >/dev/null 2>&1; sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q bubblewrap >/dev/null 2>&1
-bwrap --version
-# Codex's sandbox may write in the workspace but not in the home directory.
-codex sandbox -c sandbox_mode=workspace-write -C /workspace/codex-e2e -- sh -c 'touch /workspace/codex-e2e/in.txt && echo inside-write-ok; touch "\$HOME/outside.txt" 2>/dev/null && echo OUTSIDE-WRITE-ALLOWED || echo outside-write-denied'
+dir=/workspace/codex-e2e
+mkdir -p "\$dir" && cd "\$dir" && git init -q
+codex sandbox -P :workspace -C "\$dir" -- sh -c "touch \$dir/in.txt && ! touch /home/user/outside.txt" && echo confinement-ok || echo confinement-failed
 timeout 300 codex exec -m $model --sandbox workspace-write "Create a file named ws.txt in the current directory containing exactly the text: runzivo-codex-ws-ok" </dev/null
 echo "file=\$(cat ws.txt 2>/dev/null)"
 EOF
-grep -q "inside-write-ok" "$evidence/workspace-write.txt" && grep -q "outside-write-denied" "$evidence/workspace-write.txt" \
-  || fail "workspace-write confinement (workspace-write.txt)"
-grep -q "file=runzivo-codex-ws-ok" "$evidence/workspace-write.txt" || fail "workspace-write task (workspace-write.txt)"
-log "3. workspace-write task passed with bubblewrap installed"
+  grep -q confinement-ok "$evidence/workspace-write.txt" || fail "workspace-write confinement (workspace-write.txt)"
+  grep -q "file=runzivo-codex-ws-ok" "$evidence/workspace-write.txt" || fail "workspace-write task (workspace-write.txt)"
+  log "3. workspace-write: inside write ok, outside write blocked, task passed"
+fi
 
 run_in full-access.txt <<EOF
 set -u
 mkdir -p ~/.codex && printf 'sandbox_mode = "danger-full-access"\n' > ~/.codex/config.toml
-cd /workspace/codex-e2e
+mkdir -p /workspace/codex-e2e && cd /workspace/codex-e2e
 timeout 300 codex exec -m $model "Create a file named full.txt in the current directory containing exactly the text: runzivo-codex-full-ok" </dev/null
 echo "file=\$(cat full.txt 2>/dev/null)"
 EOF
@@ -139,8 +147,8 @@ log "5. codex logout removed ~/.codex/auth.json"
 "$rzv" sandboxes stop "$sandbox" ${ws[@]+"${ws[@]}"} --json > "$evidence/stop.json"; wait_status stopped 600
 "$rzv" sandboxes start "$sandbox" ${ws[@]+"${ws[@]}"} --json > "$evidence/start.json"; wait_status running 600
 on true || { sleep 20; on true; } || fail "ssh after start"
-on 'for p in /workspace/codex-e2e/ws.txt ~/.codex/config.toml /usr/bin/bwrap /usr/local/bin/codex; do test -e $p && echo "kept $p" || echo "gone $p"; done' > "$evidence/after-start.txt" 2>&1
-grep -q "kept /workspace/codex-e2e/ws.txt" "$evidence/after-start.txt" || fail "/workspace not kept (after-start.txt)"
+on 'for p in /workspace/codex-e2e/full.txt ~/.codex/config.toml /usr/bin/bwrap /usr/local/bin/codex; do test -e $p && echo "kept $p" || echo "gone $p"; done' > "$evidence/after-start.txt" 2>&1
+grep -q "kept /workspace/codex-e2e/full.txt" "$evidence/after-start.txt" || fail "/workspace not kept (after-start.txt)"
 log "6. after stop and start: $(tr '\n' ';' < "$evidence/after-start.txt")"
 
 "$rzv" sandboxes get "$sandbox" ${ws[@]+"${ws[@]}"} --json > "$evidence/get.json"
