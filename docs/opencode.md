@@ -1,6 +1,6 @@
 # OpenCode in a sandbox
 
-[OpenCode](https://github.com/anomalyco/opencode) (MIT) is an open-source coding agent. You can run it in a Runzivo sandbox with your own AI provider key. OpenCode sends requests straight from the sandbox to your provider, and your provider bills you for them. Runzivo charges only the sandbox's compute ([billing](sandboxes-billing.md)) and does not store your AI key.
+[OpenCode](https://github.com/anomalyco/opencode) (MIT) is an open-source coding agent. You can run it in a Runzivo sandbox with your own AI provider key. OpenCode sends requests straight from the sandbox to your provider, and your provider bills you for them. Runzivo charges only the sandbox's compute ([billing](sandboxes-billing.md)) and keeps no copy of your AI key outside the sandbox.
 
 ## Install
 
@@ -33,6 +33,8 @@ opencode                                                  # or: opencode run -m 
 The key lasts only as long as that shell. Use `OPENAI_API_KEY` for OpenAI. `opencode models <provider>` lists the models available to you. To keep a key across sessions, run `opencode auth login` (or `/connect` in OpenCode). OpenCode then saves the key in `~/.local/share/opencode/auth.json` in the sandbox. The file is removed when the sandbox stops, expires or is deleted. `opencode auth logout` removes it sooner.
 
 To copy a key from a password manager, pipe it over SSH, which is encrypted from your computer to the sandbox:
+
+This needs the SSH alias from `rzv sandboxes ssh-config <sandbox-id> --write` ([SSH](sandboxes-ssh.md)).
 
 ```sh
 <password-manager-command> | ssh <sandbox-id>.rzv 'umask 077; mkdir -p ~/.config/opencode && cat > ~/.config/opencode/anthropic.key'
