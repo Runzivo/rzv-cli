@@ -12,7 +12,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Added
 
-- [Herdr in a sandbox](docs/herdr.md) explains how to run [Herdr](https://github.com/herdrdev/herdr) 0.9.5 against a sandbox over the `<sandbox-id>.rzv` SSH alias with `herdr --remote`, `ssh -t` or `herdr machine add`. Panes and agents keep running after you disconnect. Herdr and its saved layout stay under `/workspace` so they survive a stop. `scripts/20-herdr-e2e.sh` checks these steps against one sandbox and deletes it afterwards.
+- [Herdr in a sandbox](docs/herdr.md) explains how to run [Herdr](https://github.com/herdrdev/herdr) 0.9.5 against a sandbox over the `<sandbox-id>.rzv` SSH alias with `herdr --remote`, `ssh -t` or `herdr machine add`. It covers Herdr's own install prompt and a pinned, checksum-verified manual install. Panes and agents keep running while you are disconnected and the sandbox runs. A stop removes Herdr, its server and its panes; only `/workspace` is kept. `scripts/20-herdr-e2e.sh` checks these steps against one sandbox and deletes it afterwards.
 
 ## release-2026-11-05-233903 (rzv 0.23.0), 2026-11-05
 

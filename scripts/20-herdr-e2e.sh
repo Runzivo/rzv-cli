@@ -3,8 +3,11 @@
 # Runzivo sandbox, following docs/herdr.md. Uses the signed-in rzv profile
 # (RZV_PROFILE) and needs ssh, curl, shasum or sha256sum, and python3.
 #
-#   RZV_PROFILE=<profile> [E2E_WORKSPACE=<id>] scripts/20-herdr-e2e.sh
+#   RZV_PROFILE=<profile> [E2E_WORKSPACE=<id>] [E2E_ENVIRONMENT=<name>] scripts/20-herdr-e2e.sh
 #
+# It refuses to run unless `rzv whoami` reports the environment named by
+# E2E_ENVIRONMENT (default: shared), so a profile mix-up cannot reach another
+# environment.
 # It creates one sandbox and deletes it on exit, including after a failure.
 # Evidence goes to $E2E_EVIDENCE (default: a temp directory, printed at the
 # end). No credential is written there.
@@ -64,6 +67,8 @@ rh() { on "\$HOME/.local/bin/herdr $*"; }
 lh() { XDG_CONFIG_HOME="$work/herdr-local/c" XDG_STATE_HOME="$work/herdr-local/s" "$local_herdr" "$@" </dev/null; }
 
 log "rzv: $("$rzv" --version)"
+want_env="${E2E_ENVIRONMENT:-shared}"
+"$rzv" whoami | grep -q "^Environment: $want_env " || fail "the rzv profile is not signed in to the $want_env environment"
 
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64) asset=macos-aarch64 sum=$sha_macos_aarch64 ;;
@@ -94,19 +99,15 @@ case "\$(uname -m)" in
   aarch64) a=linux-aarch64 s=$sha_linux_aarch64 ;;
   *) echo "unsupported \$(uname -m)"; exit 1 ;;
 esac
-mkdir -p /workspace/.herdr/config
+mkdir -p "\$HOME/.local/bin"
 curl -fsSL -o /tmp/herdr.download "$release/herdr-\$a"
 echo "\$s  /tmp/herdr.download" | sha256sum -c -
-install -m 0755 /tmp/herdr.download /workspace/.herdr/herdr
+install -m 0755 /tmp/herdr.download "\$HOME/.local/bin/herdr"
 rm -f /tmp/herdr.download
-/workspace/.herdr/herdr --version
+"\$HOME/.local/bin/herdr" --version
 uname -m
 EOF
 grep -q "herdr $herdr_version" "$evidence/install.txt" || fail "wrong Herdr version in the sandbox"
-# Only /workspace survives a stop, so Herdr and its saved layout live there and
-# are linked to where Herdr looks for them. Repeat after every start.
-link='mkdir -p ~/.local/bin ~/.config && ln -sfn /workspace/.herdr/herdr ~/.local/bin/herdr && ln -sfn /workspace/.herdr/config ~/.config/herdr'
-on "$link"
 
 log "3. start the Herdr server and run panes (first SSH connection)"
 # setsid: Herdr treats only a session-leader server as its detached daemon,
@@ -136,22 +137,19 @@ lh machine status rzv-e2e --json > "$evidence/machine-status.json" 2>&1 || fail 
 grep -q '"status": "reachable"' "$evidence/machine-status.json" || fail "saved machine not reachable"
 lh machine list --json > "$evidence/machine-list.json"
 
-log "6. stop and start: files survive, processes do not"
+log "6. stop and start: /workspace is kept; Herdr, its state and processes are not"
 "$rzv" sandboxes stop "$sandbox" ${ws[@]+"${ws[@]}"} --json >/dev/null
 wait_status stopped 300
 "$rzv" sandboxes start "$sandbox" ${ws[@]+"${ws[@]}"} --json >/dev/null
 wait_status running 600
 "$rzv" sandboxes ssh-config "$sandbox" ${ws[@]+"${ws[@]}"} --write >/dev/null
-on 'for f in /workspace/herdr-pane.txt /workspace/.herdr/herdr /workspace/.herdr/config/session.json "$HOME/.local/bin/herdr"; do if test -e "$f"; then echo "kept $f"; else echo "lost $f"; fi; done' > "$evidence/after-start.txt"
-cat "$evidence/after-start.txt" >&2
-grep -q '^kept /workspace/.herdr/config/session.json' "$evidence/after-start.txt" || fail "/workspace lost across stop"
-on "$link"
-on 'pgrep -x herdr' && fail "a Herdr process survived the stop"
 [ "$(on 'cat /proc/sys/kernel/random/boot_id')" != "$boot1" ] || fail "the sandbox did not restart"
-on "$start_server"
-rh workspace list > "$evidence/workspaces-after-start.json"
-grep -q '"label":"e2e"' "$evidence/workspaces-after-start.json" || fail "Herdr did not restore the saved layout"
-log "   files kept, processes ended, layout restored by Herdr"
+on 'for f in /workspace/herdr-pane.txt "$HOME/.local/bin/herdr" "$HOME/.config/herdr/session.json"; do if test -e "$f"; then echo "kept $f"; else echo "lost $f"; fi; done; pgrep -x herdr >/dev/null && echo "herdr running" || echo "no herdr process"' > "$evidence/after-start.txt"
+cat "$evidence/after-start.txt" >&2
+grep -q '^kept /workspace/herdr-pane.txt' "$evidence/after-start.txt" || fail "/workspace lost across stop"
+grep -q '^no herdr process' "$evidence/after-start.txt" || fail "a Herdr process survived the stop"
+# Files outside /workspace are recorded, not asserted: what a stop keeps there
+# depends on the Runzivo service.
 
 log "7. delete"
 "$rzv" sandboxes delete "$sandbox" ${ws[@]+"${ws[@]}"} --json >/dev/null

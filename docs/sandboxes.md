@@ -37,7 +37,7 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [Running commands](sandboxes-exec.md)           | `rzv sandboxes exec`, its options and exit status |
 | [SSH and file transfers](sandboxes-ssh.md) | OpenSSH, scp, sftp, rsync and Remote SSH editors |
 | [Terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`         |
-| [Herdr](herdr.md) | Herdr panes and agents that persist in the sandbox |
+| [Herdr](herdr.md) | Herdr panes and agents that keep running while you are disconnected |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
 
 Back to the [documentation index](README.md).
