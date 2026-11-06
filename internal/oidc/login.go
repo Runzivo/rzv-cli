@@ -54,17 +54,22 @@ type Options struct {
 	Now     func() time.Time
 }
 
-// Result is a verified sign-in. AccessToken must never be printed.
+// Result is a verified sign-in. AccessToken and RefreshToken must never be
+// printed or logged. RefreshToken is empty when the provider issued none;
+// RefreshExpiresAt is zero when the provider did not say.
 type Result struct {
-	Issuer      string
-	AccessToken string
-	Claims      Claims
+	Issuer           string
+	AccessToken      string
+	RefreshToken     string
+	RefreshExpiresAt time.Time
+	Claims           Claims
 }
 
 type discovery struct {
 	Issuer                       string   `json:"issuer"`
 	AuthorizationEndpoint        string   `json:"authorization_endpoint"`
 	TokenEndpoint                string   `json:"token_endpoint"`
+	RevocationEndpoint           string   `json:"revocation_endpoint"`
 	JWKSURI                      string   `json:"jwks_uri"`
 	ResponseModesSupported       []string `json:"response_modes_supported"`
 	CodeChallengeMethods         []string `json:"code_challenge_methods_supported"`
@@ -155,9 +160,22 @@ func Login(ctx context.Context, opts Options) (*Result, error) {
 		return nil, authError("Sign-in timed out. Run `rzv login` again.")
 	}
 
-	accessToken, idToken, err := exchange(ctx, client, meta.TokenEndpoint, opts.ClientID, receiver.redirectURI, code, verifier)
+	tokens, err := exchange(ctx, client, meta.TokenEndpoint, url.Values{
+		"grant_type":    {"authorization_code"},
+		"client_id":     {opts.ClientID},
+		"redirect_uri":  {receiver.redirectURI},
+		"code":          {code},
+		"code_verifier": {verifier},
+	}, "Identity provider rejected sign-in.")
+	if err == ErrSessionEnded {
+		return nil, authError("Identity provider rejected sign-in.")
+	}
 	if err != nil {
 		return nil, err
+	}
+	accessToken, idToken := tokens.AccessToken, tokens.IDToken
+	if idToken == "" {
+		return nil, authError("Identity provider rejected sign-in.")
 	}
 	set, err := fetchKeySet(ctx, client, meta.JWKSURI)
 	if err != nil {
@@ -185,7 +203,7 @@ func Login(ctx context.Context, opts Options) (*Result, error) {
 			accessClaims[name] = idClaims[name]
 		}
 	}
-	return &Result{Issuer: issuer, AccessToken: accessToken, Claims: accessClaims}, nil
+	return &Result{Issuer: issuer, AccessToken: accessToken, RefreshToken: tokens.RefreshToken, RefreshExpiresAt: tokens.refreshExpiry(now()), Claims: accessClaims}, nil
 }
 
 func noRedirects(base *http.Client) *http.Client {
@@ -306,36 +324,53 @@ func (r *callbackReceiver) close() {
 	_ = r.server.Shutdown(ctx)
 }
 
-func exchange(ctx context.Context, client *http.Client, endpoint, clientID, redirectURI, code, verifier string) (string, string, error) {
-	form := url.Values{
-		"grant_type":    {"authorization_code"},
-		"client_id":     {clientID},
-		"redirect_uri":  {redirectURI},
-		"code":          {code},
-		"code_verifier": {verifier},
+type tokenResponse struct {
+	AccessToken      string `json:"access_token"`
+	IDToken          string `json:"id_token"`
+	RefreshToken     string `json:"refresh_token"`
+	RefreshExpiresIn int64  `json:"refresh_expires_in"`
+	Error            string `json:"error"`
+}
+
+func (t *tokenResponse) refreshExpiry(now time.Time) time.Time {
+	if t.RefreshToken == "" || t.RefreshExpiresIn <= 0 {
+		return time.Time{}
 	}
+	return now.Add(time.Duration(t.RefreshExpiresIn) * time.Second)
+}
+
+// exchange posts one token request. A provider "invalid_grant" answer comes
+// back as ErrSessionEnded so callers can tell an ended session from an outage.
+func exchange(ctx context.Context, client *http.Client, endpoint string, form url.Values, rejected string) (*tokenResponse, error) {
+	unavailableErr := unavailable("Identity provider token exchange is unavailable.")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", "", unavailable("Identity provider token exchange is unavailable.")
+		return nil, unavailableErr
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", "", unavailable("Identity provider token exchange is unavailable.")
+		return nil, unavailableErr
 	}
 	defer resp.Body.Close()
-	var body struct {
-		AccessToken string `json:"access_token"`
-		IDToken     string `json:"id_token"`
-	}
+	var body tokenResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
-		return "", "", authError("Identity provider returned an invalid token response.")
+		if resp.StatusCode >= 500 {
+			return nil, unavailableErr
+		}
+		return nil, authError("Identity provider returned an invalid token response.")
 	}
-	if resp.StatusCode != http.StatusOK || body.AccessToken == "" || body.IDToken == "" {
-		return "", "", authError("Identity provider rejected sign-in.")
+	if resp.StatusCode >= 500 {
+		return nil, unavailableErr
 	}
-	return body.AccessToken, body.IDToken, nil
+	if resp.StatusCode != http.StatusOK || body.AccessToken == "" {
+		if body.Error == "invalid_grant" {
+			return nil, ErrSessionEnded
+		}
+		return nil, authError(rejected)
+	}
+	return &body, nil
 }
 
 // NormalizeURL checks that value is an absolute HTTPS URL (or loopback HTTP

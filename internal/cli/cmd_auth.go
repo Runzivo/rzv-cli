@@ -122,6 +122,7 @@ func runLogin(a *app, cmd *command) error {
 		Version: 1, Environment: env.Name, Identity: identityLabel(result.Claims), Issuer: result.Issuer, ClientID: env.ClientID,
 		Audience: env.Audience, GitHubBrokerClaim: env.BrokerClaim,
 		APIBaseURL: apiURL.Scheme + "://" + apiURL.Host, AccessToken: result.AccessToken,
+		RefreshToken: result.RefreshToken, RefreshExpiresAt: result.RefreshExpiresAt,
 	}
 	// The workspace is resolved before anything is saved, so a workspace that
 	// cannot be found leaves the profile's previous sign-in untouched.
@@ -168,6 +169,14 @@ func runLogout(a *app, cmd *command) error {
 		return err
 	}
 	if a.Store != nil {
+		// End the session at the identity provider first, so a copied
+		// credentials file stops working too. Logging out locally still
+		// succeeds when the provider cannot be reached.
+		if creds, err := a.Store.Read(); err == nil && creds != nil && creds.RefreshToken != "" {
+			if err := oidc.Revoke(a.ctx, creds.Issuer, creds.ClientID, creds.RefreshToken, insecureLoopback(creds.Issuer), a.HTTPClient); err != nil {
+				fmt.Fprintln(a.Stderr, "rzv: Could not reach the identity provider to end the session; it ends on its own when it expires.")
+			}
+		}
 		if err := a.Store.Clear(); err != nil {
 			return err
 		}
@@ -206,6 +215,11 @@ func runWhoami(a *app, cmd *command) error {
 		envName = "custom"
 	}
 	expires := claims.Time("exp")
+	if creds.RefreshToken != "" {
+		// The access token renews itself; the session lasts until the
+		// refresh token expires (sooner if unused, or at the session maximum).
+		expires = creds.RefreshExpiresAt
+	}
 	var selected any
 	if creds.SelectedWorkspace != "" {
 		selected = creds.SelectedWorkspace

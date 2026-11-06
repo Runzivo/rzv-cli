@@ -33,6 +33,15 @@ type Provider struct {
 	Mutate func(kind string, claims map[string]any)
 	// TokenLifetime defaults to five minutes.
 	TokenLifetime time.Duration
+	// Refresh tokens rotate on every use, like the Runzivo realms: each one
+	// works once, and reusing a spent one ends the whole session.
+	refresh      map[string]bool // token -> still valid
+	sessionEnded bool
+	// RefreshCalls and Revocations count those requests.
+	RefreshCalls int
+	Revocations  int
+	// RefreshSubject, when set, is the subject of renewed access tokens.
+	RefreshSubject string
 }
 
 // New starts a provider whose issuer is Issuer().
@@ -42,13 +51,14 @@ func New(t *testing.T) *Provider {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &Provider{t: t, key: key, TokenLifetime: 5 * time.Minute}
+	p := &Provider{t: t, key: key, TokenLifetime: 5 * time.Minute, refresh: map[string]bool{}}
 	mux := http.NewServeMux()
 	p.Server = httptest.NewServer(mux)
 	t.Cleanup(p.Server.Close)
 	mux.HandleFunc("/realms/test/.well-known/openid-configuration", p.discovery)
 	mux.HandleFunc("/realms/test/certs", p.certs)
 	mux.HandleFunc("/realms/test/token", p.token)
+	mux.HandleFunc("/realms/test/revoke", p.revoke)
 	return p
 }
 
@@ -61,6 +71,7 @@ func (p *Provider) discovery(w http.ResponseWriter, _ *http.Request) {
 		"issuer":                           issuer,
 		"authorization_endpoint":           issuer + "/auth",
 		"token_endpoint":                   issuer + "/token",
+		"revocation_endpoint":              issuer + "/revoke",
 		"jwks_uri":                         issuer + "/certs",
 		"response_modes_supported":         []string{"query", "form_post"},
 		"code_challenge_methods_supported": []string{"S256"},
@@ -76,8 +87,74 @@ func (p *Provider) certs(w http.ResponseWriter, _ *http.Request) {
 	}}})
 }
 
+func (p *Provider) newRefreshToken() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	token := "rt-" + base64.RawURLEncoding.EncodeToString(b)
+	p.refresh[token] = true
+	return token
+}
+
+// ValidRefreshTokens is how many refresh tokens would still be accepted.
+func (p *Provider) ValidRefreshTokens() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := 0
+	for _, ok := range p.refresh {
+		if ok && !p.sessionEnded {
+			n++
+		}
+	}
+	return n
+}
+
+// EndSession makes every refresh token stop working, as an expired or
+// revoked session does.
+func (p *Provider) EndSession() {
+	p.mu.Lock()
+	p.sessionEnded = true
+	p.mu.Unlock()
+}
+
+func (p *Provider) refreshGrant(w http.ResponseWriter, r *http.Request) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.RefreshCalls++
+	token := r.Form.Get("refresh_token")
+	valid, known := p.refresh[token]
+	if r.Form.Get("client_id") != "rzv-cli" || p.sessionEnded || !known || !valid {
+		if known && !valid {
+			p.sessionEnded = true // reuse of a spent token ends the session
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"Token is not active"}`))
+		return
+	}
+	p.refresh[token] = false
+	access := p.Claims("rzv-customer-api")
+	access["aud"], access["typ"] = []string{"rzv-customer-api", "account"}, "Bearer"
+	if p.RefreshSubject != "" {
+		access["sub"] = p.RefreshSubject
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"access_token": p.Sign(access), "refresh_token": p.newRefreshToken(), "refresh_expires_in": 1209600, "token_type": "Bearer"})
+}
+
+func (p *Provider) revoke(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Revocations++
+	if _, ok := p.refresh[r.Form.Get("token")]; ok && r.Form.Get("client_id") == "rzv-cli" {
+		p.sessionEnded = true
+	}
+}
+
 func (p *Provider) token(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
+	if r.Form.Get("grant_type") == "refresh_token" {
+		p.refreshGrant(w, r)
+		return
+	}
 	p.mu.Lock()
 	challenge, nonce := p.challenge, p.nonce
 	p.mu.Unlock()
@@ -95,7 +172,11 @@ func (p *Provider) token(w http.ResponseWriter, r *http.Request) {
 		p.Mutate("id", id)
 		p.Mutate("access", access)
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"access_token": p.Sign(access), "id_token": p.Sign(id), "token_type": "Bearer"})
+	p.mu.Lock()
+	p.sessionEnded = false
+	refresh := p.newRefreshToken()
+	p.mu.Unlock()
+	_ = json.NewEncoder(w).Encode(map[string]any{"access_token": p.Sign(access), "id_token": p.Sign(id), "refresh_token": refresh, "refresh_expires_in": 1209600, "token_type": "Bearer"})
 }
 
 // Claims returns a valid claim set for audience.

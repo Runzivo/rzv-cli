@@ -149,6 +149,7 @@ func TestExpiredSessionIsRefusedLocally(t *testing.T) {
 	claims := h.provider.Claims("rzv-customer-api")
 	claims["exp"] = time.Now().Add(-time.Minute).Unix()
 	creds.AccessToken = h.provider.Sign(claims)
+	creds.RefreshToken = "" // a sign-in from before refresh tokens
 	_ = h.store.Write(creds)
 	calls := len(h.seenAuth)
 	code, _, errOut := h.run("workspaces", "list")

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -17,20 +18,25 @@ const (
 	activeFile      = "profile.json"
 )
 
-// Credentials is what `rzv login` stores. The access token is never
-// printed or logged.
+// Credentials is what `rzv login` stores. The access and refresh tokens are
+// never printed or logged, and the file is owner-only (0600 in a 0700
+// directory). RefreshToken renews the access token within the identity
+// provider's session limits; RefreshExpiresAt is when the provider said it
+// stops working if unused (zero when unknown).
 type Credentials struct {
 	Version     int    `json:"version"`
 	Environment string `json:"environment,omitempty"`
 	// Identity is a display label (username or email) from the ID token.
-	Identity          string `json:"identity,omitempty"`
-	Issuer            string `json:"issuer"`
-	ClientID          string `json:"clientId"`
-	Audience          string `json:"audience"`
-	GitHubBrokerClaim string `json:"githubBrokerClaim"`
-	APIBaseURL        string `json:"apiBaseUrl"`
-	AccessToken       string `json:"accessToken"`
-	SelectedWorkspace string `json:"selectedAccountId,omitempty"`
+	Identity          string    `json:"identity,omitempty"`
+	Issuer            string    `json:"issuer"`
+	ClientID          string    `json:"clientId"`
+	Audience          string    `json:"audience"`
+	GitHubBrokerClaim string    `json:"githubBrokerClaim"`
+	APIBaseURL        string    `json:"apiBaseUrl"`
+	AccessToken       string    `json:"accessToken"`
+	RefreshToken      string    `json:"refreshToken,omitempty"`
+	RefreshExpiresAt  time.Time `json:"refreshExpiresAt,omitzero"`
+	SelectedWorkspace string    `json:"selectedAccountId,omitempty"`
 }
 
 func (c *Credentials) valid() bool {
@@ -175,4 +181,39 @@ func (s *Store) Clear() error {
 		return &StoreError{"local_state_unavailable", "Unable to remove local rzv credentials."}
 	}
 	return nil
+}
+
+// lockStale is how old a lock file must be before another process takes it
+// over: longer than any one token refresh, which is bounded by network
+// timeouts.
+const lockStale = 60 * time.Second
+
+// Lock takes this profile's credential lock, waiting up to wait. Only one
+// process at a time may spend a refresh token, because the identity provider
+// rotates it and refuses the old one. The returned function releases it.
+func (s *Store) Lock(wait time.Duration) (func(), error) {
+	fail := &StoreError{"local_state_unavailable", "Another rzv process is renewing the sign-in. Try again shortly."}
+	path := s.path() + ".lock"
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, fail
+	}
+	deadline := time.Now().Add(wait)
+	for {
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			_ = f.Close()
+			return func() { _ = os.Remove(path) }, nil
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, fail
+		}
+		if info, statErr := os.Lstat(path); statErr == nil && time.Since(info.ModTime()) > lockStale {
+			_ = os.Remove(path)
+			continue
+		}
+		if time.Now().After(deadline) {
+			return nil, fail
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
