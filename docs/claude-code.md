@@ -1,12 +1,12 @@
 # Claude Code in a sandbox
 
-[Claude Code](https://code.claude.com/docs/en/overview) is Anthropic's coding agent. It is preinstalled in Runzivo sandboxes at `/usr/local/bin/claude`; `claude --version` prints the version. Use it with your own Anthropic account. Claude Code sends requests straight from the sandbox to Anthropic, and Anthropic bills you for them. Runzivo charges only the sandbox's compute ([billing](sandboxes-billing.md)) and keeps no copy of your key or login.
+[Claude Code](https://code.claude.com/docs/en/overview) is Anthropic's coding agent. It is preinstalled in Runzivo sandboxes at `/usr/local/bin/claude`; `claude --version` prints the version. Use it with your own Anthropic account. Claude Code sends requests straight from the sandbox to Anthropic, and Anthropic bills you for them. Runzivo charges only the sandbox's compute ([billing](sandboxes-billing.md)) and keeps no copy of your key or login outside the sandbox.
 
 Open a shell with `rzv sandboxes ssh <sandbox-id>`, then `cd /workspace` and sign in one of the ways below.
 
 ## Sign in with a Claude subscription
 
-Run `claude` and follow the login prompt, or run `claude auth login` first. No browser opens in the sandbox, so open the login URL that Claude Code shows on your computer (press `c` to copy it), sign in, and paste the code you get back at `Paste code here if prompted`. Claude Code saves the login in `~/.claude/.credentials.json` (mode 600) in the sandbox. `/logout` removes it. See Anthropic's [authentication guide](https://code.claude.com/docs/en/authentication).
+Run `claude` and follow the login prompt, or run `claude auth login` first. No browser opens in the sandbox, so open the login URL that Claude Code shows on your computer (press `c` to copy it), sign in, and paste the code you get back at `Paste code here if prompted`. Claude Code saves the login in `~/.claude/.credentials.json` (mode 600) in the sandbox. `/logout` in Claude Code or `claude auth logout` removes it. See Anthropic's [authentication guide](https://code.claude.com/docs/en/authentication).
 
 ## Use an API key
 
@@ -37,11 +37,11 @@ At the moment a stop and start removes every file outside `/workspace`: your log
 
 ## Clean up
 
-- Run `/logout` in Claude Code, or `rm ~/.secrets/anthropic.key`, before you share the sandbox or when you are done.
+- While the sandbox runs, anyone with `sandboxes:write` in the workspace can open a shell in it ([permissions](sandboxes-billing.md)) and read a saved login or key file. Run `claude auth logout` or `rm ~/.secrets/anthropic.key` when you are done.
 - `rzv sandboxes delete <sandbox-id>` deletes the sandbox and all its files, including any saved login or key. At expiry the sandbox stops and its files are deleted too.
 - Revoke a key you no longer need in the [Claude Console](https://platform.claude.com).
 
-## Errors
+## Errors and limits
 
 - No key and no login: `claude -p` prints `Not logged in · Please run /login`.
 - A wrong or revoked key: `Invalid API key · Fix external API key`.
@@ -49,6 +49,6 @@ At the moment a stop and start removes every file outside `/workspace`: your log
 - Claude Code can run commands and change files in the sandbox. Review what it does before you push.
 - `claude -p` uses an `ANTHROPIC_API_KEY` that is set. Interactive `claude` asks once whether to use it; `/status` shows which sign-in is in use.
 
-Running Claude Code's cloud sessions on your own sandbox (Anthropic's self-hosted environments) is not supported yet: Anthropic offers it as a beta.
+Running Claude Code's cloud sessions on a Runzivo sandbox (Anthropic's self-hosted environments, in beta) is not supported.
 
 Back to [Sandboxes](sandboxes.md).
