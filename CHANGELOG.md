@@ -8,6 +8,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 - `rzv sandboxes sizes` shows every sandbox size with its vCPU, RAM, equivalent-minute rate, the plan it needs (`included` or the plan name, marked locked) and its regional availability, with an upgrade hint for locked sizes. `rzv sandboxes list --json` and `sizes --json` pass the new `size_availability` fields through. Creating a size your plan does not allow now says which plan it needs and where to upgrade (exit code 4), or to contact Runzivo for the Enterprise plan. See [Sandbox sizes and plans](docs/sandbox-sizes.md).
 - [Claude Code in a sandbox](docs/claude-code.md): use the preinstalled Claude Code with your own Anthropic API key or Claude subscription login. The key or login stays in the sandbox, and only `/workspace` survives a stop and start. Runzivo charges only the sandbox's compute.
+- [Codex in a sandbox](docs/codex.md): sign in to the preinstalled Codex CLI with your own OpenAI API key (piped over SSH) or ChatGPT device code sign-in, choose the sandbox mode (`sandbox_mode` in `~/.codex/config.toml`), and how to sign out. Only `/workspace` is sure to survive a stop and start.
 
 ### Changed
 
