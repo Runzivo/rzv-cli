@@ -18,16 +18,17 @@ Do not pass keys with `rzv sandboxes exec --env` or in an `exec` command. Runziv
 
 ## Sandbox mode
 
-Codex's own `workspace-write` sandbox needs `bubblewrap`, which the sandbox image does not include yet. Without it, Codex cannot edit files and says that bubblewrap is unavailable. Choose one of these:
+Codex's own `workspace-write` sandbox needs `bubblewrap`, which the sandbox image does not include yet. Without it, Codex cannot edit files and says that bubblewrap is unavailable.
 
-- Install it for this run: `sudo apt-get update && sudo apt-get install -y bubblewrap`. `workspace-write` then works as on any Linux machine.
-- Turn off Codex's own sandbox. The sandbox is already its own virtual machine, which is the isolation boundary. Add this to `~/.codex/config.toml`:
+The Runzivo sandbox is already its own virtual machine, which is the isolation boundary. So turn off Codex's own sandbox in `~/.codex/config.toml`:
 
 ```toml
 sandbox_mode = "danger-full-access"
 ```
 
 `codex exec --sandbox danger-full-access` does the same for one run. In this mode Codex can change any file in the sandbox and reach the network.
+
+To keep Codex's own sandbox, install `bubblewrap` first: `sudo apt-get update && sudo apt-get install -y bubblewrap`. Then `workspace-write` limits Codex's writes to the project folder.
 
 ## After a stop and start
 
@@ -41,5 +42,6 @@ At the moment a stop and start removes every file outside `/workspace`: `~/.code
 
 - The sandbox needs outbound HTTPS to OpenAI.
 - Codex can run commands and change files in the sandbox. Review what it does before you push.
+- `scripts/21-codex-e2e.sh` runs these steps against one sandbox on the shared test environment and deletes it afterwards.
 
 Back to [Sandboxes](sandboxes.md).
