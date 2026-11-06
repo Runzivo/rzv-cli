@@ -11,7 +11,7 @@
 | [Sandboxes](sandboxes.md)                               | Create sandboxes, run commands and open a terminal                                     |
 | [Running commands in a sandbox](sandboxes-exec.md)      | `rzv sandboxes exec`, its exit status and JSON output                                  |
 | [Sandbox SSH](sandboxes-ssh.md) | Standard ssh, file transfers, local forwarding and Remote SSH editors |
-| [VS Code and Cursor](editors.md) | Remote SSH editors in a sandbox's `/workspace` |
+| [VS Code and Cursor](editors.md)                        | Remote SSH editors in a sandbox's `/workspace`                                         |
 | [Sandbox terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`                                              |
 | [Sandbox billing and permissions](sandboxes-billing.md) | Charges, credit and the permissions each command needs                                 |
 | [Orca workspaces](orca.md)                              | `rzv orca`: the commands the Runzivo plugin for Orca runs                              |
