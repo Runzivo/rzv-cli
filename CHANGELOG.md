@@ -12,6 +12,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Changed
 
+- Sandbox docs: a stop and start now keeps the whole disk (home directory, tool installs, settings, saved sign-ins and installed packages), not only `/workspace` (rzv-core #808). Updated [Sandboxes](docs/sandboxes.md), [editors](docs/editors.md), [Herdr](docs/herdr.md), [OpenCode](docs/opencode.md), [Claude Code](docs/claude-code.md) and [Codex](docs/codex.md).
 - `rzv sandboxes ssh-config <sandbox-id> --write` now prints `cursor --remote ssh-remote+<sandbox-id>.rzv /workspace` for Cursor. [VS Code and Cursor Remote SSH](docs/editors.md) records a live test with Cursor 3.29.9 and Anysphere Remote - SSH 1.1.17, covering the first connection and a reconnect after a stop and start.
 
 ## release-2026-11-06-113624 (rzv 0.25.0), 2026-11-06

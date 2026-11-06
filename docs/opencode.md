@@ -23,7 +23,7 @@ For a newer release, take its version and the `sha256` digest of `opencode-linux
 
 ## After a stop and start
 
-At the moment a stop and start removes every file outside `/workspace`: the OpenCode install, `~/.config/opencode` and any key you saved. After each `start`, and in each new sandbox, install OpenCode and add your key again.
+A stop and start keeps the sandbox's disk: the OpenCode install, `~/.config/opencode` and a key saved with `opencode auth login` are still there after `start`. In each new sandbox, install OpenCode and add your key again.
 
 ## Add your key
 

@@ -1,6 +1,6 @@
 # Sandboxes
 
-A sandbox is a Linux virtual machine in your workspace. Your files live in `/workspace` and survive a stop and a start until the sandbox expires.
+A sandbox is a Linux virtual machine in your workspace. A stop and a start keep its whole disk until the sandbox expires: `/workspace`, your home directory (tool installs, settings and saved sign-ins) and packages you installed. Running processes end at a stop. Expiry or deletion removes all of it.
 
 ## Lifetime
 

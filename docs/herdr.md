@@ -37,13 +37,12 @@ Each new SSH connection gets a fresh 15-minute certificate. A client that stays 
 
 ## Stop, start and expiry
 
-Today a sandbox stop removes everything outside `/workspace`. After `rzv sandboxes start <sandbox-id>`:
+A stop and start keeps the sandbox's disk. After `rzv sandboxes start <sandbox-id>`:
 
-- Herdr, its configuration and its saved layout are gone, and so are its server and every pane and process.
-- Agent sign-ins and history in the home directory, such as `~/.claude`, are gone too.
-- `/workspace` is kept.
+- Herdr, its configuration and its saved session in `~/.config/herdr` are still there, and so are `/workspace` and agent sign-ins in the home directory, such as `~/.claude`.
+- The Herdr server and every pane and process have ended.
 
-Run `herdr --remote <sandbox-id>.rzv` again. It asks to reinstall Herdr. Then start new panes. At expiry the sandbox stops for good and `/workspace` is deleted too. The lifetime cannot be extended.
+Run `herdr --remote <sandbox-id>.rzv` again to start the server, then start new panes. At expiry the sandbox stops for good and `/workspace` is deleted too. The lifetime cannot be extended.
 
 ## Other limits
 

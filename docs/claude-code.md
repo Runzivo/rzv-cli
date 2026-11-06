@@ -33,7 +33,7 @@ Do not pass keys with `rzv sandboxes exec --env` or in an `exec` command. Runziv
 
 ## After a stop and start
 
-At the moment a stop and start removes every file outside `/workspace`: your login in `~/.claude`, `~/.claude/settings.json`, any key file and Claude Code's session history. Claude Code itself is still installed. After each `start`, and in each new sandbox, sign in or add your key again. Keep work you want to keep in `/workspace`, or push it. `rzv sandboxes get <sandbox-id>` shows the running time and credits used.
+A stop and start keeps the sandbox's disk: your login in `~/.claude`, `~/.claude/settings.json`, any key file and Claude Code's session history are still there after `start`. Running sessions end. A new sandbox starts clean, so sign in or add your key there. Keep work you want to keep in `/workspace`, or push it. `rzv sandboxes get <sandbox-id>` shows the running time and credits used.
 
 ## Clean up
 
