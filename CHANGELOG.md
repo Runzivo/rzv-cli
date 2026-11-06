@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Changed
+
+- `rzv sandboxes ssh-config <sandbox-id> --write` now prints `cursor --remote ssh-remote+<sandbox-id>.rzv /workspace` for Cursor. [VS Code and Cursor Remote SSH](docs/editors.md) records a live test with Cursor 3.29.9 and Anysphere Remote - SSH 1.1.17, covering the first connection and a reconnect after a stop and start.
+
 ## release-2026-11-06-113624 (rzv 0.25.0), 2026-11-06
 
 ### Added

@@ -561,13 +561,14 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 // printSSHConnectHints shows how to use one freshly written alias from a
 // terminal and from Remote SSH editors.
 func (a *app) printSSHConnectHints(alias string) error {
-	_, err := fmt.Fprintf(a.Stdout, "%s ssh %s\n%s code --remote ssh-remote+%s /workspace\n%s\n%s\n",
+	_, err := fmt.Fprintf(a.Stdout, "%s ssh %s\n%s code --remote ssh-remote+%s /workspace\n%s\n%s cursor --remote ssh-remote+%s /workspace\n%s\n",
 		a.text("Terminal:", "Terminal :"), alias,
 		a.text("VS Code:", "VS Code :"), alias,
 		a.text("  On macOS, first run Shell Command: Install 'code' command in PATH in VS Code.",
 			"  Sur macOS, lancez d’abord Shell Command: Install 'code' command in PATH dans VS Code."),
-		a.text("Cursor: run Remote-SSH: Connect to Host and choose "+alias+", then open /workspace.",
-			"Cursor : lancez Remote-SSH: Connect to Host, choisissez "+alias+", puis ouvrez /workspace."))
+		a.text("Cursor:", "Cursor :"), alias,
+		a.text("  Or run Remote-SSH: Connect to Host in Cursor and choose "+alias+".",
+			"  Ou lancez Remote-SSH: Connect to Host dans Cursor et choisissez "+alias+"."))
 	return err
 }
 
