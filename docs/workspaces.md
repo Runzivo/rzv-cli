@@ -2,11 +2,25 @@
 
 | Command                                       | What it does                                                           |
 | --------------------------------------------- | ---------------------------------------------------------------------- |
-| `rzv workspaces list`                         | Workspaces you belong to, with name, slug, id and role.                              |
+| `rzv workspaces list`                         | Workspaces you belong to, with name, slug, id, role and kind.                        |
 | `rzv workspaces select <workspace>`  | Use this workspace for later commands.                                 |
 | `rzv workspaces create --slug <s> --name <n>` | Create a workspace and select it. Re-running the same command is safe. |
 
 To create a workspace from a GitHub App installation, see [GitHub](github.md).
+
+## Workspace kind
+
+- A workspace is `personal` (one person, one member) or an `organization`.
+- `rzv workspaces list` shows the kind after the role, for example `- Acme [id] (acme, owner), personal (unconfirmed)`.
+- `(unconfirmed)` means the service only inferred the kind, so treat it as provisional. Older services report no kind and the list shows none.
+- `rzv workspaces confirm-kind --kind <personal|organization> [--yes] [--workspace <id>]` confirms it. Owner only; needs a recent sign-in, and API keys are refused.
+- Without `--yes` it is a dry run: it prints what would be set, changes nothing, and ends with `Run again with --yes to confirm.`
+- With `--yes` it confirms the kind and prints the change id. Once confirmed, only Runzivo staff can change it.
+- Only an unconfirmed kind can be confirmed; a confirmed one is refused with `kind_already_confirmed`.
+- `personal` is refused when you already own another personal workspace, when the workspace has more than one member, or when it has a connected source account that is not a user account. Confirm it as `organization` instead, or remove the other members first.
+- Nothing is moved, merged or renamed by confirming.
+- `--json` prints `{"workspace_id", "confirmed", "workspace_kind":{"kind","kind_source","change_id"}}`; `change_id` is present only after `--yes`.
+- Exit codes: 3 when the sign-in is too old (`rzv login`, then retry), 4 when refused for access, 5 when the service lacks the command.
 
 `rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <workspace>` (short `-w`, or the older `--account`) to override the selection. `RZV_WORKSPACE` sets the default workspace, and it is used when no `--workspace` is given. With `RZV_API_KEY`, pass the workspace id: a key cannot look up slugs or names.
 

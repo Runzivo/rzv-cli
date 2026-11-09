@@ -4,7 +4,7 @@ Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using
 
 | Page                                                | Commands                                                                    |
 | --------------------------------------------------- | --------------------------------------------------------------------------- |
-| [Workspaces](workspaces.md)                         | `workspaces` list, select, create, settings, members, invitations, closures |
+| [Workspaces](workspaces.md)                         | `workspaces` list, select, create, confirm-kind, settings, members, invitations, closures |
 | [Jobs, insights and usage](jobs.md)                 | `jobs`, `insights`, `usage`, `concurrency`                                  |
 | [Billing](billing.md)                               | `billing`, checkout, portal, auto-recharge, codes                           |
 | [Activity](activity.md)                             | `activity` list, export, status                                             |
