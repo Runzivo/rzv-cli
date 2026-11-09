@@ -288,7 +288,7 @@ func teamsMember(a *app, cmd *command, add bool) error {
 	if add {
 		team, err := client.AddTeamMember(a.ctx, id, teamID, identityID)
 		if err != nil {
-			return apiError(err, "The team or the member was not found in this workspace.")
+			return a.workspaceSharingError(err, "The team or the member was not found in this workspace.")
 		}
 		a.output(cmd, map[string]any{"workspace_id": id, "team": team}, fmt.Sprintf("Added %s to team %s.", display(identityID), display(team.Name)))
 		return nil

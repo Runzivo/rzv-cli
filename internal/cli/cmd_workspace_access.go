@@ -553,12 +553,12 @@ func (a *app) acceptWorkspaceInvitationError(err error) error {
 
 // workspaceSharingError explains the service's refusal to share a workspace
 // whose type is confirmed as personal (409 personal_workspace_not_shared):
-// invitations, resends, accepting an invitation that adds access, team
-// changes and role increases. Everything else uses the shared mapping.
+// invitations, resends, accepting an invitation that adds access, adding a
+// team member and role increases. Everything else uses the shared mapping.
 func (a *app) workspaceSharingError(err error, notFound string) error {
 	var apiErr *api.Error
 	if errors.As(err, &apiErr) && apiErr.Status == 409 && apiErr.Code == "personal_workspace_not_shared" {
-		// The portal's wording (access.errors.personal_workspace_not_shared).
+		// Reviewed wording, EN and fr-CA.
 		return newError(apiErr.Code, exitFailure, "%s", a.text(
 			"A personal workspace is not shared: nobody can be invited, added or given more access. To work with others, use an organization workspace.",
 			"Un espace personnel n’est pas partagé : on ne peut y inviter ni y ajouter personne, ni y accorder plus d’accès. Pour travailler avec d’autres personnes, utilisez un espace d’organisation.",

@@ -23,7 +23,7 @@ func TestWorkspaceSharingRefusal(t *testing.T) {
 	}{
 		{"POST /v1/customer/tenants/t-1/invitations", []string{"workspaces", "invitations", "invite", "--email", "a@example.com", "--role", "member"}},
 		{"POST /v1/customer/tenants/t-1/invitations/inv-1/resend", []string{"workspaces", "invitations", "resend", "inv-1"}},
-		{"PATCH /v1/customer/tenants/t-1/invitations/inv-1", []string{"workspaces", "invitations", "teams", "inv-1", "--team-ids", "team-1"}},
+		{"POST /v1/customer/tenants/t-1/teams/team-1/members", []string{"teams", "add-member", "team-1", "id-1"}},
 		{"PATCH /v1/customer/tenants/t-1/members/id-1", []string{"workspaces", "members", "role", "id-1", "--role", "admin"}},
 		{"POST /v1/customer/invitations/accept", []string{"workspaces", "invitations", "accept", "--token", "tok"}},
 	}
