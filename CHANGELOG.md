@@ -2,11 +2,11 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
-## Unreleased
+## release-2026-11-09-084915 (rzv 0.28.0), 2026-11-09
 
 ### Added
 
-- `rzv billing marketplace claimable` lists the GitHub Marketplace purchases held because several workspaces own the buying GitHub account and this workspace can claim. `rzv billing marketplace claim --account-id <id>` links one to the workspace; repeating it reports `already_linked`. Owner only, `claim` needs a recent sign-in, API keys are refused, and both support `--json`. See [Billing](docs/billing.md).
+- `rzv billing marketplace claimable` lists the GitHub Marketplace purchases held because the buying GitHub account is connected to several workspaces, and that this workspace can claim. `rzv billing marketplace claim --account-id <id>` links one to the workspace; repeating it reports `already_linked`. Owner only, `claim` needs a recent sign-in, API keys are refused, and both support `--json`. See [Billing](docs/billing.md).
 
 ## release-2026-11-06-205402 (rzv 0.27.0), 2026-11-06
 
