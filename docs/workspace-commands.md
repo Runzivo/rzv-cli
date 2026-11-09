@@ -2,19 +2,19 @@
 
 Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using a workspace API key, settings, members, and invitations commands require the `all:all` scope. `rzv workspaces invitations accept` always needs your own sign-in. Other workspace commands act on the workspace chosen with `rzv workspaces select`, or on `--workspace <id>`. `rzv workspaces settings update` changes the name, logo and Docker layer cache setting; the cache also needs an operator to turn it on for the environment (see [Workspaces](workspaces.md)). Notification commands always require your own sign-in.
 
-| Page                                                | Commands                                                                    |
-| --------------------------------------------------- | --------------------------------------------------------------------------- |
+| Page                                                | Commands                                                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | [Workspaces](workspaces.md)                         | `workspaces` list, select, create, confirm-kind, settings, members, invitations, closures |
-| [Jobs, insights and usage](jobs.md)                 | `jobs`, `insights`, `usage`, `concurrency`                                  |
-| [Billing](billing.md)                               | `billing`, checkout, portal, auto-recharge, codes                           |
-| [Activity](activity.md)                             | `activity` list, export, status                                             |
-| [Notifications](notifications.md)                   | `notifications` list, read, settings                                        |
-| [GitHub](github.md)                                 | `github`, `repositories`, `runner-profiles`, `runners`, onboarding          |
-| [Custom runner profiles](custom-runner-profiles.md) | `runners profiles`, `runners availability`                                  |
-| [Teams and permissions](teams.md)                   | `teams`, `permissions`                                                      |
-| [API keys](api-keys.md)                             | `api-keys` list, create, rename, revoke                                     |
-| [Support tickets](tickets.md)                       | `tickets` list, open, show, reply, close                                    |
-| [Sandboxes](sandboxes.md)                           | `sandboxes`                                                                 |
-| [AI settings and usage](ai.md)                      | `ai` providers, settings, usage                                             |
+| [Jobs, insights and usage](jobs.md)                 | `jobs`, `insights`, `usage`, `concurrency`                                                |
+| [Billing](billing.md)                               | `billing`, checkout, portal, auto-recharge, codes                                         |
+| [Activity](activity.md)                             | `activity` list, export, status                                                           |
+| [Notifications](notifications.md)                   | `notifications` list, read, settings                                                      |
+| [GitHub](github.md)                                 | `github`, `repositories`, `runner-profiles`, `runners`, onboarding                        |
+| [Custom runner profiles](custom-runner-profiles.md) | `runners profiles`, `runners availability`                                                |
+| [Teams and permissions](teams.md)                   | `teams`, `permissions`                                                                    |
+| [API keys](api-keys.md)                             | `api-keys` list, create, rename, revoke                                                   |
+| [Support tickets](tickets.md)                       | `tickets` list, open, show, reply, close                                                  |
+| [Sandboxes](sandboxes.md)                           | `sandboxes`                                                                               |
+| [AI settings and usage](ai.md)                      | `ai` providers, settings, usage                                                           |
 
 Back to [Commands](commands.md).

@@ -3,7 +3,11 @@ package api
 import (
 	"context"
 	"net/http"
+	"regexp"
 )
+
+// changeIDPattern is the change_id format in the contract.
+var changeIDPattern = regexp.MustCompile(`^wkc_[0-9a-f]{24}$`)
 
 // WorkspaceKindResult is confirmCustomerWorkspaceKind's answer: the kind that
 // is set, or with a dry run the kind that would be set. ChangeID is present
@@ -27,7 +31,13 @@ func (c *Client) ConfirmWorkspaceKind(ctx context.Context, tenantID, kind string
 	if err := c.do(ctx, http.MethodPost, tenantPath(tenantID, "/kind"), nil, request, &result); err != nil {
 		return nil, err
 	}
-	if err := required(result.Kind == kind && nonEmpty(result.KindSource) && (!confirm || nonEmpty(result.ChangeID))); err != nil {
+	ok := result.Kind == kind && result.KindSource == "declared"
+	if confirm {
+		ok = ok && changeIDPattern.MatchString(result.ChangeID)
+	} else {
+		ok = ok && result.ChangeID == ""
+	}
+	if err := required(ok); err != nil {
 		return nil, err
 	}
 	return &result, nil

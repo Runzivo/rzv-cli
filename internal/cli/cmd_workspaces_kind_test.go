@@ -10,12 +10,10 @@ import (
 
 const kindRoute = "POST /v1/customer/tenants/t-1/kind"
 
-// kindServer answers the kind route and records the last body and the number
-// of requests.
-func kindServer(h *harness, seen *map[string]any, calls *int, status int, body string) {
+// kindServer answers the kind route and records the last body.
+func kindServer(h *harness, seen *map[string]any, status int, body string) {
 	h.routes[kindRoute] = func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
-		*calls++
 		*seen = nil
 		_ = json.Unmarshal(raw, seen)
 		w.Header().Set("Content-Type", "application/json")
@@ -27,14 +25,13 @@ func kindServer(h *harness, seen *map[string]any, calls *int, status int, body s
 func TestConfirmKindDryRun(t *testing.T) {
 	h := selectedHarness(t)
 	var seen map[string]any
-	calls := 0
 	for _, tc := range []struct{ kind, want string }{
-		{"personal", "Workspace t-1 would be confirmed as personal. Nothing was changed."},
-		{"organization", "Workspace t-1 would be confirmed as an organization. Nothing was changed."},
+		{"personal", "Workspace t-1 would be confirmed as a personal workspace. Nothing was changed."},
+		{"organization", "Workspace t-1 would be confirmed as an organization workspace. Nothing was changed."},
 	} {
-		kindServer(h, &seen, &calls, 200, `{"kind":"`+tc.kind+`","kind_source":"declared"}`)
+		kindServer(h, &seen, 200, `{"kind":"`+tc.kind+`","kind_source":"declared"}`)
 		code, out, errOut := h.run("workspaces", "confirm-kind", "--kind", tc.kind)
-		if code != 0 || errOut != "" || !strings.Contains(out, tc.want) || !strings.Contains(out, "only Runzivo staff can change it") || !strings.Contains(out, "Run again with --yes to confirm.") {
+		if code != 0 || errOut != "" || !strings.Contains(out, tc.want) || !strings.Contains(out, "Once the type is confirmed, only Runzivo staff can change it.") || !strings.Contains(out, "Run again with --yes to confirm.") {
 			t.Fatalf("%s dry run: %d %q %q", tc.kind, code, out, errOut)
 		}
 		// The default of confirm is false, so the field is left out.
@@ -42,7 +39,7 @@ func TestConfirmKindDryRun(t *testing.T) {
 			t.Fatalf("%s dry run body = %#v", tc.kind, seen)
 		}
 	}
-	kindServer(h, &seen, &calls, 200, `{"kind":"personal","kind_source":"declared"}`)
+	kindServer(h, &seen, 200, `{"kind":"personal","kind_source":"declared"}`)
 	// A slug resolves like every other workspace command.
 	if code, out, _ := h.run("workspaces", "confirm-kind", "--kind", "personal", "--workspace", "acme"); code != 0 || !strings.Contains(out, "Workspace t-1 would") {
 		t.Fatalf("by slug: %d %q", code, out)
@@ -60,10 +57,10 @@ func TestConfirmKindDryRun(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); code != 0 || err != nil || got.WorkspaceID != "t-1" || got.Confirmed || got.Kind.Kind != "personal" || got.Kind.KindSource != "declared" || got.Kind.ChangeID != "" || strings.Contains(out, "change_id") {
 		t.Fatalf("dry run --json: %d %q %v", code, out, err)
 	}
-	kindServer(h, &seen, &calls, 200, `{"kind":"organization","kind_source":"declared"}`)
+	kindServer(h, &seen, 200, `{"kind":"organization","kind_source":"declared"}`)
 	h.env["LANG"] = "fr_CA.UTF-8"
 	code, out, _ = h.run("workspaces", "confirm-kind", "--kind", "organization")
-	if code != 0 || !strings.Contains(out, "serait confirmé comme étant une organisation. Rien n’a été modifié.") || !strings.Contains(out, "Relancez la commande avec --yes pour confirmer.") {
+	if code != 0 || !strings.Contains(out, "serait confirmé comme espace d’organisation. Rien n’a été modifié.") || !strings.Contains(out, "Une fois le type confirmé, seul le personnel de Runzivo peut le modifier.") || !strings.Contains(out, "Relancez la commande avec --yes pour confirmer.") {
 		t.Fatalf("fr-CA dry run: %d %q", code, out)
 	}
 }
@@ -71,12 +68,11 @@ func TestConfirmKindDryRun(t *testing.T) {
 func TestConfirmKindConfirm(t *testing.T) {
 	h := selectedHarness(t)
 	var seen map[string]any
-	calls := 0
 	for _, tc := range []struct{ kind, want string }{
-		{"personal", "Confirmed workspace t-1 as personal (change wkc_0123456789abcdef01234567). Only Runzivo staff can change it now."},
-		{"organization", "Confirmed workspace t-1 as an organization (change wkc_0123456789abcdef01234567). Only Runzivo staff can change it now."},
+		{"personal", "Confirmed workspace t-1 as a personal workspace (change wkc_0123456789abcdef01234567). Only Runzivo staff can change the type now."},
+		{"organization", "Confirmed workspace t-1 as an organization workspace (change wkc_0123456789abcdef01234567). Only Runzivo staff can change the type now."},
 	} {
-		kindServer(h, &seen, &calls, 200, `{"kind":"`+tc.kind+`","kind_source":"declared","change_id":"wkc_0123456789abcdef01234567"}`)
+		kindServer(h, &seen, 200, `{"kind":"`+tc.kind+`","kind_source":"declared","change_id":"wkc_0123456789abcdef01234567"}`)
 		code, out, errOut := h.run("workspaces", "confirm-kind", "--kind", tc.kind, "--yes")
 		if code != 0 || errOut != "" || !strings.Contains(out, tc.want) || strings.Contains(out, "Run again") {
 			t.Fatalf("%s confirm: %d %q %q", tc.kind, code, out, errOut)
@@ -98,10 +94,10 @@ func TestConfirmKindConfirm(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); code != 0 || err != nil || got.WorkspaceID != "t-1" || !got.Confirmed || got.Kind.Kind != "organization" || got.Kind.KindSource != "declared" || got.Kind.ChangeID != "wkc_0123456789abcdef01234567" {
 		t.Fatalf("confirm --json: %d %q %v", code, out, err)
 	}
-	kindServer(h, &seen, &calls, 200, `{"kind":"personal","kind_source":"declared","change_id":"wkc_0123456789abcdef01234567"}`)
+	kindServer(h, &seen, 200, `{"kind":"personal","kind_source":"declared","change_id":"wkc_0123456789abcdef01234567"}`)
 	h.env["LANG"] = "fr_CA.UTF-8"
 	code, out, _ = h.run("workspaces", "confirm-kind", "--kind", "personal", "--yes")
-	if code != 0 || !strings.Contains(out, "a été confirmé comme étant personnel (modification wkc_0123456789abcdef01234567). Seul le personnel de Runzivo peut maintenant le modifier.") {
+	if code != 0 || !strings.Contains(out, "a été confirmé comme espace personnel (modification wkc_0123456789abcdef01234567). Seul le personnel de Runzivo peut maintenant en modifier le type.") {
 		t.Fatalf("fr-CA confirm: %d %q", code, out)
 	}
 }
@@ -109,7 +105,6 @@ func TestConfirmKindConfirm(t *testing.T) {
 func TestConfirmKindRejectsIncompleteAnswers(t *testing.T) {
 	h := selectedHarness(t)
 	var seen map[string]any
-	calls := 0
 	for _, tc := range []struct {
 		args []string
 		body string
@@ -117,8 +112,13 @@ func TestConfirmKindRejectsIncompleteAnswers(t *testing.T) {
 		{[]string{"--kind", "personal"}, `{}`},
 		{[]string{"--kind", "personal"}, `{"kind":"organization","kind_source":"declared"}`},
 		{[]string{"--kind", "personal", "--yes"}, `{"kind":"personal","kind_source":"declared"}`},
+		{[]string{"--kind", "personal", "--yes"}, `{"kind":"personal","kind_source":"declared","change_id":"wkc_0123"}`},
+		{[]string{"--kind", "personal", "--yes"}, `{"kind":"personal","kind_source":"declared","change_id":"wkc_0123456789ABCDEF01234567"}`},
+		{[]string{"--kind", "personal", "--yes"}, `{"kind":"personal","kind_source":"inferred","change_id":"wkc_0123456789abcdef01234567"}`},
+		{[]string{"--kind", "personal"}, `{"kind":"personal","kind_source":"staff"}`},
+		{[]string{"--kind", "personal"}, `{"kind":"personal","kind_source":"declared","change_id":"wkc_0123456789abcdef01234567"}`},
 	} {
-		kindServer(h, &seen, &calls, 200, tc.body)
+		kindServer(h, &seen, 200, tc.body)
 		if code, _, _ := h.run(append([]string{"workspaces", "confirm-kind"}, tc.args...)...); code == 0 {
 			t.Fatalf("%v accepted %s", tc.args, tc.body)
 		}
@@ -128,7 +128,6 @@ func TestConfirmKindRejectsIncompleteAnswers(t *testing.T) {
 func TestConfirmKindRefusals(t *testing.T) {
 	h := selectedHarness(t)
 	var seen map[string]any
-	calls := 0
 	for _, tc := range []struct {
 		status int
 		code   string
@@ -138,18 +137,18 @@ func TestConfirmKindRefusals(t *testing.T) {
 	}{
 		{400, "invalid_request", exitUsage, "--kind must be personal or organization", "invalid_request"},
 		{403, "tenant_membership_required", exitAccessDenied, "You are not a member of this workspace.", "tenant_membership_required"},
-		{403, "workspace_owner_required", exitAccessDenied, "Only a workspace owner can confirm what the workspace is.", "workspace_owner_required"},
+		{403, "workspace_owner_required", exitAccessDenied, "Only a workspace owner can confirm the workspace type.", "workspace_owner_required"},
 		{403, "reauth_required", exitAuth, "Sign in again with `rzv login`, then retry.", "reauth_required"},
 		{403, "api_key_scope_required", exitAccessDenied, "API keys cannot do it", "api_key_scope_required"},
-		{409, "kind_already_confirmed", exitFailure, "already confirmed. Only Runzivo staff can change it.", "kind_already_confirmed"},
-		{409, "personal_workspace_exists", exitFailure, "already own another personal workspace", "personal_workspace_exists"},
-		{409, "personal_workspace_has_members", exitFailure, "has one member, and this workspace has more", "personal_workspace_has_members"},
-		{409, "personal_requires_user_account", exitFailure, "not a user account", "personal_requires_user_account"},
+		{409, "kind_already_confirmed", exitFailure, "type is already confirmed. Only Runzivo staff can change it.", "kind_already_confirmed"},
+		{409, "personal_workspace_exists", exitFailure, "so this one cannot also be personal. Use --kind organization only if this workspace belongs to an organization. Otherwise, contact Runzivo support before confirming.", "personal_workspace_exists"},
+		{409, "personal_workspace_has_members", exitFailure, "and this workspace has more. Use --kind organization only if this workspace belongs to an organization. Otherwise, contact Runzivo support before confirming.", "personal_workspace_has_members"},
+		{409, "personal_requires_user_account", exitFailure, "so it cannot be personal. Use --kind organization only if this workspace belongs to an organization. Otherwise, contact Runzivo support before confirming.", "personal_requires_user_account"},
 		{404, "not_found", exitUnavailable, "not available in this Runzivo environment yet", "not_found"},
 		{500, "internal_error", exitUnavailable, "500 internal_error", "internal_error"},
 	} {
 		for _, extra := range [][]string{nil, {"--yes"}} {
-			kindServer(h, &seen, &calls, tc.status, `{"error":{"code":"`+tc.code+`"}}`)
+			kindServer(h, &seen, tc.status, `{"error":{"code":"`+tc.code+`"}}`)
 			args := append([]string{"workspaces", "confirm-kind", "--kind", "personal"}, extra...)
 			code, out, errOut := h.run(args...)
 			if code != tc.exit || out != "" || !strings.Contains(errOut, tc.want) {
@@ -162,7 +161,11 @@ func TestConfirmKindRefusals(t *testing.T) {
 		}
 	}
 	h.env["LANG"] = "fr_CA.UTF-8"
-	kindServer(h, &seen, &calls, 409, `{"error":{"code":"kind_already_confirmed"}}`)
+	kindServer(h, &seen, 409, `{"error":{"code":"personal_workspace_exists"}}`)
+	if code, _, errOut := h.run("workspaces", "confirm-kind", "--kind", "personal", "--yes"); code != exitFailure || !strings.Contains(errOut, "ne peut donc pas l’être aussi. Utilisez --kind organization uniquement si cet espace appartient à une organisation. Sinon, communiquez avec le soutien de Runzivo avant de confirmer.") || strings.Count(errOut, "\n") != 1 {
+		t.Fatalf("fr-CA personal refusal = %d %q", code, errOut)
+	}
+	kindServer(h, &seen, 409, `{"error":{"code":"kind_already_confirmed"}}`)
 	if code, _, errOut := h.run("workspaces", "confirm-kind", "--kind", "personal", "--yes"); code != exitFailure || !strings.Contains(errOut, "déjà confirmé") {
 		t.Fatalf("fr-CA refusal = %d %q", code, errOut)
 	}
@@ -190,6 +193,9 @@ func TestConfirmKindValidatesBeforeHTTP(t *testing.T) {
 		{"workspaces", "confirm-kind", "--kind", "personal", "extra"},
 		{"workspaces", "confirm-kind", "--kind", "personal", "--bogus", "x"},
 		{"workspaces", "confirm-kind", "--kind", "personal", "--yes=true"},
+		{"workspaces", "confirm-kind", "--kind", "personal", "--yes=false"},
+		{"workspaces", "confirm-kind", "--kind", "personal", "-y"},
+		{"workspaces", "confirm-kind", "--kind", "personal", "--yes", "--yes"},
 	} {
 		if code, _, errOut := h.run(args...); code != exitUsage {
 			t.Fatalf("%v = %d %q; want usage", args, code, errOut)
@@ -211,19 +217,29 @@ func TestConfirmKindValidatesBeforeHTTP(t *testing.T) {
 }
 
 // Server-supplied text must not reach the terminal as control characters:
-// human output escapes it, and --json keeps JSON escaping.
+// human output escapes it, and --json keeps JSON escaping. The workspace id
+// is the only server string the messages print.
 func TestConfirmKindEscapesServerText(t *testing.T) {
 	const esc = "\x1b"
 	h := selectedHarness(t)
+	h.json("GET /v1/customer/memberships", 200, `{"memberships":[{"tenant_id":"t-9\u001b[2Jx","tenant_slug":"nine","tenant_name":"Nine","role":"owner"}]}`)
 	var seen map[string]any
-	calls := 0
-	kindServer(h, &seen, &calls, 200, `{"kind":"personal","kind_source":"declared","change_id":"wkc_a\u001b[2Jb"}`)
-	code, out, _ := h.run("workspaces", "confirm-kind", "--kind", "personal", "--yes")
-	if code != 0 || strings.Contains(out, esc) || !strings.Contains(out, `wkc_a\u001b[2Jb`) {
-		t.Fatalf("human output = %d %q", code, out)
+	kindServer(h, &seen, 200, `{"kind":"personal","kind_source":"declared","change_id":"wkc_0123456789abcdef01234567"}`)
+	h.routes["POST /v1/customer/tenants/t-9\x1b[2Jx/kind"] = h.routes[kindRoute]
+	for _, args := range [][]string{{"--yes"}, {}} {
+		if len(args) == 0 {
+			kindServer(h, &seen, 200, `{"kind":"personal","kind_source":"declared"}`)
+			h.routes["POST /v1/customer/tenants/t-9\x1b[2Jx/kind"] = h.routes[kindRoute]
+		}
+		code, out, errOut := h.run(append([]string{"workspaces", "confirm-kind", "--kind", "personal", "--workspace", "nine"}, args...)...)
+		if code != 0 || strings.Contains(out, esc) || !strings.Contains(out, `t-9\u001b[2Jx`) {
+			t.Fatalf("human output = %d %q %q", code, out, errOut)
+		}
 	}
-	code, out, _ = h.run("workspaces", "confirm-kind", "--kind", "personal", "--yes", "--json")
-	if code != 0 || strings.Contains(out, esc) || !json.Valid([]byte(out)) || !strings.Contains(out, `wkc_a\u001b[2Jb`) {
+	kindServer(h, &seen, 200, `{"kind":"personal","kind_source":"declared","change_id":"wkc_0123456789abcdef01234567"}`)
+	h.routes["POST /v1/customer/tenants/t-9\x1b[2Jx/kind"] = h.routes[kindRoute]
+	code, out, _ := h.run("workspaces", "confirm-kind", "--kind", "personal", "--workspace", "nine", "--yes", "--json")
+	if code != 0 || strings.Contains(out, esc) || !json.Valid([]byte(out)) || !strings.Contains(out, `t-9\u001b[2Jx`) {
 		t.Fatalf("--json = %d %q", code, out)
 	}
 }
