@@ -7,7 +7,7 @@ import (
 	"github.com/Runzivo/rzv-cli/internal/api"
 )
 
-const confirmKindUsage = "rzv workspaces confirm-kind --kind <personal|organization> [--yes] [--workspace <id>] [--json]"
+const confirmKindUsage = "rzv workspaces confirm-kind --kind <personal|organization> [--yes] [--workspace <id|slug|name>] [--json]"
 
 // workspacesConfirmKind lets an owner confirm whether a workspace is personal
 // or an organization. Without --yes it sends a dry run, which the service
@@ -80,7 +80,7 @@ func (a *app) kindLabel(m api.Membership) string {
 		label = a.text("organization", "organisation")
 	}
 	if m.KindSource == "inferred" {
-		label += a.text(" (unconfirmed)", " (non confirmé)")
+		label += a.text(" (unconfirmed)", " (type non confirmé)")
 	}
 	return label
 }

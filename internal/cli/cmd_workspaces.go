@@ -19,7 +19,7 @@ const workspacesUsage = `Usage:
   rzv workspaces list [--json]                         Workspaces you belong to
   rzv workspaces select <workspace> [--json]        Use one for later commands
   rzv workspaces create --slug <slug> --name <name>    Create a workspace and select it
-  rzv workspaces confirm-kind --kind <personal|organization> [--yes] [--workspace <id>] [--json]
+  rzv workspaces confirm-kind --kind <personal|organization> [--yes] [--workspace <id|slug|name>] [--json]
                                                         Confirm a workspace's type (owner only)
   rzv workspaces settings ...                           Read or update workspace settings
   rzv workspaces members ...                            List or manage workspace members

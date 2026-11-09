@@ -268,7 +268,7 @@ func TestWorkspacesListShowsKind(t *testing.T) {
 		t.Fatalf("list = %q", out)
 	}
 	h.env["LANG"] = "fr_CA.UTF-8"
-	if _, out, _ := h.run("workspaces", "list"); !strings.Contains(out, "(acme, owner), personnel (non confirmé) (selected)") || !strings.Contains(out, "(beta, member), organisation\n") {
+	if _, out, _ := h.run("workspaces", "list"); !strings.Contains(out, "(acme, owner), personnel (type non confirmé) (selected)") || !strings.Contains(out, "(beta, member), organisation\n") {
 		t.Fatalf("fr-CA list = %q", out)
 	}
 	delete(h.env, "LANG")
