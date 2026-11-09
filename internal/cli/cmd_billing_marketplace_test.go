@@ -235,3 +235,47 @@ func TestMarketplaceClaimValidatesBeforeHTTP(t *testing.T) {
 		t.Fatalf("message = %d %q", code, errOut)
 	}
 }
+
+// Server-supplied account names must not reach the terminal as control
+// characters: human output escapes them, and --json keeps JSON escaping.
+func TestMarketplaceEscapesAccountLogin(t *testing.T) {
+	const esc = "\x1b"
+	h := selectedHarness(t)
+	h.json("GET /v1/customer/tenants/t-1/billing/marketplace/claimable", 200, `{"claimable":[{"account_id":4242,"account_login":"a\u001b[2Jb"}]}`)
+	code, out, _ := h.run("billing", "marketplace", "claimable")
+	if code != 0 || strings.Contains(out, esc) || !strings.Contains(out, `a\u001b[2Jb`) {
+		t.Fatalf("claimable human output = %d %q", code, out)
+	}
+	code, out, _ = h.run("billing", "marketplace", "claimable", "--json")
+	if code != 0 || strings.Contains(out, esc) || !json.Valid([]byte(out)) || !strings.Contains(out, `a\u001b[2Jb`) {
+		t.Fatalf("claimable --json = %d %q", code, out)
+	}
+
+	var seen map[string]any
+	calls := 0
+	claimRoute(h, &seen, &calls, 200, `{"marketplace_claim":{"account_id":4242,"account_login":"a\u001b[2Jb","already_linked":false}}`)
+	code, out, _ = h.run("billing", "marketplace", "claim", "--account-id", "4242")
+	if code != 0 || strings.Contains(out, esc) || !strings.Contains(out, `a\u001b[2Jb`) {
+		t.Fatalf("claim human output = %d %q", code, out)
+	}
+	claimRoute(h, &seen, &calls, 200, `{"marketplace_claim":{"account_id":4242,"account_login":"a\u001b[2Jb","already_linked":true}}`)
+	code, out, _ = h.run("billing", "marketplace", "claim", "--account-id", "4242")
+	if code != 0 || strings.Contains(out, esc) || !strings.Contains(out, `a\u001b[2Jb`) {
+		t.Fatalf("already linked human output = %d %q", code, out)
+	}
+	code, out, _ = h.run("billing", "marketplace", "claim", "--account-id", "4242", "--json")
+	if code != 0 || strings.Contains(out, esc) || !json.Valid([]byte(out)) || !strings.Contains(out, `a\u001b[2Jb`) {
+		t.Fatalf("claim --json = %d %q", code, out)
+	}
+}
+
+func TestMarketplaceClaimRejectsMismatchedAccount(t *testing.T) {
+	h := selectedHarness(t)
+	var seen map[string]any
+	calls := 0
+	claimRoute(h, &seen, &calls, 200, `{"marketplace_claim":{"account_id":7,"account_login":"octo","already_linked":false}}`)
+	code, out, errOut := h.run("billing", "marketplace", "claim", "--account-id", "4242")
+	if code == 0 || out != "" || !strings.Contains(errOut, "malformed_response") {
+		t.Fatalf("mismatched account_id = %d %q %q", code, out, errOut)
+	}
+}

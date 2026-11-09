@@ -50,7 +50,7 @@ func (c *Client) ClaimMarketplaceHold(ctx context.Context, tenantID string, acco
 	if err := c.do(ctx, http.MethodPost, tenantPath(tenantID, "/billing/marketplace/claim"), nil, request, &body); err != nil {
 		return nil, err
 	}
-	if err := required(body.MarketplaceClaim != nil && body.MarketplaceClaim.AccountID > 0); err != nil {
+	if err := required(body.MarketplaceClaim != nil && body.MarketplaceClaim.AccountID == accountID); err != nil {
 		return nil, err
 	}
 	return body.MarketplaceClaim, nil
