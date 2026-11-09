@@ -24,7 +24,7 @@ Code redemption requires the workspace's `billing:write` permission. It works wi
 
 - When several workspaces connect the same GitHub account, a Marketplace purchase waits until one of them claims it.
 - `rzv billing marketplace claimable` lists the waiting purchases (`ACCOUNT ID`, `ACCOUNT`) that this workspace can claim, or says none is waiting. `--json` prints `claimable` with `account_id` and `account_login`.
-- `rzv billing marketplace claim --account-id <id>` links the purchase of that GitHub account to this workspace. The plan is issued on the next billing check. Repeating the claim reports that the purchase is already linked and changes nothing; `--json` shows `already_linked`.
+- `rzv billing marketplace claim --account-id <id>` links the purchase of that GitHub account to this workspace. The plan applies after the next billing check. Repeating the claim reports that the purchase is already linked and changes nothing; `--json` shows `already_linked`.
 - Both need a workspace owner signed in as a person. API keys are refused.
 - `claim` also needs a recent sign-in. If `rzv` says to sign in again, run `rzv login`, then repeat the command.
 - Refusals: no active connection of that GitHub account in this workspace, no purchase waiting for that account (linked elsewhere, cancelled or none), or the workspace already has another active plan. Each exits non-zero with a one-line reason.

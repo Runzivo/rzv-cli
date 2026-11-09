@@ -84,9 +84,9 @@ func (a *app) renderMarketplaceClaimable(claimable []api.MarketplaceClaimable) s
 func (a *app) renderMarketplaceClaim(workspaceID string, claim *api.MarketplaceClaim) string {
 	login := displayOrDashString(claim.AccountLogin)
 	if claim.AlreadyLinked {
-		return fmt.Sprintf(a.text("The GitHub Marketplace purchase of %s (account %d) is already linked to workspace %s. Nothing changed.", "L’achat GitHub Marketplace de %s (compte %d) est déjà lié à l’espace de travail %s. Rien n’a changé."), login, claim.AccountID, display(workspaceID))
+		return fmt.Sprintf(a.text("The GitHub Marketplace purchase of %s (account %d) is already linked to workspace %s. Nothing was changed.", "L’achat GitHub Marketplace de %s (compte %d) est déjà lié à l’espace de travail %s. Rien n’a été modifié."), login, claim.AccountID, display(workspaceID))
 	}
-	return fmt.Sprintf(a.text("Linked the GitHub Marketplace purchase of %s (account %d) to workspace %s. The plan is issued on the next billing check.", "L’achat GitHub Marketplace de %s (compte %d) est lié à l’espace de travail %s. Le forfait sera émis à la prochaine vérification de facturation."), login, claim.AccountID, display(workspaceID))
+	return fmt.Sprintf(a.text("Linked the GitHub Marketplace purchase of %s (account %d) to workspace %s. The plan applies after the next billing check.", "L’achat GitHub Marketplace de %s (compte %d) a été lié à l’espace de travail %s. Le forfait s’appliquera après la prochaine vérification de facturation."), login, claim.AccountID, display(workspaceID))
 }
 
 // marketplaceError maps the refusals of the two Marketplace claim operations
@@ -99,17 +99,19 @@ func (a *app) marketplaceError(err error) error {
 	}
 	switch {
 	case apiErr.Status == 403 && apiErr.Code == "workspace_owner_required":
-		return newError(apiErr.Code, exitAccessDenied, "%s", a.text("Only a workspace owner can list or claim GitHub Marketplace plans.", "Seul un propriétaire de l’espace de travail peut lister ou réclamer des forfaits GitHub Marketplace."))
+		return newError(apiErr.Code, exitAccessDenied, "%s", a.text("Only a workspace owner can list or claim GitHub Marketplace plans.", "Seul un propriétaire de l’espace de travail peut lister ou revendiquer des forfaits GitHub Marketplace."))
 	case apiErr.Status == 403 && apiErr.Code == "api_key_scope_required":
-		return newError(apiErr.Code, exitAccessDenied, "%s", a.text("GitHub Marketplace claims need a person signed in with `rzv login`; API keys cannot use them.", "Les réclamations GitHub Marketplace exigent une personne connectée avec `rzv login`; les clés d’API ne peuvent pas les utiliser."))
+		return newError(apiErr.Code, exitAccessDenied, "%s", a.text("Listing or claiming GitHub Marketplace plans needs a person signed in with `rzv login`; API keys cannot do it.", "Pour lister ou revendiquer des forfaits GitHub Marketplace, une personne doit être connectée avec `rzv login`; les clés d’API ne peuvent pas le faire."))
 	case apiErr.Status == 409 && apiErr.Code == "marketplace_claim_not_owner":
-		return newError(apiErr.Code, exitFailure, "%s", a.text("This workspace has no active connection of that GitHub account. Connect the account to this workspace, then try again.", "Cet espace de travail n’a aucune connexion active de ce compte GitHub. Connectez le compte à cet espace de travail, puis réessayez."))
+		return newError(apiErr.Code, exitFailure, "%s", a.text("This workspace has no active connection to that GitHub account. Connect the account to this workspace, then try again.", "Cet espace de travail n’a aucune connexion active avec ce compte GitHub. Associez le compte à cet espace de travail, puis réessayez."))
 	case apiErr.Status == 409 && apiErr.Code == "marketplace_claim_no_hold":
-		return newError(apiErr.Code, exitFailure, "%s", a.text("That purchase is not waiting to be claimed (it may be linked elsewhere or cancelled). `rzv billing marketplace claimable` lists what can be claimed.", "Cet achat n’attend pas d’être réclamé (il est peut-être lié ailleurs ou annulé). `rzv billing marketplace claimable` liste ce qui peut être réclamé."))
+		return newError(apiErr.Code, exitFailure, "%s", a.text("That purchase is not waiting to be claimed (it may be linked elsewhere or cancelled). `rzv billing marketplace claimable` lists what can be claimed.", "Cet achat n’attend pas d’être revendiqué (il est peut-être lié ailleurs ou annulé). `rzv billing marketplace claimable` liste ce qui peut être revendiqué."))
 	case apiErr.Status == 409 && apiErr.Code == "marketplace_workspace_has_plan":
-		return newError(apiErr.Code, exitFailure, "%s", a.text("This workspace already has another active plan, so it cannot claim this purchase.", "Cet espace de travail a déjà un autre forfait actif; il ne peut pas réclamer cet achat."))
+		return newError(apiErr.Code, exitFailure, "%s", a.text("This workspace already has another active plan, so it cannot claim this purchase.", "Cet espace de travail a déjà un autre forfait actif; il ne peut donc pas revendiquer cet achat."))
+	case apiErr.Status == 404 && apiErr.Code == "not_found":
+		return newError(apiErr.Code, exitUnavailable, "%s", a.text("Listing or claiming GitHub Marketplace plans is not available in this Runzivo environment yet.", "Lister ou revendiquer des forfaits GitHub Marketplace n’est pas encore possible dans cet environnement Runzivo."))
 	case apiErr.Status == 503 && apiErr.Code == "billing_not_configured":
-		return newError(apiErr.Code, exitUnavailable, "%s", a.text("Billing is not available on this Runzivo environment yet.", "La facturation n’est pas encore disponible sur cet environnement Runzivo."))
+		return newError(apiErr.Code, exitUnavailable, "%s", a.text("Billing is not available in this Runzivo environment yet.", "La facturation n’est pas encore disponible dans cet environnement Runzivo."))
 	}
 	return apiError(err, "")
 }

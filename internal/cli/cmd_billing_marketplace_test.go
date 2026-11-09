@@ -48,6 +48,10 @@ func TestMarketplaceClaimable(t *testing.T) {
 	if code, _, _ := h.run("billing", "marketplace", "claimable"); code == 0 {
 		t.Fatal("a response without claimable was accepted")
 	}
+	h.json("GET /v1/customer/tenants/t-1/billing/marketplace/claimable", 200, `{"claimable":[{"account_id":4242,"account_login":"ok"},{"account_id":0,"account_login":"bad"}]}`)
+	if code, _, _ := h.run("billing", "marketplace", "claimable"); code == 0 {
+		t.Fatal("a claimable row with account_id 0 was accepted")
+	}
 }
 
 func TestMarketplaceClaimableRefusals(t *testing.T) {
@@ -59,8 +63,9 @@ func TestMarketplaceClaimableRefusals(t *testing.T) {
 		want   string
 	}{
 		{403, "workspace_owner_required", exitAccessDenied, "Only a workspace owner"},
-		{403, "api_key_scope_required", exitAccessDenied, "API keys cannot use them"},
-		{503, "billing_not_configured", exitUnavailable, "Billing is not available"},
+		{403, "api_key_scope_required", exitAccessDenied, "API keys cannot do it"},
+		{404, "not_found", exitUnavailable, "not available in this Runzivo environment yet"},
+		{503, "billing_not_configured", exitUnavailable, "Billing is not available in this Runzivo environment"},
 	} {
 		h.json("GET /v1/customer/tenants/t-1/billing/marketplace/claimable", tc.status, `{"error":{"code":"`+tc.code+`"}}`)
 		if code, _, errOut := h.run("billing", "marketplace", "claimable"); code != tc.exit || !strings.Contains(errOut, tc.want) {
@@ -102,7 +107,7 @@ func TestMarketplaceClaim(t *testing.T) {
 	calls := 0
 	claimRoute(h, &seen, &calls, 200, `{"marketplace_claim":{"account_id":4242,"account_login":"acme-inc","already_linked":false}}`)
 	code, out, errOut := h.run("billing", "marketplace", "claim", "--account-id", "4242")
-	if code != 0 || errOut != "" || !strings.Contains(out, "Linked the GitHub Marketplace purchase of acme-inc (account 4242) to workspace t-1") {
+	if code != 0 || errOut != "" || !strings.Contains(out, "Linked the GitHub Marketplace purchase of acme-inc (account 4242) to workspace t-1. The plan applies after the next billing check.") {
 		t.Fatalf("claim: %d %q %q", code, out, errOut)
 	}
 	if len(seen) != 1 || seen["account_id"] != float64(4242) {
@@ -122,7 +127,7 @@ func TestMarketplaceClaim(t *testing.T) {
 	}
 
 	claimRoute(h, &seen, &calls, 200, `{"marketplace_claim":{"account_id":4242,"account_login":"acme-inc","already_linked":true}}`)
-	if code, out, _ := h.run("billing", "marketplace", "claim", "--account-id", "4242"); code != 0 || !strings.Contains(out, "is already linked to workspace t-1. Nothing changed.") {
+	if code, out, _ := h.run("billing", "marketplace", "claim", "--account-id", "4242"); code != 0 || !strings.Contains(out, "is already linked to workspace t-1. Nothing was changed.") {
 		t.Fatalf("already linked: %d %q", code, out)
 	}
 	if code, out, _ := h.run("billing", "marketplace", "claim", "--account-id", "4242", "--json"); code != 0 || !strings.Contains(out, `"already_linked":true`) {
@@ -151,12 +156,13 @@ func TestMarketplaceClaimRefusals(t *testing.T) {
 		want   string
 	}{
 		{403, "workspace_owner_required", exitAccessDenied, "Only a workspace owner"},
-		{403, "api_key_scope_required", exitAccessDenied, "API keys cannot use them"},
+		{403, "api_key_scope_required", exitAccessDenied, "API keys cannot do it"},
 		{403, "tenant_membership_required", exitAccessDenied, "not authorized"},
-		{409, "marketplace_claim_not_owner", exitFailure, "no active connection of that GitHub account"},
+		{404, "not_found", exitUnavailable, "not available in this Runzivo environment yet"},
+		{409, "marketplace_claim_not_owner", exitFailure, "no active connection to that GitHub account"},
 		{409, "marketplace_claim_no_hold", exitFailure, "not waiting to be claimed"},
 		{409, "marketplace_workspace_has_plan", exitFailure, "already has another active plan"},
-		{503, "billing_not_configured", exitUnavailable, "Billing is not available"},
+		{503, "billing_not_configured", exitUnavailable, "Billing is not available in this Runzivo environment"},
 		{400, "invalid_request", exitFailure, "400 invalid_request"},
 	} {
 		claimRoute(h, &seen, &calls, tc.status, `{"error":{"code":"`+tc.code+`"}}`)
@@ -165,7 +171,11 @@ func TestMarketplaceClaimRefusals(t *testing.T) {
 			t.Fatalf("%s = %d %q %q", tc.code, code, out, errOut)
 		}
 		code, _, errOut = h.run("billing", "marketplace", "claim", "--account-id", "4242", "--json")
-		if code != tc.exit || !strings.Contains(errOut, `"error":"`+tc.code+`"`) && tc.code != "tenant_membership_required" {
+		wantJSON := tc.code
+		if tc.code == "tenant_membership_required" {
+			wantJSON = "access_denied"
+		}
+		if code != tc.exit || !strings.Contains(errOut, `"error":"`+wantJSON+`"`) {
 			t.Fatalf("%s --json = %d %q", tc.code, code, errOut)
 		}
 	}

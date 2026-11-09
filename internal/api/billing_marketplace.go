@@ -32,6 +32,11 @@ func (c *Client) MarketplaceClaimable(ctx context.Context, tenantID string) ([]M
 	if err := required(body.Claimable != nil); err != nil {
 		return nil, err
 	}
+	for _, item := range body.Claimable {
+		if err := required(item.AccountID > 0); err != nil {
+			return nil, err
+		}
+	}
 	return body.Claimable, nil
 }
 
