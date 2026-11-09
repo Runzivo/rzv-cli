@@ -6,6 +6,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Added
 
+- `rzv workspaces members role` and `rzv workspaces invitations invite`, `resend`, `teams` and `accept` explain the refusal on a personal workspace (`personal_workspace_not_shared`) in one line, EN and fr-CA, exit 1; `--json` keeps the code.
 - `rzv workspaces confirm-kind --kind <personal|organization>` lets a workspace owner confirm whether a workspace is personal or an organization. Without `--yes` it is a dry run that says what would be set and changes nothing; with `--yes` it confirms and prints the change id. Once confirmed, only Runzivo staff can change the type. A confirmed personal workspace cannot be shared. Owner only, needs a recent sign-in, API keys are refused, and it supports `--json`. See [Workspaces](docs/workspaces.md).
 - `rzv workspaces list` shows each workspace's type (`personal` or `organization`), marked `(unconfirmed)` while the service has only inferred it. `--json` passes `kind` and `kind_source` through. A workspace with no type shown has none set yet, or the service is older and does not report types.
 

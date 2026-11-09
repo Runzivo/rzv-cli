@@ -317,7 +317,7 @@ func workspaceMembersRole(a *app, cmd *command) error {
 	}
 	member, err := client.UpdateWorkspaceMemberRole(a.ctx, id, cmd.args[2], role)
 	if err != nil {
-		return apiError(err, "The member was not found in this workspace.")
+		return a.workspaceSharingError(err, "The member was not found in this workspace.")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "member": member}, fmt.Sprintf("Updated member %s to role %s.", display(member.IdentityID), display(member.Role)))
 	return nil
@@ -412,7 +412,7 @@ func workspaceInvitationsInvite(a *app, cmd *command) error {
 	}
 	invitation, err := client.CreateWorkspaceInvitation(a.ctx, id, input)
 	if err != nil {
-		return apiError(err, "Workspace invitations were not found.")
+		return a.workspaceSharingError(err, "Workspace invitations were not found.")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "invitation": invitation}, "Invited "+display(invitation.Email)+".")
 	return nil
@@ -469,7 +469,7 @@ func workspaceInvitationsResend(a *app, cmd *command) error {
 	}
 	invitation, err := client.ResendWorkspaceInvitation(a.ctx, id, cmd.args[2])
 	if err != nil {
-		return apiError(err, "The invitation was not found in this workspace.")
+		return a.workspaceSharingError(err, "The invitation was not found in this workspace.")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "invitation": invitation}, "Resent invitation to "+display(invitation.Email)+".")
 	return nil
@@ -511,7 +511,7 @@ func workspaceInvitationsTeams(a *app, cmd *command) error {
 	}
 	invitation, err := client.UpdateWorkspaceInvitationTeams(a.ctx, id, cmd.args[2], teamIDs)
 	if err != nil {
-		return apiError(err, "The invitation was not found in this workspace.")
+		return a.workspaceSharingError(err, "The invitation was not found in this workspace.")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "invitation": invitation}, "Updated custom teams for invitation "+display(invitation.InvitationID)+".")
 	return nil
@@ -537,18 +537,34 @@ func workspaceInvitationsAccept(a *app, cmd *command) error {
 	}
 	membership, err := client.AcceptWorkspaceInvitation(a.ctx, token)
 	if err != nil {
-		return acceptWorkspaceInvitationError(err)
+		return a.acceptWorkspaceInvitationError(err)
 	}
 	a.output(cmd, map[string]any{"membership": membership}, fmt.Sprintf("Accepted invitation to workspace %s [%s].", display(membership.TenantName), display(membership.TenantID)))
 	return nil
 }
 
-func acceptWorkspaceInvitationError(err error) error {
+func (a *app) acceptWorkspaceInvitationError(err error) error {
 	var apiErr *api.Error
 	if errors.As(err, &apiErr) && apiErr.Status == 403 && apiErr.Code == "invitation_recipient_verification_required" {
 		return newError(apiErr.Code, exitAccessDenied, "Your signed-in identity needs a verified email that matches this invitation's recipient.")
 	}
-	return apiError(err, "The invitation was not found or is no longer available.")
+	return a.workspaceSharingError(err, "The invitation was not found or is no longer available.")
+}
+
+// workspaceSharingError explains the service's refusal to share a workspace
+// whose type is confirmed as personal (409 personal_workspace_not_shared):
+// invitations, resends, accepting an invitation that adds access, team
+// changes and role increases. Everything else uses the shared mapping.
+func (a *app) workspaceSharingError(err error, notFound string) error {
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) && apiErr.Status == 409 && apiErr.Code == "personal_workspace_not_shared" {
+		// The portal's wording (access.errors.personal_workspace_not_shared).
+		return newError(apiErr.Code, exitFailure, "%s", a.text(
+			"A personal workspace is not shared: nobody can be invited, added or given more access. To work with others, use an organization workspace.",
+			"Un espace personnel n’est pas partagé : on ne peut y inviter ni y ajouter personne, ni y accorder plus d’accès. Pour travailler avec d’autres personnes, utilisez un espace d’organisation.",
+		))
+	}
+	return apiError(err, notFound)
 }
 
 func invitationToken(cmd *command) (string, error) {

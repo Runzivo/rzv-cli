@@ -8,7 +8,7 @@
 | `rzv billing auto-recharge`                       | Auto-recharge settings. `set --enabled <true\|false> --threshold <minutes> --pack <id>` changes them (billing:write).                                         |
 | `rzv billing country`                             | The workspace billing country. `set <code>` changes it for future purchases and `reset` clears it while the workspace has no credit purchase (billing:write). |
 | `rzv billing marketplace`                         | The GitHub Marketplace plan for the workspace, if any.                                                                                                        |
-| `rzv billing marketplace claimable`               | GitHub Marketplace purchases held because several workspaces own the buying account, which this workspace can claim. Owner only.                              |
+| `rzv billing marketplace claimable`               | GitHub Marketplace purchases held because several workspaces are connected to the buying account, which this workspace can claim. Owner only.                 |
 | `rzv billing marketplace claim --account-id <id>` | Links a held purchase to this workspace. Owner only; needs a recent sign-in.                                                                                  |
 | `rzv billing checkout`                            | Starts a hosted checkout: `--pack <id> --operation-id <id>`. Reuse the same `--operation-id` when retrying.                                                   |
 | `rzv billing portal`                              | A link to the payment provider's billing portal. Do not store it.                                                                                             |
