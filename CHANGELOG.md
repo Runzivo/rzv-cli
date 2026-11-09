@@ -2,6 +2,13 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- `rzv workspaces confirm-kind --kind <personal|organization>` lets a workspace owner confirm whether a workspace is personal or an organization. Without `--yes` it is a dry run that says what would be set and changes nothing; with `--yes` it confirms and prints the change id. Once confirmed, only Runzivo staff can change the type. A confirmed personal workspace cannot be shared. Owner only, needs a recent sign-in, API keys are refused, and it supports `--json`. See [Workspaces](docs/workspaces.md).
+- `rzv workspaces list` shows each workspace's type (`personal` or `organization`), marked `(unconfirmed)` while the service has only inferred it. `--json` passes `kind` and `kind_source` through. A workspace with no type shown has none set yet, or the service is older and does not report types.
+
 ## release-2026-11-09-084915 (rzv 0.28.0), 2026-11-09
 
 ### Added
