@@ -15,7 +15,7 @@ import (
 const disksUsage = `Usage:
   rzv disks list [--workspace <id>] [--json]
   rzv disks get <disk-id> [--workspace <id>] [--json]
-  rzv disks create --name <name> --size-gib <1-64> [--idempotency-key <key>] [--workspace <id>] [--json]
+  rzv disks create --name <name> --size-gib <1-16384> [--idempotency-key <key>] [--workspace <id>] [--json]
   rzv disks attach <disk-id> --sandbox <sandbox-id> [--workspace <id>] [--json]
   rzv disks detach <disk-id> [--workspace <id>] [--json]
   rzv disks delete <disk-id> [--workspace <id>] [--json]
@@ -29,9 +29,18 @@ detach the disk or attach it to another stopped sandbox. Deleting a disk removes
 its files for good. A deleted disk shows as "deleting" until its server confirms
 the files are removed, then as "deleted". Sizes are in GiB (1 GiB is 1024^3 bytes).
 
-Persistent disks are off unless Runzivo has turned them on for your environment
-and given your workspace a disk quota. No disk price is published and disk
-charges are off. Disks use the sandboxes:read and sandboxes:write permissions.`
+Persistent disks must be enabled for your environment. In grant mode your
+workspace needs a disk quota; in capacity mode any workspace can create disks
+while the region has room. "rzv disks list --json" reports mode, quota and the
+current max_size_gib. Core enforces these limits; 16384 GiB is the technical
+ceiling, not a guarantee of available space.
+
+The published price is CA$0.10 per provisioned GiB-month, prorated while a disk
+exists, attached or detached, until deletion is confirmed. The customer disk
+estimate API (getCustomerDiskEstimate) reports current rates, monthly estimates
+and charges_enabled. When charges are on, disks consume equivalent minutes
+from the workspace balance. Disk charges are currently off in production.
+Disks use the sandboxes:read and sandboxes:write permissions.`
 
 var diskIDPattern = regexp.MustCompile(`^vol_[0-9a-f]{24}$`)
 
@@ -95,6 +104,16 @@ func disksList(a *app, cmd *command) error {
 }
 
 func renderDiskQuota(quota api.DiskQuota) string {
+	if quota.Mode == "capacity" {
+		text := fmt.Sprintf("Capacity: %d of %d GiB used, %d of %d disks.", quota.UsedGiB, quota.QuotaGiB, quota.Disks, quota.MaxDisks)
+		if quota.QuotaGiB == 0 {
+			text = "No persistent disk capacity is available in this region. Try again when space is available."
+		}
+		if quota.RegionCapacityGiB != nil && quota.RegionFreeGiB != nil {
+			text += fmt.Sprintf("\nRegion: %d of %d GiB free.", *quota.RegionFreeGiB, *quota.RegionCapacityGiB)
+		}
+		return text
+	}
 	if quota.QuotaGiB == 0 {
 		return "This workspace has no persistent disk quota. Ask Runzivo support for one."
 	}
@@ -231,7 +250,7 @@ func disksCreate(a *app, cmd *command) error {
 	if err := cmd.allow("workspace", "account", "name", "size-gib", "idempotency-key"); err != nil {
 		return err
 	}
-	usage := "rzv disks create --name <name> --size-gib <1-64>"
+	usage := "rzv disks create --name <name> --size-gib <1-16384>"
 	if err := cmd.expectArgs(1, usage); err != nil {
 		return err
 	}
@@ -247,8 +266,8 @@ func disksCreate(a *app, cmd *command) error {
 		return err
 	}
 	size, err := strconv.Atoi(text)
-	if err != nil || size < 1 || size > 64 {
-		return usageError("--size-gib must be a whole number from 1 to 64.")
+	if err != nil || size < 1 || size > 16384 {
+		return usageError("--size-gib must be a whole number from 1 to 16384.")
 	}
 	input := api.CreateDiskInput{Name: name, SizeGiB: size}
 	if key, err := cmd.option("idempotency-key"); err != nil {

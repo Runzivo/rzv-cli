@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- `rzv disks list|get|create|attach|detach|delete` manage persistent disks, and `rzv sandboxes create --disk <disk-id>` attaches one at creation. All support `--json`. Disk listings show grant or capacity limits and scheduled deletion; create accepts 1 to 16384 GiB, with Core enforcing current limits. See [Persistent disks](docs/disks.md).
+
 ## release-2026-11-09-151052 (rzv 0.29.0), 2026-11-09
 
 ### Added

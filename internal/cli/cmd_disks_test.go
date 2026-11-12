@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -87,7 +88,8 @@ func TestDisksCreateAttachDetachDelete(t *testing.T) {
 		{"disks"}, {"disks", "bogus"},
 		{"disks", "create", "--name", "x"},
 		{"disks", "create", "--name", "x", "--size-gib", "0"},
-		{"disks", "create", "--name", "x", "--size-gib", "65"},
+		{"disks", "create", "--name", "x", "--size-gib", "16385"},
+		{"disks", "create", "--name", "x", "--size-gib", "1.5"},
 		{"disks", "create", "--name", " ", "--size-gib", "5"},
 		{"disks", "get", "vol_short"},
 		{"disks", "attach", volID},
@@ -97,6 +99,73 @@ func TestDisksCreateAttachDetachDelete(t *testing.T) {
 		if code, _, _ := h.run(args...); code != exitUsage {
 			t.Errorf("%v exit %d, want usage", args, code)
 		}
+	}
+}
+
+func TestDisksCreateUsesContractSizeRange(t *testing.T) {
+	h := selectedHarness(t)
+	var sizes []int
+	h.routes["POST /v1/customer/tenants/t-1/disks"] = func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			SizeGiB int `json:"size_gib"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		sizes = append(sizes, body.SizeGiB)
+		w.WriteHeader(201)
+		_, _ = w.Write([]byte(strings.Replace(diskJSON, `"size_gib":10`, `"size_gib":`+strconv.Itoa(body.SizeGiB), 1)))
+	}
+	for _, size := range []int{1, 64, 65, 512, 16384} {
+		before := len(sizes)
+		code, out, errOut := h.run("disks", "create", "--name", "data", "--size-gib", strconv.Itoa(size))
+		if code != 0 || len(sizes) != before+1 || sizes[before] != size || !strings.Contains(out, "Size: "+strconv.Itoa(size)+" GiB") {
+			t.Fatalf("size %d: %d %q %q, sent %v", size, code, out, errOut, sizes)
+		}
+	}
+	// Core, rather than a fixed CLI quota, decides what fits now.
+	h.json("POST /v1/customer/tenants/t-1/disks", 409, `{"error":{"code":"disk_quota_exceeded"}}`)
+	if code, _, errOut := h.run("disks", "create", "--name", "data", "--size-gib", "512"); code != exitFailure || !strings.Contains(errOut, "workspace's disk quota") {
+		t.Fatalf("Core quota refusal: %d %q", code, errOut)
+	}
+}
+
+func TestDisksListQuotaModes(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		quota string
+		max   int
+		want  string
+	}{
+		{"older server", `{"quota_gib":0,"used_gib":0,"max_disks":5,"disks":0}`, 64, "Ask Runzivo support for one."},
+		{"grant", `{"quota_gib":0,"used_gib":0,"max_disks":5,"disks":0,"mode":"grant","region_capacity_gib":0,"region_free_gib":0}`, 64, "Ask Runzivo support for one."},
+		{"capacity", `{"quota_gib":288,"used_gib":32,"max_disks":5,"disks":1,"mode":"capacity","region_capacity_gib":512,"region_free_gib":256}`, 256, "Capacity: 32 of 288 GiB used, 1 of 5 disks.\nRegion: 256 of 512 GiB free."},
+		{"full region", `{"quota_gib":0,"used_gib":0,"max_disks":5,"disks":0,"mode":"capacity","region_capacity_gib":512,"region_free_gib":0}`, 0, "No persistent disk capacity is available in this region."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := selectedHarness(t)
+			h.json("GET /v1/customer/tenants/t-1/disks", 200, `{"disks":[],"quota":`+tc.quota+`,"min_size_gib":1,"max_size_gib":`+strconv.Itoa(tc.max)+`}`)
+			if code, out, _ := h.run("disks", "list"); code != 0 || !strings.Contains(out, tc.want) || (strings.Contains(tc.quota, `"capacity"`) && strings.Contains(out, "Ask Runzivo support")) {
+				t.Fatalf("list: %d %q", code, out)
+			}
+			var want map[string]any
+			if err := json.Unmarshal([]byte(tc.quota), &want); err != nil {
+				t.Fatal(err)
+			}
+			var listed struct {
+				Quota      map[string]any `json:"quota"`
+				MaxSizeGiB int            `json:"max_size_gib"`
+			}
+			code, out, _ := h.run("disks", "list", "--json")
+			if code != 0 || json.Unmarshal([]byte(out), &listed) != nil || listed.MaxSizeGiB != tc.max || len(listed.Quota) != len(want) {
+				t.Fatalf("list --json: %d %q", code, out)
+			}
+			for key, value := range want {
+				if listed.Quota[key] != value {
+					t.Errorf("quota.%s = %v, want %v", key, listed.Quota[key], value)
+				}
+			}
+		})
 	}
 }
 
@@ -170,6 +239,36 @@ func TestSandboxesCreateWithADisk(t *testing.T) {
 	h.json("POST /v1/customer/tenants/t-1/sandboxes", 404, `{"error":{"code":"disk_not_found"}}`)
 	if code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--disk", volID); code == 0 || !strings.Contains(errOut, "persistent disk was not found") {
 		t.Fatalf("missing disk: %d %q", code, errOut)
+	}
+}
+
+func TestSandboxesDiskPreservesLifetimeSizeAndPlanHandling(t *testing.T) {
+	h := selectedHarness(t)
+	var body map[string]any
+	h.routes["POST /v1/customer/tenants/t-1/sandboxes"] = func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		w.WriteHeader(201)
+		_, _ = w.Write([]byte(strings.Replace(sandboxLifetimeJSON("starting", 24, "null", 86400), `"credits_used":20.5`, `"credits_used":20.5,"disk_id":"`+volID+`"`, 1)))
+	}
+	code, out, errOut := h.run("sandboxes", "create", "--name", "dev", "--disk", volID, "--size", "16vcpu-64gb", "--disk-gib", "40", "--lifetime", "24h")
+	if code != 0 || body["disk_id"] != volID || body["size"] != "16vcpu-64gb" || body["disk_gib"] != float64(40) || body["lifetime_hours"] != float64(24) || !strings.Contains(out, "Lifetime: 24h") || !strings.Contains(out, "Persistent disk: "+volID) {
+		t.Fatalf("create options: %d %q %q %v", code, out, errOut, body)
+	}
+	// The defaults remain omitted for older services.
+	body = nil
+	if code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--lifetime", "8h"); code != 0 || body["disk_id"] != nil || body["lifetime_hours"] != nil {
+		t.Fatalf("default options: %d %q %v", code, errOut, body)
+	}
+	h.json("POST /v1/customer/tenants/t-1/sandboxes", 403, `{"error":{"code":"plan_required","required_plan":"team"}}`)
+	if code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--disk", volID, "--size", "16vcpu-64gb"); code != exitAccessDenied || !strings.Contains(errOut, "16vcpu-64gb needs the Team plan.") {
+		t.Fatalf("plan refusal with disk: %d %q", code, errOut)
+	}
+	h.json("POST /v1/customer/tenants/t-1/sandboxes", 400, `{"error":{"code":"invalid_request"}}`)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes", 200, `{"sandboxes":[],"max_running":2}`)
+	if code, _, errOut := h.run("sandboxes", "create", "--name", "dev", "--disk", volID, "--lifetime", "24h"); code != exitUsage || !strings.Contains(errOut, "doesn't support choosing a lifetime yet") {
+		t.Fatalf("older server with disk: %d %q", code, errOut)
 	}
 }
 

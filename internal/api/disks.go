@@ -43,12 +43,16 @@ type DiskUsage struct {
 	CreditsUsed float64 `json:"credits_used"`
 }
 
-// DiskQuota is what the workspace may keep, set by Runzivo staff.
+// DiskQuota is what the workspace may keep, from a grant or regional capacity.
+// Older servers omit the mode and regional capacity fields.
 type DiskQuota struct {
-	QuotaGiB int `json:"quota_gib"`
-	UsedGiB  int `json:"used_gib"`
-	MaxDisks int `json:"max_disks"`
-	Disks    int `json:"disks"`
+	QuotaGiB          int    `json:"quota_gib"`
+	UsedGiB           int    `json:"used_gib"`
+	MaxDisks          int    `json:"max_disks"`
+	Disks             int    `json:"disks"`
+	Mode              string `json:"mode,omitempty"`
+	RegionCapacityGiB *int   `json:"region_capacity_gib,omitempty"`
+	RegionFreeGiB     *int   `json:"region_free_gib,omitempty"`
 }
 
 // DiskListing is listCustomerDisks' result.
