@@ -10,11 +10,15 @@ import (
 
 const concurrencyUsage = "Usage: rzv concurrency [--workspace <id>] [--json]"
 
-const runnersUsage = `Usage: rzv runners <repository-id> [--workspace <id>] [--json]
+const runnersUsage = `Usage:
+  rzv runners <repository-id> [--workspace <id>] [--json]
+  rzv runners profiles list|create|delete ...
+  rzv runners availability [--vcpu <n> --mem-gib <n> [--disk-gib <n>]]
 
 <repository-id> is GitHub's numeric repository id (see rzv repositories list).
 Lists the runner sizes the repository can use, with the workspace's running
-and waiting jobs on each.`
+and waiting jobs on each. rzv runners profiles manages custom runner
+profiles; rzv runners availability shows where a shape can run.`
 
 func init() {
 	register("concurrency", "Show the workspace's concurrent-job limit and use", runConcurrency)
@@ -63,6 +67,14 @@ func renderConcurrency(workspaceID string, outcome *api.ConcurrencyOutcome) stri
 }
 
 func runRunners(a *app, cmd *command) error {
+	if len(cmd.args) > 0 {
+		switch cmd.args[0] {
+		case "profiles":
+			return runCustomRunnerProfiles(a, cmd)
+		case "availability":
+			return runRunnerAvailability(a, cmd)
+		}
+	}
 	if err := cmd.allow("workspace", "account"); err != nil {
 		return err
 	}

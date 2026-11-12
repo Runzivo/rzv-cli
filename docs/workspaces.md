@@ -2,11 +2,15 @@
 
 | Command                                       | What it does                                                           |
 | --------------------------------------------- | ---------------------------------------------------------------------- |
-| `rzv workspaces list`                         | Workspaces you belong to, with name, slug, id and role.                              |
-| `rzv workspaces select <workspace>`  | Use this workspace for later commands.                                 |
+| `rzv workspaces list`                         | Workspaces you belong to, with name, slug, id, role and type.          |
+| `rzv workspaces select <workspace>`           | Use this workspace for later commands.                                 |
 | `rzv workspaces create --slug <s> --name <n>` | Create a workspace and select it. Re-running the same command is safe. |
 
 To create a workspace from a GitHub App installation, see [GitHub](github.md).
+
+## Workspace type
+
+What a workspace's type means and how an owner confirms it with `rzv workspaces confirm-kind`: [Workspace type](workspace-type.md).
 
 `rzv accounts ...` still works as the older name. Workspace-scoped commands take `--workspace <workspace>` (short `-w`, or the older `--account`) to override the selection. `RZV_WORKSPACE` sets the default workspace, and it is used when no `--workspace` is given. With `RZV_API_KEY`, pass the workspace id: a key cannot look up slugs or names.
 
@@ -16,10 +20,12 @@ A workspace reference matches an exact id first, then a slug without case sensit
 
 | Command                                                                                 | What it does                                                                                                                                  |
 | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rzv workspaces settings show`                                                          | Workspace name, logo state, and update capability.                                                                                            |
+| `rzv workspaces settings show`                                                          | Workspace name, logo state, update capability, and Docker cache setting.                                                                      |
 | `rzv workspaces settings update --name <name>`                                          | Change the workspace name.                                                                                                                    |
 | `rzv workspaces settings update --logo <path>`                                          | Upload a PNG or JPEG logo up to 192 KiB, with width and height each at most 512 pixels. The encoded settings request must fit within 256 KiB. |
 | `rzv workspaces settings update --remove-logo`                                          | Remove the current logo.                                                                                                                      |
+| `rzv workspaces settings update --docker-cache <enabled\|disabled>`                     | Turn the workspace Docker layer cache on or off.                                                                                              |
+| `rzv workspaces settings update --docker-cache-size-mib <MiB>`                          | Set the cache size, a whole number of MiB from 64 to 16384. The service default is 1024.                                                      |
 | `rzv workspaces members list`                                                           | Members and the allowed actions and roles for each member.                                                                                    |
 | `rzv workspaces members role <identity-id> --role <role>`                               | Change a member's role.                                                                                                                       |
 | `rzv workspaces members remove <identity-id>`                                           | Remove a member.                                                                                                                              |
@@ -30,7 +36,9 @@ A workspace reference matches an exact id first, then a slug without case sensit
 | `rzv workspaces invitations teams <invitation-id> --team-ids <id,...>`                  | Replace custom teams. Pass an empty value to clear them.                                                                                      |
 | `rzv workspaces invitations accept (--token <token> \| --token-file <path>)`            | Accept an invitation with your own sign-in. Your identity needs a verified email matching the invitation recipient.                           |
 
-The service enforces the final permission, role, grant ceiling, self-removal, and last-owner checks. Invitation acceptance does not need a selected workspace and never saves or prints the acceptance token.
+`--docker-cache` and `--docker-cache-size-mib` can be used alone or together; a flag you leave out keeps its current value. The cache setting is a workspace preference. Jobs use the cache only when hosts in this environment can serve it, which needs an operator to turn the cache on and at least one execution host to support it. `settings show` prints `available in this environment` when hosts can serve the cache and `not available in this environment yet` when they cannot, and `--json` reports the same as `docker_cache.available`. Even when the cache is available, a job can still run without it because of assignments, quotas or host health. There is no charge for the cache today. Older services that do not report the setting show no Docker cache line.
+
+The service enforces the final permission, role, grant ceiling, self-removal, and last-owner checks. A confirmed personal workspace is not shared: invitations, resends, accepting an invitation that adds access, `rzv teams add-member` and role increases fail with `personal_workspace_not_shared` (exit 1). Use an organization workspace to work with others. Invitation acceptance does not need a selected workspace and never saves or prints the acceptance token.
 
 Find team IDs with `rzv teams list` and pass them with `--team-ids`; `teams --team-ids=` clears the list.
 

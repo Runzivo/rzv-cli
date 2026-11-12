@@ -2,6 +2,10 @@
 
 `rzv` is the Runzivo command-line tool. It signs you in, lists your Runzivo workspaces and shows the status of your jobs.
 
+[![CI](https://github.com/Runzivo/rzv-cli/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Runzivo/rzv-cli/actions/workflows/ci.yml) [![Latest release](https://img.shields.io/github/v/release/Runzivo/rzv-cli?display_name=release&label=release)](https://github.com/Runzivo/rzv-cli/releases/latest) [![License](https://img.shields.io/badge/license-Runzivo%20rzv-blue)](LICENSE)
+
+<img src="assets/demo.gif" width="1200" alt="Animated demo of the Runzivo rzv CLI in a terminal panel: the curl install, rzv login --workspace and rzv whoami, then rzv sandboxes create with size 2vcpu-8gb, ssh-config --write and ssh running uname -sm (Linux x86_64) and writing /workspace/hello.txt, rzv sandboxes get showing running, 7h 59m left and 0.7 min of credits, stop, start followed by ssh showing hello.txt was kept, and delete. The sandbox ID shown is a placeholder." />
+
 This repository holds the source code of `rzv` (Go), its release notes and its releases. It is public so you can read the code you run; it does not accept outside contributions.
 
 ## Install
@@ -40,6 +44,7 @@ Runzivo is in Early Access. Sign in with your Runzivo account, then select a wor
 
 ## Documentation
 
+- Start with the website's [CLI setup](https://runzivo.dev/docs/cli/), [sign-in guide](https://runzivo.dev/docs/sign-in/) and [Agent Sandboxes overview](https://runzivo.dev/sandboxes/). The guides here cover command arguments and tool-specific setup.
 - [docs/README.md](docs/README.md): index of the guides below
 - [Sign-in and credentials](docs/login.md)
 - [Commands](docs/commands.md), [workspace commands](docs/workspace-commands.md), [support tickets](docs/tickets.md), [notifications](docs/notifications.md), and [AI settings and usage](docs/ai.md), and [sandboxes](docs/sandboxes.md)
@@ -51,6 +56,9 @@ Runzivo is in Early Access. Sign in with your Runzivo account, then select a wor
 - The [website changelog](https://runzivo.dev/changelog) ([RSS](https://runzivo.dev/changelog/rss.xml)) covers the CLI and the Runzivo service.
 
 ## Help and security
+
+- Product ideas and voting: [Runzivo community](COMMUNITY.md), covering all Runzivo products.
+- Priorities and progress: [roadmap and voting guide](https://runzivo.dev/roadmap/) or the [public GitHub board](https://github.com/orgs/Runzivo/projects/3/views/1).
 
 - Questions: support@runzivo.dev
 - Security issues: see [SECURITY.md](SECURITY.md).

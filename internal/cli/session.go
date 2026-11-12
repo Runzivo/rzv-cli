@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
+	"time"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
 	"github.com/Runzivo/rzv-cli/internal/config"
@@ -38,12 +41,103 @@ func (a *app) credentials() (*config.Credentials, error) {
 	if creds == nil {
 		return nil, authError("Sign in with `rzv login` first.")
 	}
+	if !a.accessTokenExpiring(creds) {
+		return creds, nil
+	}
+	if creds.RefreshToken == "" {
+		return nil, authError("Your sign-in has expired. Run `rzv login` again.")
+	}
+	return a.refreshCredentials()
+}
+
+// credentialLockWait bounds how long a command waits for another rzv process
+// to finish with the credentials file.
+var credentialLockWait = 45 * time.Second
+
+// refreshLeeway renews an access token this long before it expires, so a
+// request never starts with a token that runs out on the way.
+const refreshLeeway = 60 * time.Second
+
+func (a *app) accessTokenExpiring(creds *config.Credentials) bool {
+	claims, err := oidc.DecodeUnverified(creds.AccessToken)
+	if err != nil {
+		return false // the service decides; an unreadable token is not ours to judge
+	}
+	exp := claims.Time("exp")
+	leeway := time.Duration(0)
+	if creds.RefreshToken != "" {
+		leeway = refreshLeeway // only a renewable sign-in renews early
+	}
+	return !exp.IsZero() && !a.Now().Add(leeway).Before(exp)
+}
+
+// refreshCredentials renews the stored sign-in under the profile's lock. It
+// reads the file again inside the lock: another rzv process (an SSH proxy,
+// an Orca step, an editor) may already have renewed it, and the provider
+// accepts each refresh token only once.
+func (a *app) refreshCredentials() (*config.Credentials, error) {
+	unlock, err := a.Store.Lock(a.ctx, credentialLockWait)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	creds, err := a.Store.Read()
+	if err != nil {
+		return nil, err
+	}
+	if creds == nil {
+		return nil, authError("Sign in with `rzv login` first.")
+	}
+	if !a.accessTokenExpiring(creds) {
+		return creds, nil
+	}
+	if creds.RefreshToken == "" {
+		return nil, authError("Your sign-in has expired. Run `rzv login` again.")
+	}
+	subject := ""
 	if claims, err := oidc.DecodeUnverified(creds.AccessToken); err == nil {
-		if exp := claims.Time("exp"); !exp.IsZero() && !a.Now().Before(exp) {
-			return nil, authError("Your sign-in has expired. Run `rzv login` again.")
-		}
+		subject = claims.String("sub")
+	}
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// Once started, a refresh finishes even if the command is cancelled
+	// (Orca's SIGTERM, Ctrl-C): the provider spends the old refresh token as
+	// soon as it answers, so dropping its answer would end the session.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	result, err := oidc.Refresh(ctx, oidc.RefreshOptions{
+		Issuer: creds.Issuer, ClientID: creds.ClientID, Audience: creds.Audience, BrokerClaim: creds.GitHubBrokerClaim,
+		Subject: subject, RefreshToken: creds.RefreshToken, HTTPClient: a.HTTPClient, Now: a.Now,
+		AllowInsecureLoopback: insecureLoopback(creds.Issuer),
+	})
+	if errors.Is(err, oidc.ErrSessionEnded) {
+		// The session is over: drop the refresh token so nothing retries it,
+		// and keep the profile's environment and workspace for the next login.
+		creds.RefreshToken, creds.RefreshExpiresAt = "", time.Time{}
+		_ = a.Store.Write(creds)
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+	creds.AccessToken, creds.RefreshToken, creds.RefreshExpiresAt = result.AccessToken, result.RefreshToken, result.RefreshExpiresAt
+	if err := a.Store.Write(creds); err != nil {
+		return nil, err
 	}
 	return creds, nil
+}
+
+// insecureLoopback allows an http:// issuer only on loopback, as `rzv login
+// --allow-insecure-loopback` did when it stored it.
+func insecureLoopback(issuer string) bool {
+	u, err := url.Parse(issuer)
+	if err != nil || u.Scheme != "http" {
+		return false
+	}
+	host := u.Hostname()
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
 }
 
 func (a *app) client(baseURL, credential string) (*api.Client, error) {
@@ -286,9 +380,13 @@ func apiError(err error, notFound string) error {
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_wrong_state":
 		return newError(apiErr.Code, exitFailure, "The sandbox is not in a state that allows this. Check `rzv sandboxes list`.")
 	case apiErr.Status == 409 && apiErr.Code == "size_unavailable":
-		return newError(apiErr.Code, exitFailure, "That size is not offered on this Runzivo environment. `rzv sandboxes list` shows the sizes on offer.")
+		return newError(apiErr.Code, exitFailure, "That size is not offered on this Runzivo environment. `rzv sandboxes sizes` shows the sizes on offer.")
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_expired":
-		return newError(apiErr.Code, exitFailure, "The sandbox reached its eight hour lifetime and cannot start again. Create a new one.")
+		return newError(apiErr.Code, exitFailure, "The sandbox reached its lifetime and cannot start again. Create a new one.")
+	case apiErr.Status == 400 && apiErr.Code == "invalid_lifetime":
+		return newError(apiErr.Code, exitUsage, "The lifetime must be 8h, 12h or 24h.")
+	case apiErr.Status == 409 && apiErr.Code == "lifetime_unavailable":
+		return newError(apiErr.Code, exitFailure, "This lifetime is not available here right now. Choose another, or omit --lifetime for 8h. `rzv sandboxes list` shows the lifetimes on offer.")
 	case apiErr.Status == 409 && apiErr.Code == "sandbox_name_taken":
 		return newError(apiErr.Code, exitFailure, "A sandbox with that name already exists in this workspace.")
 	case apiErr.Status == 409 && apiErr.Code == "no_capacity":

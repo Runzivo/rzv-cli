@@ -20,6 +20,9 @@ const billingUsage = `Usage:
   rzv billing country set <code> [--workspace <id>] [--json]    Set the billing country (future purchases)
   rzv billing country reset [--workspace <id>] [--json]         Clear an unused billing country
   rzv billing marketplace [--workspace <id>] [--json]           GitHub Marketplace plan, if any
+  rzv billing marketplace claimable [--workspace <id>] [--json] Held Marketplace purchases this workspace can claim
+  rzv billing marketplace claim --account-id <id> [--workspace <id>] [--json]
+                                                                Link a held Marketplace purchase (owner, recent sign-in)
   rzv billing checkout --pack <id> --operation-id <id> [--workspace <id>] [--json]
                                                                 Start a hosted checkout
   rzv billing portal [--workspace <id>] [--json]                Open the provider billing portal link
@@ -222,6 +225,14 @@ func runBillingCountry(a *app, cmd *command) error {
 }
 
 func runBillingMarketplace(a *app, cmd *command) error {
+	if len(cmd.args) > 1 {
+		switch cmd.args[1] {
+		case "claimable":
+			return runBillingMarketplaceClaimable(a, cmd)
+		case "claim":
+			return runBillingMarketplaceClaim(a, cmd)
+		}
+	}
 	if err := cmd.allow("workspace", "account"); err != nil {
 		return err
 	}

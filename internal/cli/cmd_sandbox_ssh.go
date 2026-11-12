@@ -538,18 +538,7 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 				return err
 			}
 		}
-		state, _, err := a.sshStateForWorkspace(cmd, id, workspace, client)
-		if err != nil {
-			return err
-		}
-		host, err := client.SandboxSSHHost(a.ctx, state.Binding.Workspace, id)
-		if err != nil {
-			return a.sshAPIError(err)
-		}
-		if err := state.SaveHost(host.HostKeyAlias, host.HostCAPublicKey); err != nil {
-			return err
-		}
-		config, err := a.sshConfig(state)
+		config, err := a.sandboxSSHConfigText(cmd, id, workspace, client)
 		if err != nil {
 			return err
 		}
@@ -563,7 +552,43 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 			}
 		}
 	}
+	if cmd.flags["write"] && len(cmd.args) == 2 && len(ids) == 1 {
+		return a.printSSHConnectHints(ids[0] + ".rzv")
+	}
 	return nil
+}
+
+// printSSHConnectHints shows how to use one freshly written alias from a
+// terminal and from Remote SSH editors.
+func (a *app) printSSHConnectHints(alias string) error {
+	_, err := fmt.Fprintf(a.Stdout, "%s ssh %s\n%s code --remote ssh-remote+%s /workspace\n%s\n%s cursor --remote ssh-remote+%s /workspace\n%s\n%s\n",
+		a.text("Terminal:", "Terminal :"), alias,
+		a.text("VS Code:", "VS Code :"), alias,
+		a.text("  On macOS, first run Shell Command: Install 'code' command in PATH in VS Code.",
+			"  Sur macOS, lancez d’abord Shell Command: Install 'code' command in PATH dans VS Code."),
+		a.text("Cursor:", "Cursor :"), alias,
+		a.text("  On macOS, first run Shell Command: Install 'cursor' command in Cursor.",
+			"  Sur macOS, lancez d’abord Shell Command: Install 'cursor' command dans Cursor."),
+		a.text("  Or run Remote-SSH: Connect to Host in Cursor, choose "+alias+", then open /workspace.",
+			"  Ou lancez Remote-SSH: Connect to Host dans Cursor, choisissez "+alias+", puis ouvrez /workspace."))
+	return err
+}
+
+// sandboxSSHConfigText saves the sandbox's host CA in its private state and
+// returns its generated OpenSSH config block.
+func (a *app) sandboxSSHConfigText(cmd *command, id, workspace string, client *api.Client) (string, error) {
+	state, _, err := a.sshStateForWorkspace(cmd, id, workspace, client)
+	if err != nil {
+		return "", err
+	}
+	host, err := client.SandboxSSHHost(a.ctx, state.Binding.Workspace, id)
+	if err != nil {
+		return "", a.sshAPIError(err)
+	}
+	if err := state.SaveHost(host.HostKeyAlias, host.HostCAPublicKey); err != nil {
+		return "", err
+	}
+	return a.sshConfig(state)
 }
 
 func (a *app) writeSSHConfig(id, config string) error {

@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/Runzivo/rzv-cli/internal/api"
+	"github.com/Runzivo/rzv-cli/internal/config"
 )
 
 const workspaceSelectionHint = "With a login session, a workspace can be an id, slug or display name.\nQuote names containing spaces. API keys require an exact workspace id."
@@ -18,6 +19,8 @@ const workspacesUsage = `Usage:
   rzv workspaces list [--json]                         Workspaces you belong to
   rzv workspaces select <workspace> [--json]        Use one for later commands
   rzv workspaces create --slug <slug> --name <name>    Create a workspace and select it
+  rzv workspaces confirm-kind --kind <personal|organization> [--yes] [--workspace <id|slug|name>] [--json]
+                                                        Confirm a workspace's type (owner only)
   rzv workspaces settings ...                           Read or update workspace settings
   rzv workspaces members ...                            List or manage workspace members
   rzv workspaces invitations ...                        Manage workspace invitations
@@ -47,6 +50,8 @@ func runWorkspaces(a *app, cmd *command) error {
 		return workspacesSelect(a, cmd)
 	case "create":
 		return workspacesCreate(a, cmd)
+	case "confirm-kind":
+		return workspacesConfirmKind(a, cmd)
 	case "settings", "members", "invitations":
 		return workspaceAccess(a, cmd)
 	case "closures":
@@ -182,11 +187,11 @@ func workspacesList(a *app, cmd *command) error {
 		selected = creds.SelectedWorkspace
 	}
 	a.output(cmd, map[string]any{"workspaces": memberships, "selected_workspace_id": selected},
-		renderWorkspaces(memberships, creds.SelectedWorkspace))
+		a.renderWorkspaces(memberships, creds.SelectedWorkspace))
 	return nil
 }
 
-func renderWorkspaces(memberships []api.Membership, selected string) string {
+func (a *app) renderWorkspaces(memberships []api.Membership, selected string) string {
 	if len(memberships) == 0 {
 		return "No workspaces are available. Create one with `rzv workspaces create` or in the Runzivo portal."
 	}
@@ -196,7 +201,11 @@ func renderWorkspaces(memberships []api.Membership, selected string) string {
 		if m.TenantID == selected {
 			mark = " (selected)"
 		}
-		lines = append(lines, fmt.Sprintf("- %s [%s] (%s, %s)%s", display(m.TenantName), display(m.TenantID), display(m.TenantSlug), display(m.Role), mark))
+		kind := ""
+		if label := a.kindLabel(m); label != "" {
+			kind = ", " + label
+		}
+		lines = append(lines, fmt.Sprintf("- %s [%s] (%s, %s)%s%s", display(m.TenantName), display(m.TenantID), display(m.TenantSlug), display(m.Role), kind, mark))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -209,7 +218,7 @@ func workspacesSelect(a *app, cmd *command) error {
 		return err
 	}
 	id := cmd.args[1]
-	client, creds, err := a.humanClient()
+	client, _, err := a.humanClient()
 	if err != nil {
 		return err
 	}
@@ -225,8 +234,7 @@ func workspacesSelect(a *app, cmd *command) error {
 	if id == "" {
 		return accessError("You are not a member of workspace %s.", display(cmd.args[1]))
 	}
-	creds.SelectedWorkspace = id
-	if err := a.Store.Write(creds); err != nil {
+	if err := a.Store.Update(a.ctx, credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = id; return nil }); err != nil {
 		return err
 	}
 	a.output(cmd, map[string]string{"selected_workspace_id": id}, a.text("Selected workspace: ", "Espace de travail sélectionné : ")+workspaceLabel(memberships, id))
@@ -248,7 +256,7 @@ func workspacesCreate(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	client, creds, err := a.humanClient()
+	client, _, err := a.humanClient()
 	if err != nil {
 		return err
 	}
@@ -259,8 +267,7 @@ func workspacesCreate(a *app, cmd *command) error {
 	if err != nil {
 		return createWorkspaceError(err, slug)
 	}
-	creds.SelectedWorkspace = workspace.TenantID
-	if err := a.Store.Write(creds); err != nil {
+	if err := a.Store.Update(a.ctx, credentialLockWait, func(c *config.Credentials) error { c.SelectedWorkspace = workspace.TenantID; return nil }); err != nil {
 		return err
 	}
 	a.output(cmd, map[string]any{"workspace": workspace, "selected_workspace_id": workspace.TenantID},

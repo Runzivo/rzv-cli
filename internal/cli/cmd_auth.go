@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"strings"
@@ -122,6 +123,7 @@ func runLogin(a *app, cmd *command) error {
 		Version: 1, Environment: env.Name, Identity: identityLabel(result.Claims), Issuer: result.Issuer, ClientID: env.ClientID,
 		Audience: env.Audience, GitHubBrokerClaim: env.BrokerClaim,
 		APIBaseURL: apiURL.Scheme + "://" + apiURL.Host, AccessToken: result.AccessToken,
+		RefreshToken: result.RefreshToken, RefreshExpiresAt: result.RefreshExpiresAt,
 	}
 	// The workspace is resolved before anything is saved, so a workspace that
 	// cannot be found leaves the profile's previous sign-in untouched.
@@ -143,7 +145,13 @@ func runLogin(a *app, cmd *command) error {
 		}
 		creds.SelectedWorkspace = id
 	}
-	if err := a.Store.Write(creds); err != nil {
+	unlock, err := a.Store.Lock(a.ctx, credentialLockWait)
+	if err != nil {
+		return err
+	}
+	err = a.Store.Write(creds)
+	unlock()
+	if err != nil {
 		return err
 	}
 	profile := a.profileName()
@@ -168,7 +176,18 @@ func runLogout(a *app, cmd *command) error {
 		return err
 	}
 	if a.Store != nil {
-		if err := a.Store.Clear(); err != nil {
+		// Under the lock, so a refresh in flight cannot write a new token
+		// back after the file is gone.
+		unlock, err := a.Store.Lock(a.ctx, credentialLockWait)
+		if err != nil {
+			return err
+		}
+		if !a.revokeStored(a.Store) {
+			fmt.Fprintln(a.Stderr, "rzv: The identity provider did not confirm the session ended; it ends on its own when it expires.")
+		}
+		err = a.Store.Clear()
+		unlock()
+		if err != nil {
 			return err
 		}
 		active, err := a.Store.ActiveProfile()
@@ -206,6 +225,11 @@ func runWhoami(a *app, cmd *command) error {
 		envName = "custom"
 	}
 	expires := claims.Time("exp")
+	if creds.RefreshToken != "" {
+		// The access token renews itself; the session lasts until the
+		// refresh token expires (sooner if unused, or at the session maximum).
+		expires = creds.RefreshExpiresAt
+	}
 	var selected any
 	if creds.SelectedWorkspace != "" {
 		selected = creds.SelectedWorkspace
@@ -257,4 +281,17 @@ func formatTime(t time.Time) string {
 		return "unknown"
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+// revokeStored ends the stored sign-in's session at the identity provider
+// (RFC 7009). It reports false when the provider did not confirm it; the
+// caller holds the store's lock.
+func (a *app) revokeStored(store *config.Store) bool {
+	creds, err := store.Read()
+	if err != nil || creds == nil || creds.RefreshToken == "" {
+		return true // nothing renewable to revoke
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(a.ctx), 15*time.Second)
+	defer cancel()
+	return oidc.Revoke(ctx, creds.Issuer, creds.ClientID, creds.RefreshToken, insecureLoopback(creds.Issuer), a.HTTPClient) == nil
 }

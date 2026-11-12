@@ -2,6 +2,64 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-11-09-151052 (rzv 0.29.0), 2026-11-09
+
+### Added
+
+- `rzv workspaces members role`, `rzv workspaces invitations invite`, `resend` and `accept`, and `rzv teams add-member` explain the refusal on a personal workspace (`personal_workspace_not_shared`) in one line, EN and fr-CA, exit 1; `--json` keeps the code.
+- `rzv workspaces confirm-kind --kind <personal|organization>` lets a workspace owner confirm whether a workspace is personal or an organization. Without `--yes` it is a dry run that says what would be set and changes nothing; with `--yes` it confirms and prints the change id. Once confirmed, only Runzivo staff can change the type. A confirmed personal workspace cannot be shared. Owner only, needs a recent sign-in, API keys are refused, and it supports `--json`. See [Workspaces](docs/workspaces.md).
+- `rzv workspaces list` shows each workspace's type (`personal` or `organization`), marked `(unconfirmed)` while the service has only inferred it. `--json` passes `kind` and `kind_source` through. A workspace with no type shown has none set yet, or the service is older and does not report types.
+
+## release-2026-11-09-084915 (rzv 0.28.0), 2026-11-09
+
+### Added
+
+- `rzv billing marketplace claimable` lists the GitHub Marketplace purchases held because the buying GitHub account is connected to several workspaces, and that this workspace can claim. `rzv billing marketplace claim --account-id <id>` links one to the workspace; repeating it reports `already_linked`. Owner only, `claim` needs a recent sign-in, API keys are refused, and both support `--json`. See [Billing](docs/billing.md).
+
+## release-2026-11-06-205402 (rzv 0.27.0), 2026-11-06
+
+### Fixed
+
+- `rzv sandboxes stop` and `rzv orca suspend` run `sync` in a running sandbox right before stopping it, so recent writes are much less likely to be lost. If the sync fails, `rzv` warns and stops anyway. Stops from the portal, the API or expiry are not covered yet ([Sandboxes](docs/sandboxes.md)).
+
+## release-2026-11-06-151513 (rzv 0.26.0), 2026-11-06
+
+### Added
+
+- Plan limits in the next two entries are awaiting rollout. Runzivo does not enforce them yet. Until it does, `rzv sandboxes sizes` shows every size as `included` and `rzv runners availability` shows no plan.
+- Custom runner profiles are limited by plan: up to 4 vCPU on Free and Developer, 16 on Team, 32 on Business, custom on Enterprise. `rzv runners availability` shows the plan of each shape (`included` or the plan name, marked locked) apart from regional availability, a table of every vCPU option with its plan, and an upgrade hint for locked sizes. `--json` passes through `plan_eligible`, `required_plan` and `vcpu_options`. `rzv runners profiles create` for a size your plan does not allow now says which plan it needs and where to upgrade (exit code 4), or to contact Runzivo for the Enterprise plan. See [Custom runner profiles](docs/custom-runner-profiles.md).
+- `rzv sandboxes sizes` shows every sandbox size with its vCPU, RAM, equivalent-minute rate, the plan it needs (`included` or the plan name, marked locked) and its regional availability, with an upgrade hint for locked sizes. `rzv sandboxes list --json` and `sizes --json` pass the new `size_availability` fields through. Creating a size your plan does not allow now says which plan it needs and where to upgrade (exit code 4), or to contact Runzivo for the Enterprise plan. See [Sandbox sizes and plans](docs/sandbox-sizes.md).
+- [Claude Code in a sandbox](docs/claude-code.md): use the preinstalled Claude Code with your own Anthropic API key or Claude subscription login. The key or login stays in the sandbox; a stop and start keeps it, and expiry or deletion removes it. Runzivo charges only the sandbox's compute.
+- [Codex in a sandbox](docs/codex.md): sign in to the preinstalled Codex CLI with your own OpenAI API key (piped over SSH) or ChatGPT device code sign-in, choose the sandbox mode (`sandbox_mode` in `~/.codex/config.toml`), and how to sign out. A stop and start keeps the sign-in; expiry or deletion removes it.
+
+### Changed
+
+- Sandbox docs: a stop and start now keeps the whole disk (home directory, tool installs, settings, saved sign-ins and installed packages), not only `/workspace`. Updated [Sandboxes](docs/sandboxes.md), [editors](docs/editors.md), [Herdr](docs/herdr.md), [OpenCode](docs/opencode.md), [Claude Code](docs/claude-code.md) and [Codex](docs/codex.md).
+- `rzv sandboxes ssh-config <sandbox-id> --write` now prints `cursor --remote ssh-remote+<sandbox-id>.rzv /workspace` for Cursor. [VS Code and Cursor Remote SSH](docs/editors.md) records a live test with Cursor 3.29.9 and Anysphere Remote - SSH 1.1.17, covering the first connection and a reconnect after a stop and start.
+
+## release-2026-11-06-113624 (rzv 0.25.0), 2026-11-06
+
+### Added
+
+- `rzv runners profiles list|create|delete` manage [custom runner profiles](docs/custom-runner-profiles.md): vCPU (2 to 32), memory (4 to 128 GiB) and temporary disk (16 to 256 GiB) chosen independently, saved under a label whose workflow label goes in `runs-on`. `rzv runners availability` shows whether each profile, or a shape given with `--vcpu` and `--mem-gib`, can run now, per region, with its equivalent-minute rate and a shared CPU (overcommitted) note. All support `--json`. A Runzivo environment where custom runner profiles are off or not available says so and exits with the unavailable code.
+- [OpenCode in a sandbox](docs/opencode.md): install a pinned, checksummed OpenCode 1.19.5 in a sandbox and use it with your own AI provider key. The key stays in the sandbox. Runzivo charges only the sandbox's compute.
+- `rzv sandboxes ssh-config <sandbox-id> --write` prints the commands to connect with `ssh`, VS Code (`code --remote ssh-remote+<sandbox-id>.rzv /workspace`) and Cursor. The new [VS Code and Cursor Remote SSH](docs/editors.md) guide has the editor steps, settings for sandboxes without outbound internet, and the limits. VS Code Remote - SSH has been tested against a live sandbox.
+- [Herdr in a sandbox](docs/herdr.md) explains how to run [Herdr](https://github.com/herdrdev/herdr) 0.9.5 against a sandbox over the `<sandbox-id>.rzv` SSH alias with `herdr --remote`, `ssh -t` or `herdr machine add`. It covers Herdr's own install prompt and a pinned, checksum-verified manual install. Panes and agents keep running while you are disconnected and the sandbox runs. A stop removes Herdr, its server and its panes; only `/workspace` is kept. `scripts/20-herdr-e2e.sh` checks these steps against one sandbox and deletes it afterwards.
+
+## release-2026-11-06-005258 (rzv 0.24.0), 2026-11-06
+
+### Changed
+
+- Sign-ins renew themselves. `rzv login` keeps the identity provider's refresh token in the owner-only credentials file, and any command (including SSH, `rzv orca` and editors that run `rzv`) renews the access token shortly before it expires. Sessions follow the customer session policy: 14 days without use or 30 days after sign-in. Parallel runs renew once under a lock. `rzv logout` and `rzv profiles remove` end the session at the identity provider. Sign-ins from before this release keep working until their access token expires; then run `rzv login` once.
+
+## release-2026-11-05-233903 (rzv 0.23.0), 2026-11-05
+
+### Added
+
+- `rzv orca create|suspend|resume|destroy` run each Orca workspace in its own sandbox for the [Runzivo plugin for Orca](https://github.com/Runzivo/rzv-orca-plugin): one sandbox per workspace (the workspace id is the idempotency key), the selected commit copied in as a Git bundle with no Git credentials, SSH through the `ssh-config --write` config, and Orca's recipe result on stdout. A failed create deletes its sandbox. `rzv orca defaults` sets the disk, lifetime, size and workspace these use; `rzv orca status` lists them with expiry and credits used. See [Orca workspaces](docs/orca.md).
+- `rzv sandboxes create --lifetime 8h|12h|24h` sets how long a sandbox lives (default 8h). Where Runzivo offers 12h and 24h, the timer starts when the sandbox first runs; elsewhere the 8h timer starts at the first start. `--lifetime 8h` is left out of the request, so it works with older services; a service without the lifetime choice explains that 12h and 24h are not supported yet. `sandboxes list` and `get` show the lifetime, the exact expiry in local time and UTC, and the time left. A sandbox shows `cleanup pending` when it expired or was deleted but its files are not deleted yet. Older services without the field show the lifetime as `-`, and their lifetimes on offer as 8h.
+- `rzv workspaces settings update --docker-cache enabled|disabled` and `--docker-cache-size-mib <MiB>` (64 to 16384) set the workspace Docker layer cache. Either flag works alone. `settings show` and `update` print the cache state, size and whether hosts in this environment can serve the cache (`available`); `--json` includes `docker_cache`. The cache is available only after an operator turns it on and an execution host in the environment supports it. Older services without the setting show no cache line.
+
 ## release-2026-11-01-185141 (rzv 0.22.0), 2026-11-01
 
 ### Added

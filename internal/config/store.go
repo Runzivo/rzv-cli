@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -17,20 +19,25 @@ const (
 	activeFile      = "profile.json"
 )
 
-// Credentials is what `rzv login` stores. The access token is never
-// printed or logged.
+// Credentials is what `rzv login` stores. The access and refresh tokens are
+// never printed or logged, and the file is owner-only (0600 in a 0700
+// directory). RefreshToken renews the access token within the identity
+// provider's session limits; RefreshExpiresAt is when the provider said it
+// stops working if unused (zero when unknown).
 type Credentials struct {
 	Version     int    `json:"version"`
 	Environment string `json:"environment,omitempty"`
 	// Identity is a display label (username or email) from the ID token.
-	Identity          string `json:"identity,omitempty"`
-	Issuer            string `json:"issuer"`
-	ClientID          string `json:"clientId"`
-	Audience          string `json:"audience"`
-	GitHubBrokerClaim string `json:"githubBrokerClaim"`
-	APIBaseURL        string `json:"apiBaseUrl"`
-	AccessToken       string `json:"accessToken"`
-	SelectedWorkspace string `json:"selectedAccountId,omitempty"`
+	Identity          string    `json:"identity,omitempty"`
+	Issuer            string    `json:"issuer"`
+	ClientID          string    `json:"clientId"`
+	Audience          string    `json:"audience"`
+	GitHubBrokerClaim string    `json:"githubBrokerClaim"`
+	APIBaseURL        string    `json:"apiBaseUrl"`
+	AccessToken       string    `json:"accessToken"`
+	RefreshToken      string    `json:"refreshToken,omitempty"`
+	RefreshExpiresAt  time.Time `json:"refreshExpiresAt,omitzero"`
+	SelectedWorkspace string    `json:"selectedAccountId,omitempty"`
 }
 
 func (c *Credentials) valid() bool {
@@ -152,11 +159,17 @@ func writeAtomic(path string, data []byte) error {
 		_ = os.Remove(tmp)
 		return fail
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fail
+	// Windows can refuse the replace briefly while another rzv reads the
+	// file, so retry before giving up.
+	var renameErr error
+	for attempt := 0; attempt < 10; attempt++ {
+		if renameErr = os.Rename(tmp, path); renameErr == nil {
+			return nil
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	return nil
+	_ = os.Remove(tmp)
+	return fail
 }
 
 // Clear removes the credentials file. A missing file is not an error.
@@ -175,4 +188,69 @@ func (s *Store) Clear() error {
 		return &StoreError{"local_state_unavailable", "Unable to remove local rzv credentials."}
 	}
 	return nil
+}
+
+// Lock takes this profile's credential lock, waiting up to wait. It is an
+// operating-system file lock, so it is released when the process exits, even
+// when killed. Every change to the credentials file happens under it: the
+// identity provider rotates refresh tokens and refuses a spent one, so a
+// stale copy written back would end the session. The returned function
+// releases the lock.
+func (s *Store) Lock(ctx context.Context, wait time.Duration) (func(), error) {
+	fail := &StoreError{"local_state_unavailable", "Another rzv process is using the sign-in. Try again shortly."}
+	path := s.path() + ".lock"
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fail
+	}
+	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
+		return nil, &StoreError{"local_state_invalid", "The rzv credential lock is not a regular file."}
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|openNoFollow, 0o600)
+	if err != nil {
+		return nil, fail
+	}
+	deadline := time.Now().Add(wait)
+	for {
+		ok, err := tryLockFile(f)
+		if err != nil {
+			_ = f.Close()
+			return nil, fail
+		}
+		if ok {
+			return func() { _ = unlockFile(f); _ = f.Close() }, nil
+		}
+		if time.Now().After(deadline) {
+			_ = f.Close()
+			return nil, fail
+		}
+		select {
+		case <-ctx.Done():
+			_ = f.Close()
+			return nil, &StoreError{"cancelled", "Cancelled."}
+		case <-time.After(25 * time.Millisecond):
+		}
+	}
+}
+
+// Update changes the stored credentials under the lock: it reads the file
+// again, applies change and writes the result, so a field it does not change
+// (such as a refresh token another process just rotated) is kept.
+func (s *Store) Update(ctx context.Context, wait time.Duration, change func(*Credentials) error) error {
+	unlock, err := s.Lock(ctx, wait)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	creds, err := s.Read()
+	if err != nil {
+		return err
+	}
+	if creds == nil {
+		return &StoreError{"authentication_required", "Sign in with `rzv login` first."}
+	}
+	if err := change(creds); err != nil {
+		return err
+	}
+	return s.Write(creds)
 }

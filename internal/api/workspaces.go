@@ -13,6 +13,11 @@ type Membership struct {
 	Role               string `json:"role"`
 	GitHubAccountID    string `json:"github_account_id,omitempty"`
 	GitHubAccountLogin string `json:"github_account_login,omitempty"`
+	// Kind is personal or organization, and KindSource says how it was set:
+	// declared (chosen or confirmed by an owner), inferred (provisional) or
+	// staff. Both are empty while the kind is not set and on older services.
+	Kind       string `json:"kind,omitempty"`
+	KindSource string `json:"kind_source,omitempty"`
 }
 
 // Workspace is a newly created (or replayed) workspace.

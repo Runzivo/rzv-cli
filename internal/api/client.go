@@ -28,11 +28,13 @@ const (
 
 // Error is a failed API call. Status is 0 when no response arrived. Code is
 // the server's error code when it sent a well-formed one. RetryAfter is the
-// server's Retry-After delay, or 0 when it sent none.
+// server's Retry-After delay, or 0 when it sent none. RequiredPlan is the plan
+// a plan_required refusal names, or "" when it names none.
 type Error struct {
-	Status     int
-	Code       string
-	RetryAfter time.Duration
+	Status       int
+	Code         string
+	RetryAfter   time.Duration
+	RequiredPlan string
 }
 
 func (e *Error) Error() string {
@@ -43,6 +45,10 @@ func (e *Error) Error() string {
 }
 
 var errorCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+
+// planNamePattern accepts a plan name as the server sends it: free, developer,
+// team, business or enterprise, and any later plan written the same way.
+var planNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 
 // Client calls the customer API with one bearer credential: a person's
 // access token or a workspace API key.
@@ -184,11 +190,16 @@ func (c *Client) doCSV(ctx context.Context, path string, query url.Values) ([]by
 func decodeError(status int, data []byte, retryAfter string) *Error {
 	var body struct {
 		Error struct {
-			Code string `json:"code"`
+			Code         string  `json:"code"`
+			RequiredPlan *string `json:"required_plan"`
 		} `json:"error"`
 	}
 	if json.Unmarshal(data, &body) == nil && errorCodePattern.MatchString(body.Error.Code) {
-		return &Error{Status: status, Code: body.Error.Code, RetryAfter: parseRetryAfter(retryAfter, time.Now())}
+		e := &Error{Status: status, Code: body.Error.Code, RetryAfter: parseRetryAfter(retryAfter, time.Now())}
+		if body.Error.RequiredPlan != nil && planNamePattern.MatchString(*body.Error.RequiredPlan) {
+			e.RequiredPlan = *body.Error.RequiredPlan
+		}
+		return e
 	}
 	return &Error{Status: status, Code: "invalid_error_response"}
 }

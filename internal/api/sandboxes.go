@@ -20,13 +20,16 @@ type SandboxError struct {
 	Message string `json:"message"`
 }
 
-// Sandbox is a sandbox as the customer API returns it.
+// Sandbox is a sandbox as the customer API returns it. LifetimeHours is 8, 12
+// or 24; a server older than the lifetime choice leaves it out, which reads as
+// 0 (unknown).
 type Sandbox struct {
 	ID               string        `json:"id"`
 	Name             string        `json:"name"`
 	Size             string        `json:"size"`
 	DiskGiB          int           `json:"disk_gib"`
 	Status           string        `json:"status"`
+	LifetimeHours    int           `json:"lifetime_hours,omitempty"`
 	Error            *SandboxError `json:"error"`
 	CreatedAt        string        `json:"created_at"`
 	StartedAt        *string       `json:"started_at"`
@@ -57,13 +60,44 @@ func (s *Sandbox) valid() bool {
 func sandboxPath(tenantID, rest string) string { return tenantPath(tenantID, "/sandboxes"+rest) }
 
 // SandboxListing is listCustomerSandboxes' result: the sandboxes, the number
-// the workspace may run at once, and the sizes this environment offers (a
-// server older than the sizes field sends none).
+// the workspace may run at once, the sizes this environment offers (a
+// server older than the sizes field sends none) and the lifetimes in hours it
+// offers (a subset of 8, 12 and 24). A server older than the lifetimes field
+// sends none and offers only 8 hours, so a missing field reads as [8]; an
+// empty list (sandboxes off) stays empty.
 type SandboxListing struct {
 	Sandboxes  []Sandbox `json:"sandboxes"`
 	MaxRunning int       `json:"max_running"`
 	Sizes      []string  `json:"sizes"`
+	Lifetimes  []int     `json:"lifetimes"`
+	// SizeAvailability is every size of the catalogue with its regional
+	// status and plan fields. A server from before it sends none.
+	SizeAvailability []SandboxSize `json:"size_availability,omitempty"`
+	// SSHEnabled is the environment's SSH switch; nil from a server that
+	// does not report it.
+	SSHEnabled *bool `json:"ssh_enabled,omitempty"`
+	// LifetimesReported is true when the server sent a lifetimes list at all.
+	// Only a server from before the lifetime choice omits it.
+	LifetimesReported bool `json:"-"`
 }
+
+// SandboxSize is one size_availability entry. Status is the regional state
+// (available, busy or unsupported) with Reason. The plan fields come from a
+// server with plan-based sizes; an older one sends none, so they are pointers
+// and a missing PlanEligible reads as eligible.
+type SandboxSize struct {
+	Size                       string  `json:"size"`
+	Status                     string  `json:"status"`
+	Reason                     string  `json:"reason,omitempty"`
+	VCPU                       *int    `json:"vcpu,omitempty"`
+	MemMiB                     *int    `json:"mem_mib,omitempty"`
+	EquivalentMinutesPerMinute string  `json:"equivalent_minutes_per_minute,omitempty"`
+	PlanEligible               *bool   `json:"plan_eligible,omitempty"`
+	RequiredPlan               *string `json:"required_plan,omitempty"`
+}
+
+// Locked reports a size the workspace's plan does not allow creating.
+func (s SandboxSize) Locked() bool { return s.PlanEligible != nil && !*s.PlanEligible }
 
 // SandboxList calls listCustomerSandboxes.
 func (c *Client) SandboxList(ctx context.Context, tenantID string) (*SandboxListing, error) {
@@ -79,6 +113,10 @@ func (c *Client) SandboxList(ctx context.Context, tenantID string) (*SandboxList
 	if body.Sizes == nil {
 		body.Sizes = []string{}
 	}
+	body.LifetimesReported = body.Lifetimes != nil
+	if body.Lifetimes == nil {
+		body.Lifetimes = []int{8}
+	}
 	return &body, nil
 }
 
@@ -87,12 +125,13 @@ func (c *Client) SandboxGet(ctx context.Context, tenantID, sandboxID string) (*S
 	return c.sandboxCall(ctx, http.MethodGet, sandboxPath(tenantID, "/"+url.PathEscape(sandboxID)), nil)
 }
 
-// CreateSandboxInput is a create request. DiskGiB 0 and an empty
-// ClientOperationID are left out so the server's defaults apply.
+// CreateSandboxInput is a create request. DiskGiB 0, LifetimeHours 0 and an
+// empty ClientOperationID are left out so the server's defaults apply.
 type CreateSandboxInput struct {
 	Name              string `json:"name"`
 	Size              string `json:"size"`
 	DiskGiB           int    `json:"disk_gib,omitempty"`
+	LifetimeHours     int    `json:"lifetime_hours,omitempty"`
 	ClientOperationID string `json:"client_operation_id,omitempty"`
 	// DiskID attaches an existing persistent disk.
 	DiskID string `json:"disk_id,omitempty"`
