@@ -22,7 +22,7 @@ A sandbox shows `cleanup pending` (`cleanup_pending` in JSON) when it expired or
 ## Commands
 
 ```sh
-rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib 20] [--lifetime 8h|12h|24h]
+rzv sandboxes create --name dev [--size 2vcpu-8gb|4vcpu-16gb|8vcpu-32gb|16vcpu-64gb] [--disk-gib 20] [--disk <disk-id>] [--lifetime 8h|12h|24h]
 rzv sandboxes list                       # status, lifetime, expiry, time left and credits used
 rzv sandboxes sizes                      # every size: vCPU, RAM, rate, plan and availability
 rzv sandboxes get <sandbox-id>
@@ -33,7 +33,7 @@ rzv sandboxes delete <sandbox-id>        # deletes the machine and its files
 
 Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket. A workspace may run a limited number of sandboxes at once; `list` shows the limit and the sizes and lifetimes this Runzivo environment offers.
 
-`create` takes `--idempotency-key <key>` (8 to 200 characters). Running it again with the same key returns the sandbox the first run created instead of a second one.
+`create` takes `--disk <disk-id>` to attach a [persistent disk](disks.md), mounted at `/mnt/disk`, and `--idempotency-key <key>` (8 to 200 characters). Running it again with the same key returns the sandbox the first run created instead of a second one.
 
 | Page                                            | What it covers                                    |
 | ----------------------------------------------- | ------------------------------------------------- |
@@ -44,6 +44,7 @@ Add `--json` to list, get, create, start, stop, delete, exec or terminal-ticket.
 | [Herdr](herdr.md)                               | Agent panes that outlive the SSH connection       |
 | [Sizes and plans](sandbox-sizes.md)             | `rzv sandboxes sizes`, plan limits and availability |
 | [Billing and permissions](sandboxes-billing.md) | What is charged and who may change sandboxes      |
+| [Persistent disks](disks.md)                    | Files that outlive a sandbox, `--disk`            |
 | [OpenCode](opencode.md)                         | Run OpenCode with your own AI provider key        |
 | [Claude Code](claude-code.md)                   | Run Claude Code with your own key or Claude login |
 | [Codex](codex.md)                               | Run the preinstalled Codex CLI with your own key  |

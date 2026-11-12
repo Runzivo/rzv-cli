@@ -38,6 +38,19 @@ type Sandbox struct {
 	RuntimeSeconds   int64         `json:"runtime_seconds"`
 	// CreditsUsed is equivalent minutes charged so far.
 	CreditsUsed float64 `json:"credits_used"`
+	// DiskID is the attached persistent disk, mounted at /mnt/disk while
+	// running. Nil when none, or from a server without persistent disks.
+	DiskID *string `json:"disk_id,omitempty"`
+	// DiskState is whether the running guest mounted that disk. Nil when
+	// there is nothing to report, or from a server that does not send it.
+	DiskState *SandboxDiskState `json:"disk_state,omitempty"`
+}
+
+// SandboxDiskState is a running sandbox's persistent disk mount state:
+// pending, mounted or unavailable, with an optional detail.
+type SandboxDiskState struct {
+	State  string  `json:"state"`
+	Detail *string `json:"detail"`
 }
 
 func (s *Sandbox) valid() bool {
@@ -120,6 +133,8 @@ type CreateSandboxInput struct {
 	DiskGiB           int    `json:"disk_gib,omitempty"`
 	LifetimeHours     int    `json:"lifetime_hours,omitempty"`
 	ClientOperationID string `json:"client_operation_id,omitempty"`
+	// DiskID attaches an existing persistent disk.
+	DiskID string `json:"disk_id,omitempty"`
 }
 
 // SandboxCreate calls createCustomerSandbox.

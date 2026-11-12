@@ -20,6 +20,7 @@ Use the reference guides below for command arguments and tool-specific setup.
 | [Sandbox terminal](sandboxes-terminal.md)               | `terminal`, `ssh` and `terminal-ticket`                                              |
 | [Sandbox sizes and plans](sandbox-sizes.md)            | `rzv sandboxes sizes`, the plan each size needs and availability                       |
 | [Sandbox billing and permissions](sandboxes-billing.md) | Charges, credit and the permissions each command needs                                 |
+| [Persistent disks](disks.md) | Disks that outlive a sandbox: create, attach, detach, delete |
 | [Claude Code in a sandbox](claude-code.md)             | Use the preinstalled Claude Code with your own key or Claude login                     |
 | [OpenCode in a sandbox](opencode.md)                   | Install OpenCode in a sandbox and use your own AI key                                  |
 | [Codex in a sandbox](codex.md)                         | Use the preinstalled Codex CLI with your own OpenAI key or ChatGPT sign-in             |
