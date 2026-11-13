@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -21,8 +22,9 @@ Scopes: all:all (full access, owners only), optionally with members:write to
 let the key manage members, teams and invitations (all:all alone never can),
 or any of audit:read, jobs:read, logs:read, usage:read, runners:read,
 integrations:read, billing:read. remove-members-write drops members:write
-from a key without changing its secret. Without --expires-at a key expires in 365 days, the longest
-allowed. Permissions are checked against your current grants by the service.
+from a key without changing its secret. Without --expires-at a key expires
+in 365 days, the longest allowed. Permissions are checked against your
+current grants by the service.
 The secret is shown once, at creation. Use your own sign-in:
 RZV_API_KEY cannot manage API keys.`
 
@@ -243,9 +245,17 @@ func apiKeysRemoveMembersWrite(a *app, cmd *command) error {
 	}
 	key, err := client.RemoveAPIKeyMembersWrite(a.ctx, id, cmd.args[1])
 	if err != nil {
+		var apiErr *api.Error
+		if errors.As(err, &apiErr) && apiErr.Status == 400 && apiErr.Code == "invalid_request" {
+			return newError(apiErr.Code, exitUsage, "This Runzivo service does not support removing members:write yet.")
+		}
 		return apiError(err, "The API key was not found in this workspace.")
 	}
-	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, fmt.Sprintf("Removed member management from API key %s; its secret is unchanged.", display(key.ID)))
+	message := fmt.Sprintf("Removed member management from API key %s; its secret is unchanged.", display(key.ID))
+	if slices.Contains(key.Scopes, "members:write") {
+		message = fmt.Sprintf("API key %s still has members:write; the service did not remove it.", display(key.ID))
+	}
+	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, message)
 	return nil
 }
 

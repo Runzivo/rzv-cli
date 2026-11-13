@@ -503,6 +503,17 @@ func TestAPIKeys(t *testing.T) {
 	}(), ",")), "members:write") || narrowed["name"] != nil {
 		t.Fatalf("remove-members-write: %d %q %v", code, out, narrowed)
 	}
+	if code, out, _ := h.run("api-keys", "remove-members-write", "k3", "--json"); code != 0 || !strings.Contains(out, `"scopes":["all:all"]`) {
+		t.Fatalf("remove-members-write json: %d %q", code, out)
+	}
+	h.json("PATCH /v1/customer/tenants/t-1/api-keys/k3", 400, `{"error":{"code":"invalid_request"}}`)
+	if code, _, errOut := h.run("api-keys", "remove-members-write", "k3"); code != exitUsage || !strings.Contains(errOut, "does not support removing members:write") {
+		t.Fatalf("older service: %d %q", code, errOut)
+	}
+	h.json("PATCH /v1/customer/tenants/t-1/api-keys/k4", 404, `{"error":{"code":"not_found"}}`)
+	if code, _, errOut := h.run("api-keys", "remove-members-write", "k4"); code == 0 || !strings.Contains(errOut, "not found") {
+		t.Fatalf("unknown key: %d %q", code, errOut)
+	}
 	h.env["RZV_API_KEY"] = "rzv_test_key"
 	if code, _, _ := h.run("api-keys", "list"); code != exitAccessDenied {
 		t.Fatalf("api key managing keys: %d", code)
