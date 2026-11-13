@@ -2,12 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
-## Unreleased
+## release-2026-11-13-122944 (rzv 0.30.0), 2026-11-13
 
 ### Added
 
 - API keys: `--scopes all:all,members:write` creates a full-access key that may also manage members, teams and invitations; `all:all` alone no longer can. `rzv api-keys remove-members-write <key-id>` removes that scope without changing the secret. See [API keys](docs/api-keys.md).
-- `rzv disks list|get|create|attach|detach|delete` manage persistent disks, and `rzv sandboxes create --disk <disk-id>` attaches one at creation. All support `--json`. Disk listings show grant or capacity limits and scheduled deletion; create accepts 1 to 16384 GiB, with Core enforcing current limits. See [Persistent disks](docs/disks.md).
+- `rzv disks list|get|create|attach|detach|delete` manage persistent disks, and `rzv sandboxes create --disk <disk-id>` attaches one at creation. Disks need a workspace grant from Runzivo support; `rzv disks list` shows the workspace quota (zero without a grant). All support `--json`. Disk listings show grant or capacity limits and scheduled deletion; create accepts 1 to 16384 GiB, with Core enforcing current limits. See [Persistent disks](docs/disks.md).
 
 ## release-2026-11-09-151052 (rzv 0.29.0), 2026-11-09
 
