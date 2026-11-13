@@ -8,7 +8,7 @@ import (
 
 // APIKeyScopes are the scopes a workspace API key can hold. all:all must
 // be the only scope and only an owner can create it.
-var APIKeyScopes = []string{"all:all", "audit:read", "jobs:read", "logs:read", "usage:read", "runners:read", "integrations:read", "billing:read"}
+var APIKeyScopes = []string{"all:all", "members:write", "audit:read", "jobs:read", "logs:read", "usage:read", "runners:read", "integrations:read", "billing:read"}
 
 // APIKey is a workspace API key's metadata. The secret is never returned
 // after creation.
@@ -77,6 +77,21 @@ func (c *Client) CreateAPIKey(ctx context.Context, tenantID string, input Create
 		return nil, err
 	}
 	return &body, nil
+}
+
+// RemoveAPIKeyMembersWrite calls renameCustomerAPIKey with remove_scopes:
+// it drops members:write from a key in place, keeping its secret (rzv-core#998).
+func (c *Client) RemoveAPIKeyMembersWrite(ctx context.Context, tenantID, keyID string) (*APIKey, error) {
+	var body struct {
+		APIKey *APIKey `json:"api_key"`
+	}
+	if err := c.do(ctx, http.MethodPatch, keyPath(tenantID, keyID), nil, map[string][]string{"remove_scopes": {"members:write"}}, &body); err != nil {
+		return nil, err
+	}
+	if err := required(body.APIKey != nil && nonEmpty(body.APIKey.ID)); err != nil {
+		return nil, err
+	}
+	return body.APIKey, nil
 }
 
 // RenameAPIKey calls renameCustomerAPIKey.

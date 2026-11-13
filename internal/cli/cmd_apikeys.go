@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -14,12 +15,16 @@ const apiKeysUsage = `Usage:
   rzv api-keys create --name <name> (--scopes <scope,...> | --permissions <permission,...>) --idempotency-key <key>
       [--expires-at <RFC 3339 time>] [--workspace <id>] [--json]
   rzv api-keys rename <key-id> --name <name> [--workspace <id>] [--json]
+  rzv api-keys remove-members-write <key-id> [--workspace <id>] [--json]
   rzv api-keys revoke <key-id> [--workspace <id>] [--json]
 
-Scopes: all:all on its own (full access, owners only), or any of audit:read,
-jobs:read, logs:read, usage:read, runners:read, integrations:read,
-billing:read. Without --expires-at a key expires in 365 days, the longest
-allowed. Permissions are checked against your current grants by the service.
+Scopes: all:all (full access, owners only), optionally with members:write to
+let the key manage members, teams and invitations (all:all alone never can),
+or any of audit:read, jobs:read, logs:read, usage:read, runners:read,
+integrations:read, billing:read. remove-members-write drops members:write
+from a key without changing its secret. Without --expires-at a key expires
+in 365 days, the longest allowed. Permissions are checked against your
+current grants by the service.
 The secret is shown once, at creation. Use your own sign-in:
 RZV_API_KEY cannot manage API keys.`
 
@@ -42,6 +47,8 @@ func runAPIKeys(a *app, cmd *command) error {
 		return apiKeysCreate(a, cmd)
 	case "rename":
 		return apiKeysRename(a, cmd)
+	case "remove-members-write":
+		return apiKeysRemoveMembersWrite(a, cmd)
 	case "revoke":
 		return apiKeysRevoke(a, cmd)
 	default:
@@ -123,7 +130,10 @@ func parseScopes(raw string) ([]string, error) {
 			scopes = append(scopes, s)
 		}
 	}
-	bad := len(scopes) == 0 || (slices.Contains(scopes, "all:all") && len(scopes) > 1)
+	full := slices.Contains(scopes, "all:all")
+	members := slices.Contains(scopes, "members:write")
+	// members:write only together with all:all; all:all takes no other scope.
+	bad := len(scopes) == 0 || (members && !full) || (full && len(scopes) > 1 && !(members && len(scopes) == 2))
 	seen := map[string]bool{}
 	for _, s := range scopes {
 		if seen[s] || !slices.Contains(api.APIKeyScopes, s) {
@@ -132,7 +142,7 @@ func parseScopes(raw string) ([]string, error) {
 		seen[s] = true
 	}
 	if bad {
-		return nil, usageError("--scopes must be all:all on its own or a comma-separated list without repeats of audit:read, jobs:read, logs:read, usage:read, runners:read, integrations:read, billing:read.")
+		return nil, usageError("--scopes must be all:all (optionally with members:write) or a comma-separated list without repeats of audit:read, jobs:read, logs:read, usage:read, runners:read, integrations:read, billing:read.")
 	}
 	return scopes, nil
 }
@@ -219,6 +229,33 @@ func apiKeysRename(a *app, cmd *command) error {
 		return apiError(err, "The API key was not found in this workspace.")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, fmt.Sprintf("Renamed API key %s to %s with permissions %s.", display(key.ID), display(key.Name), apiKeyPermissionList(key.Permissions)))
+	return nil
+}
+
+func apiKeysRemoveMembersWrite(a *app, cmd *command) error {
+	if err := cmd.allow("workspace", "account"); err != nil {
+		return err
+	}
+	if err := cmd.expectArgs(2, "rzv api-keys remove-members-write <key-id>"); err != nil {
+		return err
+	}
+	id, client, err := a.workspaceClient(cmd)
+	if err != nil {
+		return err
+	}
+	key, err := client.RemoveAPIKeyMembersWrite(a.ctx, id, cmd.args[1])
+	if err != nil {
+		var apiErr *api.Error
+		if errors.As(err, &apiErr) && apiErr.Status == 400 && apiErr.Code == "invalid_request" {
+			return newError(apiErr.Code, exitUsage, "This Runzivo service does not support removing members:write yet.")
+		}
+		return apiError(err, "The API key was not found in this workspace.")
+	}
+	message := fmt.Sprintf("Removed member management from API key %s; its secret is unchanged.", display(key.ID))
+	if slices.Contains(key.Scopes, "members:write") {
+		message = fmt.Sprintf("API key %s still has members:write; the service did not remove it.", display(key.ID))
+	}
+	a.output(cmd, map[string]any{"workspace_id": id, "api_key": key}, message)
 	return nil
 }
 
