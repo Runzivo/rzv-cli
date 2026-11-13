@@ -445,7 +445,7 @@ func TestAPIKeys(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "permissions jobs:write,logs:read") || body["scopes"] == nil {
 		t.Fatalf("legacy create: %d %q %v", code, out, body)
 	}
-	for _, scopes := range []string{"all:all,jobs:read", "jobs:read,jobs:read", "admin:all", ""} {
+	for _, scopes := range []string{"all:all,jobs:read", "jobs:read,jobs:read", "admin:all", "", "members:write", "jobs:read,members:write", "all:all,members:write,jobs:read"} {
 		if code, _, _ := h.run("api-keys", "create", "--name", "x", "--scopes="+scopes, "--idempotency-key", "op"); code != exitUsage {
 			t.Errorf("scopes %q accepted: %d", scopes, code)
 		}
@@ -475,6 +475,33 @@ func TestAPIKeys(t *testing.T) {
 	code, out, _ = h.run("api-keys", "rename", "k1", "--name", "renamed", "--json")
 	if code != 0 || !strings.Contains(out, `"permissions":["jobs:read"]`) {
 		t.Fatalf("rename json: %d %q", code, out)
+	}
+	// rzv-core#998: all:all with members:write is accepted, and the key can be
+	// narrowed in place by removing members:write.
+	h.routes["POST /v1/customer/tenants/t-1/api-keys"] = func(w http.ResponseWriter, r *http.Request) {
+		data, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(data, &body)
+		w.WriteHeader(201)
+		_, _ = w.Write([]byte(`{"api_key":{"id":"k3","name":"members","prefix":"rzv_ef","scopes":["all:all","members:write"],"permissions":[],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":null},"secret":"one-time-secret"}`))
+	}
+	code, _, _ = h.run("api-keys", "create", "--name", "members", "--scopes", "all:all,members:write", "--idempotency-key", "op-3")
+	if code != 0 || len(body["scopes"].([]any)) != 2 {
+		t.Fatalf("all:all with members:write: %d %v", code, body)
+	}
+	var narrowed map[string]any
+	h.routes["PATCH /v1/customer/tenants/t-1/api-keys/k3"] = func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&narrowed)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"api_key":{"id":"k3","name":"members","prefix":"rzv_ef","scopes":["all:all"],"permissions":[],"created_at":"a","last_used_at":null,"revoked_at":null,"expires_at":null}}`))
+	}
+	if code, out, _ := h.run("api-keys", "remove-members-write", "k3"); code != 0 || !strings.Contains(out, "Removed member management from API key k3") || !strings.Contains(strings.TrimSpace(strings.Join(func() []string {
+		var out []string
+		for _, v := range narrowed["remove_scopes"].([]any) {
+			out = append(out, v.(string))
+		}
+		return out
+	}(), ",")), "members:write") || narrowed["name"] != nil {
+		t.Fatalf("remove-members-write: %d %q %v", code, out, narrowed)
 	}
 	h.env["RZV_API_KEY"] = "rzv_test_key"
 	if code, _, _ := h.run("api-keys", "list"); code != exitAccessDenied {
