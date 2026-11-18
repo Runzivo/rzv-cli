@@ -6,7 +6,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Changed
 
-- When an action needs a fresh confirmation (`reauth_required`), `rzv` now also says that accounts signed in with GitHub, Google or GitLab must confirm with a code sent to their email, which this version cannot ask for yet, so the action has to be done in the Runzivo portal. Signing in again alone does not help those accounts.
+- When an action needs a fresh confirmation (`reauth_required`), `rzv` now says that accounts signed in with GitHub, Google or another provider must confirm with a code sent to their email, which this version of `rzv` cannot ask for, so the action has to be done in the Runzivo portal. Signing in again does not help those accounts.
 
 ## release-2026-11-13-122944 (rzv 0.30.0), 2026-11-13
 
