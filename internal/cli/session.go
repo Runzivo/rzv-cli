@@ -339,7 +339,7 @@ func apiError(err error, notFound string) error {
 	case apiErr.Status == 403 && apiErr.Code == "auto_recharge_enable_requires_person":
 		return newError(apiErr.Code, exitAccessDenied, "Turning auto-recharge on needs a person signed in, not an API key.")
 	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
-		return newError(apiErr.Code, exitAuth, "Sign in again with `rzv login`, then retry.")
+		return newError(apiErr.Code, exitAuth, "Sign in again with `rzv login`, then retry. If you sign in with GitHub, Google or GitLab, this action needs a code sent to your email, which this version of rzv cannot ask for yet: do it in the Runzivo portal.")
 	case apiErr.Status == 404 && apiErr.Code == "disk_not_found":
 		return notFoundError("That persistent disk was not found in this workspace. List them with `rzv disks list`.")
 	case apiErr.Status == 403 && apiErr.Code == "persistent_disks_not_entitled":

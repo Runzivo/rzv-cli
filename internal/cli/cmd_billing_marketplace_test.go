@@ -190,7 +190,7 @@ func TestMarketplaceClaimStaleSignIn(t *testing.T) {
 	calls := 0
 	claimRoute(h, &seen, &calls, 403, `{"error":{"code":"reauth_required"}}`)
 	code, _, errOut := h.run("billing", "marketplace", "claim", "--account-id", "4242")
-	if code != exitAuth || !strings.Contains(errOut, "Sign in again with `rzv login`, then retry.") || calls != 1 {
+	if code != exitAuth || !strings.Contains(errOut, "Sign in again with `rzv login`, then retry.") && strings.Contains(errOut, "do it in the Runzivo portal") || calls != 1 {
 		t.Fatalf("stale sign-in = %d %q calls=%d", code, errOut, calls)
 	}
 	claimRoute(h, &seen, &calls, 200, `{"marketplace_claim":{"account_id":4242,"account_login":"acme-inc","already_linked":false}}`)
