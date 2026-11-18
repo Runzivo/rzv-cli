@@ -6,7 +6,7 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 
 ### Added
 
-- When an action needs a fresh confirmation (`reauth_required`) and you run `rzv` in a terminal, it now asks the service to email you a one-time code, prompts for it, and then repeats the action once with the same idempotency key or operation id. This covers billing writes, API key creation, and workspace security changes (workspace type, member roles and removal, owner or admin invitations, teams, closure requests). Without a terminal, or with `--json` or an API key, `rzv` never prompts; the error now says to run the command again in a terminal. Accounts without a verified email are told to confirm it in Sign-in methods. Older services keep the earlier advice. See [Confirming an action with an emailed code](docs/step-up.md).
+- When an action needs a fresh confirmation (`reauth_required`) and you run `rzv` in a terminal, it now asks the service to email you a one-time code, prompts for it, and then repeats the action once with the same idempotency key or operation id. This covers billing writes, API key creation, and workspace security changes (workspace type, role changes involving owners or admins, removing an owner, invitations with an owner or admin role or custom teams, teams, closure requests). Without a terminal, or with `--json` or an API key, `rzv` never prompts; the error now says to run the command again in a terminal. Accounts without a verified email are told to confirm it in Sign-in methods. Older services keep the earlier advice. See [Confirming an action with an emailed code](docs/step-up.md).
 
 ## release-2026-11-18-212459 (rzv 0.30.1), 2026-11-18
 

@@ -29,6 +29,7 @@ type harness struct {
 	// Deps.PromptTerminal); nil and false by default.
 	stdin    io.Reader
 	tty      bool
+	ctx      context.Context // nil means context.Background()
 	seenAuth []string
 }
 
@@ -65,7 +66,11 @@ func (h *harness) json(route string, status int, body string) {
 
 func (h *harness) run(args ...string) (int, string, string) {
 	var stdout, stderr bytes.Buffer
-	code := Run(context.Background(), args, Deps{
+	ctx := h.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	code := Run(ctx, args, Deps{
 		Stdout: &stdout, Stderr: &stderr, Store: h.store,
 		Stdin: h.stdin, PromptTerminal: func() bool { return h.tty },
 		Getenv:       func(k string) string { return h.env[k] },

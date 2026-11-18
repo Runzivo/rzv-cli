@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,24 +14,27 @@ import (
 
 // PromptTerminal reports whether standard input and standard error are both
 // a terminal, so rzv may ask the person a question on stderr and read the
-// answer. cmd/rzv passes it as Deps.PromptTerminal.
+// answer. A character device that is not a terminal, such as /dev/null, does
+// not count. cmd/rzv passes it as Deps.PromptTerminal.
 func PromptTerminal() bool {
-	return characterFile(os.Stdin) && characterFile(os.Stderr)
+	return isTerminal(os.Stdin) && isTerminal(os.Stderr)
 }
 
-func characterFile(file *os.File) bool {
-	info, err := file.Stat()
-	return err == nil && info.Mode()&os.ModeCharDevice != 0
-}
-
-// maxStepUpCodeEntries is how many codes rzv asks for: the service burns a
+// maxStepUpCodeEntries is how many rejected codes rzv accepts: the service burns a
 // code after five wrong ones.
 const maxStepUpCodeEntries = 5
 
 const reauthFallback = "This action needs a fresh confirmation. If you sign in with GitHub, Google or another provider, it needs a code sent to your email, which rzv cannot ask for here: do it in the Runzivo portal. Otherwise run `rzv login`, then retry."
 
+const reauthFallbackFR = "Cette action demande une nouvelle confirmation. Si vous vous connectez avec GitHub, Google ou un autre fournisseur, elle demande un code envoyé à votre courriel, que rzv ne peut pas demander ici : faites-la dans le portail Runzivo. Sinon, lancez `rzv login`, puis réessayez."
+
+// reauthFallbackError is the general advice in English, for apiError.
 func reauthFallbackError() *Error {
 	return newError("reauth_required", exitAuth, "%s", reauthFallback)
+}
+
+func (a *app) reauthError() *Error {
+	return newError("reauth_required", exitAuth, "%s", a.text(reauthFallback, reauthFallbackFR))
 }
 
 func reauthRequired(err error) bool {
@@ -50,7 +54,7 @@ func (a *app) withStepUp(cmd *command, client *api.Client, category string, call
 		return err
 	}
 	if cmd.json() || a.Stdin == nil || a.PromptTerminal == nil || !a.PromptTerminal() {
-		return newError("reauth_required", exitAuth, "%s %s", reauthFallback,
+		return newError("reauth_required", exitAuth, "%s %s", a.text(reauthFallback, reauthFallbackFR),
 			a.text("To enter an emailed code in rzv instead, run the command again in a terminal without --json.",
 				"Pour saisir dans rzv un code reçu par courriel, relancez plutôt la commande dans un terminal, sans --json."))
 	}
@@ -71,7 +75,7 @@ func (a *app) stepUpEmailCode(client *api.Client, category string) error {
 		if availability.Reason == "no_verified_email" {
 			return a.noVerifiedEmailError()
 		}
-		return reauthFallbackError()
+		return a.reauthError()
 	}
 	input := bufio.NewReader(io.LimitReader(a.Stdin, 4<<10))
 	resent := false
@@ -84,11 +88,26 @@ func (a *app) stepUpEmailCode(client *api.Client, category string) error {
 		if err != nil || !expired {
 			return err
 		}
-		if resent || !a.confirm(input, a.text("The code expired. Send a new code? [y/N] ", "Le code a expiré. Envoyer un nouveau code? [o/N] ")) {
-			return newError("step_up_code_expired", exitAuth, "%s", a.text("The code expired. Run the command again to get a new one.", "Le code a expiré. Relancez la commande pour en obtenir un nouveau."))
+		if resent {
+			return a.codeExpiredError()
+		}
+		yes, err := a.confirm(input, a.text("The code expired. Send a new code? [y/N] ", "Le code a expiré. Envoyer un nouveau code? [o/N] "))
+		if err != nil {
+			return err
+		}
+		if !yes {
+			return a.codeExpiredError()
 		}
 		resent = true
 	}
+}
+
+func (a *app) codeExpiredError() *Error {
+	return newError("step_up_code_expired", exitAuth, "%s", a.text("The code expired. Run the command again to get a new one.", "Le code a expiré. Relancez la commande pour en obtenir un nouveau."))
+}
+
+func (a *app) stepUpCancelledError() *Error {
+	return newError("step_up_cancelled", exitAuth, "%s", a.text("No code was entered. Nothing was changed.", "Aucun code n’a été saisi. Rien n’a été modifié."))
 }
 
 func (a *app) sendStepUpCode(client *api.Client, category, masked string) (*api.StepUpCodeChallenge, error) {
@@ -101,11 +120,11 @@ func (a *app) sendStepUpCode(client *api.Client, category, masked string) (*api.
 	if err != nil {
 		var apiErr *api.Error
 		if errors.As(err, &apiErr) && apiErr.Status == 429 && apiErr.Code == "rate_limited" {
-			wait := ""
+			message := a.text("Too many codes were requested. Run the command again later.", "Trop de codes ont été demandés. Relancez la commande plus tard.")
 			if apiErr.RetryAfter > 0 {
-				wait = fmt.Sprintf(a.text(" Wait %d seconds, then", " Attendez %d secondes, puis"), int(apiErr.RetryAfter.Seconds()))
+				message = fmt.Sprintf(a.text("Too many codes were requested. Wait %d seconds, then run the command again.", "Trop de codes ont été demandés. Attendez %d secondes, puis relancez la commande."), int(apiErr.RetryAfter.Seconds()))
 			}
-			return nil, newError("rate_limited", exitFailure, "%s", a.text("Too many codes were requested."+wait+" run the command again.", "Trop de codes ont été demandés."+wait+" relancez la commande."))
+			return nil, newError("rate_limited", exitFailure, "%s", message)
 		}
 		return nil, a.stepUpFailure(err)
 	}
@@ -113,14 +132,15 @@ func (a *app) sendStepUpCode(client *api.Client, category, masked string) (*api.
 }
 
 // enterStepUpCode reads codes until one is right. expired reports that the
-// service said the code expired, so the caller may offer a new one.
+// service said the code expired, so the caller may offer a new one. Only
+// codes the service rejects count towards the limit.
 func (a *app) enterStepUpCode(client *api.Client, input *bufio.Reader, challengeID string) (expired bool, err error) {
-	for entry := 0; entry < maxStepUpCodeEntries; entry++ {
+	for tries := 0; tries < maxStepUpCodeEntries; {
 		fmt.Fprint(a.Stderr, a.text("Enter the 6-digit code from the email: ", "Saisissez le code à 6 chiffres reçu par courriel : "))
-		code, ok := readLine(input)
+		code, ok := a.readLine(input)
 		if !ok || code == "" {
 			fmt.Fprintln(a.Stderr)
-			return false, newError("step_up_cancelled", exitAuth, "%s", a.text("No code was entered. Nothing was changed.", "Aucun code n’a été saisi. Rien n’a été modifié."))
+			return false, a.stepUpCancelledError()
 		}
 		if !sixDigits(code) {
 			fmt.Fprintln(a.Stderr, a.text("The code is 6 digits.", "Le code compte 6 chiffres."))
@@ -133,7 +153,10 @@ func (a *app) enterStepUpCode(client *api.Client, input *bufio.Reader, challenge
 			return false, nil
 		case !errors.As(err, &apiErr):
 			return false, err
+		case apiErr.Status == 0 || apiErr.Status >= 500:
+			return false, apiError(err, "")
 		case apiErr.Status == 400 && apiErr.Code == "step_up_code_invalid":
+			tries++
 			fmt.Fprintln(a.Stderr, a.text("That code is not right. Try again.", "Ce code n’est pas le bon. Réessayez."))
 		case apiErr.Status == 410 && apiErr.Code == "step_up_code_expired":
 			return true, nil
@@ -160,7 +183,7 @@ func (a *app) stepUpFailure(err error) error {
 	case apiErr.Status == 403 && apiErr.Code == "step_up_no_verified_email":
 		return a.noVerifiedEmailError()
 	}
-	return reauthFallbackError()
+	return a.reauthError()
 }
 
 func (a *app) noVerifiedEmailError() *Error {
@@ -169,23 +192,49 @@ func (a *app) noVerifiedEmailError() *Error {
 		"Cette action demande un code envoyé par courriel, mais votre compte n’a aucune adresse courriel vérifiée. Confirmez votre courriel dans Méthodes de connexion du portail Runzivo, puis réessayez."))
 }
 
-// confirm asks a yes/no question on stderr; anything but yes is no.
-func (a *app) confirm(input *bufio.Reader, question string) bool {
+// confirm asks a yes/no question on stderr; anything but yes is no. Ctrl-C
+// cancels the command.
+func (a *app) confirm(input *bufio.Reader, question string) (bool, error) {
 	fmt.Fprint(a.Stderr, question)
-	answer, _ := readLine(input)
+	answer, _ := a.readLine(input)
+	if a.cancelled() {
+		fmt.Fprintln(a.Stderr)
+		return false, a.stepUpCancelledError()
+	}
 	switch strings.ToLower(answer) {
 	case "y", "yes", "o", "oui":
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
-func readLine(input *bufio.Reader) (string, bool) {
-	line, err := input.ReadString('\n')
-	if err != nil && line == "" {
+// readLine reads one line, or gives up when the command is cancelled
+// (Ctrl-C): a blocked terminal read does not watch the context, so it runs
+// in a goroutine that the process abandons on exit.
+func (a *app) readLine(input *bufio.Reader) (string, bool) {
+	type result struct {
+		line string
+		ok   bool
+	}
+	done := make(chan result, 1)
+	go func() {
+		line, err := input.ReadString('\n')
+		done <- result{strings.TrimSpace(line), err == nil || line != ""}
+	}()
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case r := <-done:
+		return r.line, r.ok
+	case <-ctx.Done():
 		return "", false
 	}
-	return strings.TrimSpace(line), true
+}
+
+func (a *app) cancelled() bool {
+	return a.ctx != nil && a.ctx.Err() != nil
 }
 
 func sixDigits(code string) bool {

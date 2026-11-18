@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -28,6 +31,17 @@ type stepUpServer struct {
 	// verifyAnswers are the verify responses in order, as "status body";
 	// after them every right code (123456) succeeds.
 	verifyAnswers []string
+	// sendAnswer, when set, is the send response as "status body", with
+	// sendRetryAfter as its Retry-After header.
+	sendAnswer     string
+	sendRetryAfter string
+}
+
+func writeAnswer(w http.ResponseWriter, answer string) {
+	status, body, _ := strings.Cut(answer, " ")
+	code, _ := strconv.Atoi(status)
+	w.WriteHeader(code)
+	_, _ = w.Write([]byte(body))
 }
 
 func (s *stepUpServer) install(h *harness, route, okBody, availabilityBody string, availabilityStatus int) {
@@ -63,6 +77,13 @@ func (s *stepUpServer) install(h *harness, route, okBody, availabilityBody strin
 		s.categories = append(s.categories, in["category"])
 		s.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		if s.sendAnswer != "" {
+			if s.sendRetryAfter != "" {
+				w.Header().Set("Retry-After", s.sendRetryAfter)
+			}
+			writeAnswer(w, s.sendAnswer)
+			return
+		}
 		w.WriteHeader(202)
 		_, _ = w.Write([]byte(`{"challenge_id":"` + stepUpChallengeID + `","category":"` + in["category"] + `","masked_email":"d…@example.test","expires_at":"2026-11-18T10:10:00Z","resend_after":"2026-11-18T10:01:00Z"}`))
 	}
@@ -82,10 +103,7 @@ func (s *stepUpServer) install(h *harness, route, okBody, availabilityBody strin
 		if len(s.verifyAnswers) > 0 {
 			answer := s.verifyAnswers[0]
 			s.verifyAnswers = s.verifyAnswers[1:]
-			status, body, _ := strings.Cut(answer, " ")
-			code := map[string]int{"400": 400, "410": 410, "429": 429, "403": 403}[status]
-			w.WriteHeader(code)
-			_, _ = w.Write([]byte(body))
+			writeAnswer(w, answer)
 			return
 		}
 		if in["code"] != "123456" {
@@ -327,5 +345,103 @@ func TestStepUpNoCodeEntered(t *testing.T) {
 	code, _, errOut := h.run("billing", "country", "set", "US")
 	if code != exitAuth || !strings.Contains(errOut, "No code was entered") || s.verifies != 0 || s.gated != 1 {
 		t.Fatalf("empty input: %d %q verify %d", code, errOut, s.verifies)
+	}
+}
+
+func TestStepUpMalformedEntriesDoNotUseATry(t *testing.T) {
+	h := stepUpHarness(t, "12ab\n\x20123\n111111\n222222\n333333\n444444\n123456\n")
+	s := &stepUpServer{}
+	s.install(h, countryRoute, `{"billing_country":"US"}`, availableJSON, 200)
+	code, out, errOut := h.run("billing", "country", "set", "US")
+	if code != 0 || s.verifies != 5 || s.gated != 2 {
+		t.Fatalf("five server tries after two malformed entries: %d verify %d gated %d %q %q", code, s.verifies, s.gated, out, errOut)
+	}
+}
+
+func TestStepUpVerifyUnavailable(t *testing.T) {
+	h := stepUpHarness(t, "123456\n")
+	s := &stepUpServer{verifyAnswers: []string{`500 {"error":{"code":"internal_error"}}`}}
+	s.install(h, countryRoute, `{}`, availableJSON, 200)
+	code, _, errOut := h.run("billing", "country", "set", "US")
+	if code != exitUnavailable || strings.Contains(errOut, "Runzivo portal") || s.gated != 1 {
+		t.Fatalf("verify 500: %d gated %d %q", code, s.gated, errOut)
+	}
+}
+
+func TestStepUpSendRefusals(t *testing.T) {
+	h := stepUpHarness(t, "123456\n")
+	s := &stepUpServer{sendAnswer: `403 {"error":{"code":"step_up_no_verified_email"}}`}
+	s.install(h, countryRoute, `{}`, availableJSON, 200)
+	code, _, errOut := h.run("billing", "country", "set", "US")
+	if code != exitAuth || !strings.Contains(errOut, "Sign-in methods") || s.verifies != 0 || strings.Contains(errOut, "6-digit") {
+		t.Fatalf("send no_verified_email: %d %q", code, errOut)
+	}
+
+	h = stepUpHarness(t, "123456\n")
+	s = &stepUpServer{sendAnswer: `429 {"error":{"code":"rate_limited"}}`, sendRetryAfter: "42"}
+	s.install(h, countryRoute, `{}`, availableJSON, 200)
+	code, _, errOut = h.run("billing", "country", "set", "US")
+	if code != exitFailure || !strings.Contains(errOut, "Too many codes were requested. Wait 42 seconds, then run the command again.") || s.verifies != 0 {
+		t.Fatalf("send rate_limited: %d %q", code, errOut)
+	}
+
+	h = stepUpHarness(t, "123456\n")
+	s = &stepUpServer{sendAnswer: `429 {"error":{"code":"rate_limited"}}`}
+	s.install(h, countryRoute, `{}`, availableJSON, 200)
+	code, _, errOut = h.run("billing", "country", "set", "US")
+	if code != exitFailure || !strings.Contains(errOut, "Too many codes were requested. Run the command again later.") {
+		t.Fatalf("send rate_limited without Retry-After: %d %q", code, errOut)
+	}
+}
+
+// cancelOnRead stands in for a person pressing Ctrl-C at a prompt: the first
+// read cancels the command and then blocks, as a terminal read does.
+type cancelOnRead struct {
+	cancel context.CancelFunc
+	block  chan struct{}
+}
+
+func (r *cancelOnRead) Read([]byte) (int, error) {
+	r.cancel()
+	<-r.block
+	return 0, io.EOF
+}
+
+func TestStepUpCtrlCAtThePrompt(t *testing.T) {
+	h := stepUpHarness(t, "")
+	ctx, cancel := context.WithCancel(context.Background())
+	reader := &cancelOnRead{cancel: cancel, block: make(chan struct{})}
+	t.Cleanup(func() { close(reader.block) })
+	h.stdin, h.ctx = reader, ctx
+	s := &stepUpServer{}
+	s.install(h, countryRoute, `{}`, availableJSON, 200)
+	code, _, errOut := h.run("billing", "country", "set", "US")
+	if code != exitAuth || !strings.Contains(errOut, "Nothing was changed") || s.verifies != 0 || s.gated != 1 {
+		t.Fatalf("Ctrl-C: %d verify %d gated %d %q", code, s.verifies, s.gated, errOut)
+	}
+}
+
+func TestStepUpCtrlCAtTheResendQuestion(t *testing.T) {
+	h := stepUpHarness(t, "")
+	ctx, cancel := context.WithCancel(context.Background())
+	reader := &cancelOnRead{cancel: cancel, block: make(chan struct{})}
+	t.Cleanup(func() { close(reader.block) })
+	h.stdin, h.ctx = io.MultiReader(strings.NewReader("111111\n"), reader), ctx
+	s := &stepUpServer{verifyAnswers: []string{`410 {"error":{"code":"step_up_code_expired"}}`}}
+	s.install(h, countryRoute, `{}`, availableJSON, 200)
+	code, _, errOut := h.run("billing", "country", "set", "US")
+	if code != exitAuth || !strings.Contains(errOut, "Nothing was changed") || s.sends != 1 || s.gated != 1 {
+		t.Fatalf("Ctrl-C at resend: %d sends %d gated %d %q", code, s.sends, s.gated, errOut)
+	}
+}
+
+func TestPromptTerminalRefusesNullDevice(t *testing.T) {
+	file, err := os.Open(os.DevNull)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if isTerminal(file) {
+		t.Fatalf("%s counted as a terminal", os.DevNull)
 	}
 }

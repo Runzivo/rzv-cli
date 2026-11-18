@@ -1,6 +1,6 @@
 # Confirming an action with an emailed code
 
-Some actions need a fresh confirmation: billing changes, creating an API key, and workspace security changes (workspace type, owner and admin roles, removing members, invitations with an owner or admin role or custom teams, teams and closure requests). Without one, the service refuses with `reauth_required` (exit code 3).
+Some actions need a fresh confirmation: billing changes, creating an API key, and workspace security changes (workspace type, role changes involving owners or admins, removing an owner, invitations with an owner or admin role or custom teams, teams and closure requests). Without one, the service refuses with `reauth_required` (exit code 3).
 
 ## In a terminal
 
@@ -8,6 +8,7 @@ Some actions need a fresh confirmation: billing changes, creating an API key, an
 - `rzv` asks the service whether it can send you a code. If it can, `rzv` shows the masked address (such as `d…@example.com`), sends the code and asks for the 6 digits.
 - A wrong code can be entered again. After five wrong codes, `rzv` stops; run the command again for a new code.
 - If the code expires, `rzv` offers to send one new code.
+- Ctrl-C or an empty line at the prompt cancels the command; nothing is changed.
 - After the code is accepted, `rzv` sends the original request once more, with the same idempotency key or operation id. The confirmation lasts 15 minutes.
 - `rzv` never prints, logs or stores the code. Prompts go to standard error.
 
