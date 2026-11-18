@@ -315,7 +315,11 @@ func workspaceMembersRole(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	member, err := client.UpdateWorkspaceMemberRole(a.ctx, id, cmd.args[2], role)
+	var member *api.WorkspaceMember
+	err = a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+		member, err = client.UpdateWorkspaceMemberRole(a.ctx, id, cmd.args[2], role)
+		return err
+	})
 	if err != nil {
 		return a.workspaceSharingError(err, "The member was not found in this workspace.")
 	}
@@ -335,7 +339,9 @@ func workspaceMembersRemove(a *app, cmd *command) error {
 		return err
 	}
 	identityID := cmd.args[2]
-	if err := client.RemoveWorkspaceMember(a.ctx, id, identityID); err != nil {
+	if err := a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() error {
+		return client.RemoveWorkspaceMember(a.ctx, id, identityID)
+	}); err != nil {
 		return apiError(err, "The member was not found in this workspace.")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "removed_identity_id": identityID}, "Removed member "+display(identityID)+".")
@@ -410,7 +416,11 @@ func workspaceInvitationsInvite(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	invitation, err := client.CreateWorkspaceInvitation(a.ctx, id, input)
+	var invitation *api.WorkspaceInvitation
+	err = a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+		invitation, err = client.CreateWorkspaceInvitation(a.ctx, id, input)
+		return err
+	})
 	if err != nil {
 		return a.workspaceSharingError(err, "Workspace invitations were not found.")
 	}
@@ -509,7 +519,11 @@ func workspaceInvitationsTeams(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	invitation, err := client.UpdateWorkspaceInvitationTeams(a.ctx, id, cmd.args[2], teamIDs)
+	var invitation *api.WorkspaceInvitation
+	err = a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+		invitation, err = client.UpdateWorkspaceInvitationTeams(a.ctx, id, cmd.args[2], teamIDs)
+		return err
+	})
 	if err != nil {
 		return a.workspaceSharingError(err, "The invitation was not found in this workspace.")
 	}

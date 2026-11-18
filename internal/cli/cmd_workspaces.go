@@ -116,7 +116,11 @@ func closuresRequest(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	value, err := c.RequestClosure(a.ctx, id, api.ClosureRequestInput{Reason: reason, IdempotencyKey: key})
+	var value *api.ClosureRequest
+	err = a.withStepUp(cmd, c, api.StepUpAccountSecurity, func() (err error) {
+		value, err = c.RequestClosure(a.ctx, id, api.ClosureRequestInput{Reason: reason, IdempotencyKey: key})
+		return err
+	})
 	if err != nil {
 		return apiError(err, "The closure request was not found in this workspace.")
 	}
@@ -143,7 +147,11 @@ func closuresCancel(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	value, err := c.CancelClosure(a.ctx, id, requestID, version)
+	var value *api.ClosureRequest
+	err = a.withStepUp(cmd, c, api.StepUpAccountSecurity, func() (err error) {
+		value, err = c.CancelClosure(a.ctx, id, requestID, version)
+		return err
+	})
 	if err != nil {
 		return apiError(err, "The closure request was not found in this workspace.")
 	}

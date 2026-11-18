@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,6 +25,10 @@ type harness struct {
 	store    *config.Store
 	env      map[string]string
 	mu       sync.Mutex // guards seenAuth; parallel runs hit the fake API at once
+	// stdin and tty stand in for the person's terminal (Deps.Stdin and
+	// Deps.PromptTerminal); nil and false by default.
+	stdin    io.Reader
+	tty      bool
 	seenAuth []string
 }
 
@@ -62,6 +67,7 @@ func (h *harness) run(args ...string) (int, string, string) {
 	var stdout, stderr bytes.Buffer
 	code := Run(context.Background(), args, Deps{
 		Stdout: &stdout, Stderr: &stderr, Store: h.store,
+		Stdin: h.stdin, PromptTerminal: func() bool { return h.tty },
 		Getenv:       func(k string) string { return h.env[k] },
 		OpenBrowser:  h.openBrowser,
 		CallbackPort: -1, LoginTimeout: 5 * time.Second,

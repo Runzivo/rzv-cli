@@ -143,7 +143,11 @@ func runBillingAutoRecharge(a *app, cmd *command) error {
 		if err != nil {
 			return err
 		}
-		settings, err := client.SetAutoRecharge(a.ctx, id, api.AutoRechargeInput{Enabled: enabled, ThresholdMinutes: threshold, PackID: packID})
+		var settings *api.AutoRecharge
+		err = a.withStepUp(cmd, client, api.StepUpBilling, func() (err error) {
+			settings, err = client.SetAutoRecharge(a.ctx, id, api.AutoRechargeInput{Enabled: enabled, ThresholdMinutes: threshold, PackID: packID})
+			return err
+		})
 		if err != nil {
 			return apiError(err, "")
 		}
@@ -180,7 +184,11 @@ func runBillingCountry(a *app, cmd *command) error {
 		if err != nil {
 			return err
 		}
-		country, err := client.ResetBillingCountry(a.ctx, id)
+		var country string
+		err = a.withStepUp(cmd, client, api.StepUpBilling, func() (err error) {
+			country, err = client.ResetBillingCountry(a.ctx, id)
+			return err
+		})
 		if err != nil {
 			return apiError(err, "")
 		}
@@ -199,7 +207,11 @@ func runBillingCountry(a *app, cmd *command) error {
 		if err != nil {
 			return err
 		}
-		country, err := client.SetBillingCountry(a.ctx, id, cmd.args[2])
+		var country string
+		err = a.withStepUp(cmd, client, api.StepUpBilling, func() (err error) {
+			country, err = client.SetBillingCountry(a.ctx, id, cmd.args[2])
+			return err
+		})
 		if err != nil {
 			return apiError(err, "")
 		}
@@ -290,7 +302,11 @@ func runBillingPortal(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	link, err := client.ProviderPortal(a.ctx, id)
+	var link string
+	err = a.withStepUp(cmd, client, api.StepUpBilling, func() (err error) {
+		link, err = client.ProviderPortal(a.ctx, id)
+		return err
+	})
 	if err != nil {
 		return apiError(err, "")
 	}

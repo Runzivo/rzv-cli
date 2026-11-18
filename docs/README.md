@@ -10,6 +10,7 @@ Use the reference guides below for command arguments and tool-specific setup.
 | [Install](install.md)                                   | Installer options, platforms, manual download and checksums                            |
 | [Sign-in and credentials](login.md)                     | `rzv login`, environments, where the token is stored                                   |
 | [Commands](commands.md)                                 | Output, sign-in, exit codes                                                            |
+| [Confirming with an emailed code](step-up.md)           | The code `rzv` asks for before billing, API key and security changes                   |
 | [Workspace commands](workspace-commands.md)             | Index of workspace pages: workspaces, jobs, billing, activity, GitHub, teams, API keys |
 | [Support tickets](tickets.md)                           | List, open, show and reply to support tickets                                          |
 | [Notifications](notifications.md)                       | List, mark read and configure notifications                                            |

@@ -44,7 +44,7 @@ Find team IDs with `rzv teams list` and pass them with `--team-ids`; `teams --te
 
 ## Closure requests
 
-`rzv workspaces closures list` shows requests. `request` asks staff to close a workspace and `cancel` withdraws a pending request with its expected version. Neither command deletes a workspace immediately.
+`rzv workspaces closures list` shows requests. `request` asks staff to close a workspace and `cancel` withdraws a pending request with its expected version. Neither command deletes a workspace immediately. Closure requests, role changes involving owners or admins, removing an owner, and owner or admin invitations need a fresh confirmation; in a terminal `rzv` asks for a code sent to your email ([Confirming an action with an emailed code](step-up.md)).
 
 List returns the newest 20 requests and has no cursor. List requires an owner or admin. Request and cancel use the current owner's `workspace:delete` permission. API-key access requires `all:all`.
 

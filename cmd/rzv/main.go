@@ -16,12 +16,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	deps := cli.Deps{
-		Stdin:       os.Stdin,
-		Terminal:    cli.SystemTerminal(),
-		Stdout:      os.Stdout,
-		Stderr:      os.Stderr,
-		Getenv:      os.Getenv,
-		OpenBrowser: browser.Open,
+		Stdin:          os.Stdin,
+		Terminal:       cli.SystemTerminal(),
+		PromptTerminal: cli.PromptTerminal,
+		Stdout:         os.Stdout,
+		Stderr:         os.Stderr,
+		Getenv:         os.Getenv,
+		OpenBrowser:    browser.Open,
 	}
 	if dir, err := config.Directory(os.Getenv); err == nil {
 		deps.Store = &config.Store{Dir: dir}

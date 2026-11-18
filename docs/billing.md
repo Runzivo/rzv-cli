@@ -29,7 +29,7 @@ Code redemption requires the workspace's `billing:write` permission. It works wi
 - `--json` prints `{"workspace_id", "marketplace_claim":{"account_id","account_login","already_linked"}}`.
 - Repeating a claim reports that the purchase is already linked and changes nothing (`already_linked` is true).
 - Both need a workspace owner signed in as a person. API keys are refused.
-- `claim` also needs a fresh confirmation. If you sign in with GitHub, Google or another provider, that needs a code sent to your email, which `rzv` cannot ask for: claim in the Runzivo portal. Otherwise run `rzv login`, then repeat the command.
+- `claim` also needs a fresh confirmation, as do `country set`, `country reset`, `auto-recharge set` and `portal`. In a terminal, `rzv` asks for a code sent to your email; see [Confirming an action with an emailed code](step-up.md).
 - Refusals: this workspace is not connected to that GitHub account, no held purchase for that account (linked elsewhere, cancelled or none), or the workspace already has another active plan. Each exits non-zero with a one-line reason.
 
 Back to [Workspace commands](workspace-commands.md).
