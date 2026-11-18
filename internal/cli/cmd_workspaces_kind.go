@@ -32,7 +32,11 @@ func workspacesConfirmKind(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	result, err := client.ConfirmWorkspaceKind(a.ctx, id, kind, confirm)
+	var result *api.WorkspaceKindResult
+	err = a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+		result, err = client.ConfirmWorkspaceKind(a.ctx, id, kind, confirm)
+		return err
+	})
 	if err != nil {
 		return a.confirmKindError(err)
 	}

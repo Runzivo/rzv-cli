@@ -138,7 +138,7 @@ func TestConfirmKindRefusals(t *testing.T) {
 		{400, "invalid_request", exitUsage, "--kind must be personal or organization", "invalid_request"},
 		{403, "tenant_membership_required", exitAccessDenied, "You are not a member of this workspace.", "tenant_membership_required"},
 		{403, "workspace_owner_required", exitAccessDenied, "Only a workspace owner can confirm the workspace type.", "workspace_owner_required"},
-		{403, "reauth_required", exitAuth, "This action needs a fresh confirmation. If you sign in with GitHub, Google or another provider, it needs a code sent to your email, which this version of rzv cannot ask for: do it in the Runzivo portal. Otherwise run `rzv login`, then retry.", "reauth_required"},
+		{403, "reauth_required", exitAuth, "This action needs a fresh confirmation. If you sign in with GitHub, Google or another provider, it needs a code sent to your email, which rzv cannot ask for here: do it in the Runzivo portal. Otherwise run `rzv login`, then retry.", "reauth_required"},
 		{403, "api_key_scope_required", exitAccessDenied, "API keys cannot do it", "api_key_scope_required"},
 		{409, "kind_already_confirmed", exitFailure, "type is already confirmed. Only Runzivo staff can change it.", "kind_already_confirmed"},
 		{409, "personal_workspace_exists", exitFailure, "so this one cannot also be personal. Use --kind organization only if this workspace belongs to an organization. Otherwise, contact Runzivo support before confirming.", "personal_workspace_exists"},

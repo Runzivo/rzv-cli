@@ -12,6 +12,6 @@
 | `rzv teams remove-member <team-id> <identity-id>`                       | Remove a member from a team.                                 |
 | `rzv teams delete <team-id>`                                            | Delete a custom team.                                        |
 
-Changing teams needs the Manage members permission, and you can only grant permissions you hold yourself. The system teams (Owners, Admins, Members) cannot be renamed, deleted or given other permissions, and only an owner can change who is in Owners. With an API key, `rzv teams` and `rzv permissions` need a key with the `all:all` scope. Every change is recorded in the workspace activity log.
+Changing teams needs the Manage members permission, and you can only grant permissions you hold yourself. The system teams (Owners, Admins, Members) cannot be renamed, deleted or given other permissions, and only an owner can change who is in Owners. With an API key, `rzv teams` and `rzv permissions` need a key with the `all:all` scope. Every change is recorded in the workspace activity log. Team changes need a fresh confirmation; in a terminal `rzv` asks for a code sent to your email ([Confirming an action with an emailed code](step-up.md)).
 
 Back to [Workspace commands](workspace-commands.md).

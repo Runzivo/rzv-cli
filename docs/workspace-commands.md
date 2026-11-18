@@ -14,6 +14,7 @@ Most workspace commands accept `RZV_API_KEY` within the key's scopes. When using
 | [Custom runner profiles](custom-runner-profiles.md) | `runners profiles`, `runners availability`                                                |
 | [Teams and permissions](teams.md)                   | `teams`, `permissions`                                                                    |
 | [API keys](api-keys.md)                             | `api-keys` list, create, rename, revoke                                                   |
+| [Emailed confirmation codes](step-up.md)            | The code `rzv` asks for before billing, API key and security changes                      |
 | [Support tickets](tickets.md)                       | `tickets` list, open, show, reply, close                                                  |
 | [Sandboxes](sandboxes.md)                           | `sandboxes`                                                                               |
 | [AI settings and usage](ai.md)                      | `ai` providers, settings, usage                                                           |

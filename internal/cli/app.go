@@ -19,15 +19,18 @@ import (
 // Deps are the process boundaries, injected so tests never touch the real
 // environment, home directory, network or browser.
 type Deps struct {
-	Stdin       io.Reader
-	Terminal    Terminal
-	Stdout      io.Writer
-	Stderr      io.Writer
-	Getenv      func(string) string
-	Store       *config.Store
-	HTTPClient  *http.Client
-	OpenBrowser func(string) error
-	Now         func() time.Time
+	Stdin    io.Reader
+	Terminal Terminal
+	// PromptTerminal reports whether rzv may ask a question on stderr and
+	// read the answer from Stdin (both are a terminal). Nil means never.
+	PromptTerminal func() bool
+	Stdout         io.Writer
+	Stderr         io.Writer
+	Getenv         func(string) string
+	Store          *config.Store
+	HTTPClient     *http.Client
+	OpenBrowser    func(string) error
+	Now            func() time.Time
 	// CallbackPort and LoginTimeout override the sign-in defaults in tests.
 	CallbackPort int
 	LoginTimeout time.Duration

@@ -201,7 +201,11 @@ func teamsCreate(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	team, err := client.CreateTeam(a.ctx, id, api.CreateTeamInput{Name: name, Description: description, Permissions: grants})
+	var team *api.Team
+	err = a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+		team, err = client.CreateTeam(a.ctx, id, api.CreateTeamInput{Name: name, Description: description, Permissions: grants})
+		return err
+	})
 	if err != nil {
 		return apiError(err, "")
 	}
@@ -238,7 +242,11 @@ func teamsRename(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	team, err := client.UpdateTeam(a.ctx, id, cmd.args[1], namePtr, descriptionPtr)
+	var team *api.Team
+	err = a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+		team, err = client.UpdateTeam(a.ctx, id, cmd.args[1], namePtr, descriptionPtr)
+		return err
+	})
 	if err != nil {
 		return apiError(err, teamNotFound)
 	}
@@ -261,7 +269,11 @@ func teamsPermissions(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	team, err := client.SetTeamGrants(a.ctx, id, cmd.args[1], grants)
+	var team *api.Team
+	err = a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+		team, err = client.SetTeamGrants(a.ctx, id, cmd.args[1], grants)
+		return err
+	})
 	if err != nil {
 		return apiError(err, teamNotFound)
 	}
@@ -286,14 +298,20 @@ func teamsMember(a *app, cmd *command, add bool) error {
 	}
 	teamID, identityID := cmd.args[1], cmd.args[2]
 	if add {
-		team, err := client.AddTeamMember(a.ctx, id, teamID, identityID)
+		var team *api.Team
+		err := a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() (err error) {
+			team, err = client.AddTeamMember(a.ctx, id, teamID, identityID)
+			return err
+		})
 		if err != nil {
 			return a.workspaceSharingError(err, "The team or the member was not found in this workspace.")
 		}
 		a.output(cmd, map[string]any{"workspace_id": id, "team": team}, fmt.Sprintf("Added %s to team %s.", display(identityID), display(team.Name)))
 		return nil
 	}
-	if err := client.RemoveTeamMember(a.ctx, id, teamID, identityID); err != nil {
+	if err := a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() error {
+		return client.RemoveTeamMember(a.ctx, id, teamID, identityID)
+	}); err != nil {
 		return apiError(err, "The team or the member was not found in this workspace.")
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "team_id": teamID, "removed_identity_id": identityID}, fmt.Sprintf("Removed %s from team %s.", display(identityID), display(teamID)))
@@ -312,7 +330,9 @@ func teamsDelete(a *app, cmd *command) error {
 		return err
 	}
 	teamID := cmd.args[1]
-	if err := client.DeleteTeam(a.ctx, id, teamID); err != nil {
+	if err := a.withStepUp(cmd, client, api.StepUpAccountSecurity, func() error {
+		return client.DeleteTeam(a.ctx, id, teamID)
+	}); err != nil {
 		return apiError(err, teamNotFound)
 	}
 	a.output(cmd, map[string]any{"workspace_id": id, "deleted_team_id": teamID}, "Deleted team "+display(teamID)+".")

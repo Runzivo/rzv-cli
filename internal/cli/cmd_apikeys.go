@@ -200,7 +200,11 @@ func apiKeysCreate(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	created, err := client.CreateAPIKey(a.ctx, id, api.CreateAPIKeyInput{Name: name, Scopes: scopes, Permissions: permissions, ExpiresAt: expires, IdempotencyKey: key})
+	var created *api.CreatedAPIKey
+	err = a.withStepUp(cmd, client, api.StepUpAPIKeys, func() (err error) {
+		created, err = client.CreateAPIKey(a.ctx, id, api.CreateAPIKeyInput{Name: name, Scopes: scopes, Permissions: permissions, ExpiresAt: expires, IdempotencyKey: key})
+		return err
+	})
 	if err != nil {
 		return apiError(err, "")
 	}

@@ -37,9 +37,8 @@ func runBillingMarketplaceClaimable(a *app, cmd *command) error {
 	return nil
 }
 
-// runBillingMarketplaceClaim links a held purchase to the workspace. A stale
-// sign-in ends with the same `rzv login` guidance as the other billing
-// writes; the command is safe to repeat afterwards.
+// runBillingMarketplaceClaim links a held purchase to the workspace. It
+// needs the billing step-up (withStepUp); the command is safe to repeat.
 func runBillingMarketplaceClaim(a *app, cmd *command) error {
 	if err := cmd.allow("workspace", "account", "account-id"); err != nil {
 		return err
@@ -59,7 +58,11 @@ func runBillingMarketplaceClaim(a *app, cmd *command) error {
 	if err != nil {
 		return err
 	}
-	claim, err := client.ClaimMarketplaceHold(a.ctx, id, accountID)
+	var claim *api.MarketplaceClaim
+	err = a.withStepUp(cmd, client, api.StepUpBilling, func() (err error) {
+		claim, err = client.ClaimMarketplaceHold(a.ctx, id, accountID)
+		return err
+	})
 	if err != nil {
 		return a.marketplaceError(err)
 	}
