@@ -15,7 +15,7 @@
 - Exit codes:
   - 1: the service refused (the type is already confirmed, or `personal` is not allowed).
   - 2: usage error, or the service rejected the request (`invalid_request`).
-  - 3: the sign-in is too old; run `rzv login`, then retry.
+  - 3: a fresh confirmation is needed. With a GitHub, Google or other provider sign-in, confirm the type in the Runzivo portal; otherwise run `rzv login`, then retry.
   - 4: refused for access (not a member, not an owner, or an API key).
   - 5: the service is unavailable: it does not have the command yet, answered 500 or 503, or could not be reached.
 

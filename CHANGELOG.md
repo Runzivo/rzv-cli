@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## release-2026-11-18-212459 (rzv 0.30.1), 2026-11-18
+
+### Changed
+
+- When an action needs a fresh confirmation (`reauth_required`), `rzv` now says that accounts signed in with GitHub, Google or another provider must confirm with a code sent to their email, which this version of `rzv` cannot ask for, so the action has to be done in the Runzivo portal. Signing in again does not help those accounts.
+
 ## release-2026-11-13-122944 (rzv 0.30.0), 2026-11-13
 
 ### Added

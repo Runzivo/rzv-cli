@@ -123,7 +123,7 @@ func TestBillingCheckoutAndPortal(t *testing.T) {
 		t.Fatalf("denied portal = %d %q; want the role message", code, errOut)
 	}
 	h.json("POST /v1/customer/tenants/t-1/billing/portal", 403, `{"error":{"code":"reauth_required"}}`)
-	if code, _, errOut := h.run("billing", "portal"); code != exitAuth || !strings.Contains(errOut, "Sign in again with `rzv login`, then retry.") {
+	if code, _, errOut := h.run("billing", "portal"); code != exitAuth || !strings.Contains(errOut, "do it in the Runzivo portal") || !strings.Contains(errOut, "run `rzv login`, then retry") {
 		t.Fatalf("stale sign-in portal = %d %q; want the sign-in message", code, errOut)
 	}
 	h.json("PUT /v1/customer/tenants/t-1/billing/auto-recharge", 403, `{"error":{"code":"auto_recharge_enable_requires_person"}}`)
