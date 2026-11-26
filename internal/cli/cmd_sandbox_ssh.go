@@ -200,7 +200,17 @@ func (a *app) prepareSSHFor(state *sshstate.State, client *api.Client, mode sshP
 		return nil, a.sshStartTimeoutError(false)
 	}
 	if err != nil {
-		return nil, a.sshFailure(err, client, state.Binding.Workspace, state.Binding.Sandbox)
+		failure := a.sshFailure(err, client, state.Binding.Workspace, state.Binding.Sandbox)
+		// A refresh runs from Match exec; OpenSSH then runs the ProxyCommand,
+		// which asks the API again and reports the same failure. Only API
+		// failures repeat there, so local errors still print here.
+		var apiErr *api.Error
+		if mode == sshPrepareRefresh && errors.As(err, &apiErr) {
+			quiet := *asError(failure)
+			quiet.Quiet = true
+			return nil, &quiet
+		}
+		return nil, failure
 	}
 	if err := state.SaveCertificate(ticket.Certificate, ticket.CertificateExpiresAt, a.Now()); err != nil {
 		return nil, err
@@ -501,11 +511,7 @@ func sandboxSSHConfig(a *app, cmd *command) error {
 		}
 		ticket, err := a.prepareSSHFor(state, client, sshPrepareRefresh)
 		if err != nil {
-			// OpenSSH runs the ProxyCommand next, which asks again and reports
-			// the same failure; printing here too would show it twice.
-			quiet := *asError(err)
-			quiet.Quiet = true
-			return &quiet
+			return err
 		}
 		data, _ := json.Marshal(ticket)
 		return sshstate.WritePrivate(pendingTicketPath(state), data)

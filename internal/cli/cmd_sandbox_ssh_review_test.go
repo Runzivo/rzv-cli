@@ -240,6 +240,16 @@ func TestSSHOnASandboxThatIsNotRunning(t *testing.T) {
 	}
 }
 
+func TestSSHNotRunningInFrench(t *testing.T) {
+	h := selectedHarness(t)
+	h.env["LC_MESSAGES"] = "fr_CA"
+	h.json("POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/ssh-ticket", 503, `{"error":{"code":"sandbox_ssh_unavailable"}}`)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, strings.Replace(sandboxJSON, `"status":"running"`, `"status":"deleted"`, 1))
+	if got, _, stderr := h.run("sandboxes", "ssh", sbxID, "--stdio"); got != exitFailure || !strings.Contains(stderr, "ne peut plus démarrer. Créez-en un nouveau avec `rzv sandboxes create`.") {
+		t.Fatal(got, stderr)
+	}
+}
+
 func TestCreditsRoundToOneDecimal(t *testing.T) {
 	for in, want := range map[float64]string{5.066666666666666: "5.1 min", 20.5: "20.5 min", 0: "0.0 min"} {
 		if got := credits(in); got != want {
