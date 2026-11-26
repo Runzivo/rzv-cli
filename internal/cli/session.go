@@ -340,6 +340,10 @@ func apiError(err error, notFound string) error {
 		return newError(apiErr.Code, exitAccessDenied, "Turning auto-recharge on needs a person signed in, not an API key.")
 	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
 		return reauthFallbackError()
+	case apiErr.Status == 403 && apiErr.Code == "email_sign_in_broker_linked":
+		return newError(apiErr.Code, exitAuth, "This Runzivo account is linked to a provider such as GitHub or Google, so an email-code sign-in cannot use it. Run `rzv login` and sign in with that provider.")
+	case apiErr.Status == 503 && apiErr.Code == "authentication_unavailable":
+		return newError(apiErr.Code, exitUnavailable, "Runzivo could not check this sign-in right now. Try again in a few minutes.")
 	case apiErr.Status == 404 && apiErr.Code == "disk_not_found":
 		return notFoundError("That persistent disk was not found in this workspace. List them with `rzv disks list`.")
 	case apiErr.Status == 403 && apiErr.Code == "persistent_disks_not_entitled":

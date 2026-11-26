@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Fixed
+
+- An email-code sign-in on an account linked to GitHub or Google (`email_sign_in_broker_linked`) now says to run `rzv login` and sign in with that provider. When the service cannot check a sign-in (`authentication_unavailable`), `rzv` says to try again later.
+
 ## release-2026-11-18-221004 (rzv 0.31.0), 2026-11-18
 
 ### Added
