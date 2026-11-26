@@ -275,11 +275,15 @@ func TestGitHubStatusRepositoriesAndProfiles(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error":{"code":"repository_not_authorized"}}`))
 			return
 		}
-		_, _ = w.Write([]byte(`{"runner_profiles":{"workflow_label_format":"rzv-<image>-<arch>-<size>","profiles":[{"label":"rzv-ubuntu-24.04-x64-2vcpu-8gb","vcpu_count":2,"mem_size_mib":8192,"available":true,"reason":null},{"label":"rzv-ubuntu-24.04-x64-8vcpu-32gb","vcpu_count":8,"mem_size_mib":32768,"available":false,"reason":"no_host_large_enough"}]}}`))
+		_, _ = w.Write([]byte(`{"runner_profiles":{"workflow_label_format":"rzv-<image>-<arch>-<size>","profiles":[{"label":"rzv-ubuntu-24.04-x64-2vcpu-8gb","vcpu_count":2,"mem_size_mib":8192,"available":true,"reason":null,"character":"Boxer","alias":"rzv-boxer"},{"label":"rzv-ubuntu-24.04-x64-8vcpu-32gb","vcpu_count":8,"mem_size_mib":32768,"available":false,"reason":"no_host_large_enough"}]}}`))
 	}
 	code, out, _ = h.run("runner-profiles", "100")
-	if code != 0 || !strings.Contains(out, "available: 2 vCPU, 8192 MiB, runs-on: rzv-ubuntu-24.04-x64-2vcpu-8gb") || !strings.Contains(out, "blocked (no_host_large_enough)") {
+	if code != 0 || !strings.Contains(out, "available: 2 vCPU, 8192 MiB, runs-on: rzv-ubuntu-24.04-x64-2vcpu-8gb, alias: rzv-boxer (Boxer)\n") || !strings.Contains(out, "runs-on: rzv-ubuntu-24.04-x64-8vcpu-32gb\n") || !strings.Contains(out, "blocked (no_host_large_enough)") {
 		t.Fatalf("profiles: %d %q", code, out)
+	}
+	code, out, _ = h.run("runner-profiles", "100", "--json")
+	if code != 0 || !strings.Contains(out, `"character":"Boxer"`) || !strings.Contains(out, `"alias":"rzv-boxer"`) || !strings.Contains(out, `"alias":null`) {
+		t.Fatalf("profiles --json: %d %q", code, out)
 	}
 	if code, out, _ := h.run("runner-profiles", "101"); code != 0 || !strings.Contains(out, "not authorized") {
 		t.Fatalf("unauthorized repo: %d %q", code, out)

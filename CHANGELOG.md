@@ -2,6 +2,12 @@
 
 Releases of the `rzv` executable, newest first. Each release lists its files and SHA-256 checksums on its [GitHub release page](https://github.com/Runzivo/rzv-cli/releases).
 
+## Unreleased
+
+### Added
+
+- `rzv runner-profiles` shows each size's runner alias and character when the service sends them (`alias: rzv-boxer (Boxer)`), and `--json` keeps `character` and `alias`. Older services omit them. See [GitHub](docs/github.md).
+
 ## release-2026-11-18-221004 (rzv 0.31.0), 2026-11-18
 
 ### Added

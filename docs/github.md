@@ -10,6 +10,8 @@
 | `rzv runner-profiles <repository-id>` | Runner sizes the repository can use now, with their `runs-on` label.   |
 | `rzv runners <repository-id>`         | The same sizes, plus the workspace's running and waiting jobs on each. |
 
+When the service shows runner aliases, `rzv runner-profiles` also lists each size's alias and character (for example `alias: rzv-boxer (Boxer)`). The alias is another accepted `runs-on` spelling of the same size. `--json` always includes `character` and `alias`, `null` when there is none.
+
 `rzv github authorize --state <state> --installation-id <id> --github-client-id <id>` uses GitHub's device flow: it prints a code to enter at github.com, then sends the resulting GitHub token to Runzivo once to prove you control the installation. `rzv` does not store that token.
 
 `rzv github installations` supports a workspace API key with
