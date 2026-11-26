@@ -341,7 +341,7 @@ func apiError(err error, notFound string) error {
 	case apiErr.Status == 403 && apiErr.Code == "reauth_required":
 		return reauthFallbackError()
 	case apiErr.Status == 403 && apiErr.Code == "email_sign_in_broker_linked":
-		return newError(apiErr.Code, exitAuth, "This Runzivo account is linked to a provider such as GitHub or Google, so an email-code sign-in cannot use it. Run `rzv login` and sign in with that provider.")
+		return newError(apiErr.Code, exitAuth, "This Runzivo account is linked to a provider such as GitHub or Google, so an email-code sign-in cannot use it. Sign out of Runzivo in your browser first, then run `rzv login` and sign in with that provider.")
 	case apiErr.Status == 503 && apiErr.Code == "authentication_unavailable":
 		return newError(apiErr.Code, exitUnavailable, "Runzivo could not check this sign-in right now. Try again in a few minutes.")
 	case apiErr.Status == 404 && apiErr.Code == "disk_not_found":

@@ -112,7 +112,7 @@ func TestAPIErrorEmailSignInRefusals(t *testing.T) {
 		exit   int
 		want   string
 	}{
-		{403, "email_sign_in_broker_linked", exitAuth, "Run `rzv login` and sign in with that provider."},
+		{403, "email_sign_in_broker_linked", exitAuth, "Sign out of Runzivo in your browser first, then run `rzv login` and sign in with that provider."},
 		{503, "authentication_unavailable", exitUnavailable, "Try again in a few minutes."},
 	} {
 		var got *Error
