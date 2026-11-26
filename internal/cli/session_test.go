@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -101,5 +102,22 @@ func TestWorkspaceAmbiguityFrenchAndEscaping(t *testing.T) {
 	}, "Same\nName")
 	if err == nil || !strings.Contains(err.Error(), "Plusieurs espaces de travail") || !strings.Contains(err.Error(), `Same\u000aName [t-2]`) {
 		t.Fatal(err)
+	}
+}
+
+func TestAPIErrorEmailSignInRefusals(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		code   string
+		exit   int
+		want   string
+	}{
+		{403, "email_sign_in_broker_linked", exitAuth, "Sign out of Runzivo in your browser first, then run `rzv login` and sign in with that provider."},
+		{503, "authentication_unavailable", exitUnavailable, "Try again in a few minutes."},
+	} {
+		var got *Error
+		if !errors.As(apiError(&api.Error{Status: tc.status, Code: tc.code}, ""), &got) || got.Code != tc.code || got.Exit != tc.exit || !strings.Contains(got.Message, tc.want) {
+			t.Fatalf("%s = %+v", tc.code, got)
+		}
 	}
 }
