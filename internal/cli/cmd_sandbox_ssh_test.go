@@ -44,6 +44,9 @@ type sshFixture struct {
 	// starting answers that many ticket requests with 503 sandbox_ssh_starting
 	// (a negative value answers every request so); startingCalls counts them.
 	starting, startingCalls int
+	// wrongExpiry sends a certificate expiry that does not match the
+	// certificate, which the local state refuses to save.
+	wrongExpiry bool
 }
 
 func testSSHSigner(t *testing.T) ssh.Signer {
@@ -162,6 +165,9 @@ func newSSHFixture(t *testing.T, serve func(net.Conn, *bufio.Reader)) *sshFixtur
 		f.tickets[ticket] = true
 		f.issued++
 		f.mu.Unlock()
+		if f.wrongExpiry {
+			expires = expires.Add(-5 * time.Second)
+		}
 		_ = json.NewEncoder(w).Encode(api.SSHTicket{SSHHost: host, URL: strings.Replace(f.server.URL, "http://", "ws://", 1) + path + "/ssh", Ticket: ticket, ExpiresAt: time.Now().Add(30 * time.Second), Certificate: string(ssh.MarshalAuthorizedKey(cert)), CertificateExpiresAt: expires, Principal: "user"})
 	}))
 	t.Cleanup(f.server.Close)

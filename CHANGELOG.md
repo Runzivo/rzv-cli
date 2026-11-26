@@ -11,6 +11,10 @@ Releases of the `rzv` executable, newest first. Each release lists its files and
 ### Fixed
 
 - An email-code sign-in on an account linked to GitHub or Google (`email_sign_in_broker_linked`) now says to sign out of Runzivo in the browser, then run `rzv login` and sign in with that provider. When the service cannot check a sign-in (`authentication_unavailable`), `rzv` says to try again later.
+- SSH to a sandbox that is not running (for example still pending) now says its status instead of "Standard SSH is not enabled".
+- A deleted or expired sandbox is no longer told to run `rzv sandboxes start`; only a stopped one is.
+- `ssh <sandbox-id>.rzv` prints a failure once, not twice.
+- Credits used are rounded to one decimal (`5.1 min`).
 
 ## release-2026-11-18-221004 (rzv 0.31.0), 2026-11-18
 

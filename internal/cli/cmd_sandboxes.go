@@ -292,7 +292,29 @@ func timeLeft(s api.Sandbox) string {
 	return remainingText(time.Duration(s.RemainingSeconds) * time.Second)
 }
 
-func credits(value float64) string { return strconv.FormatFloat(value, 'f', -1, 64) + " min" }
+func credits(value float64) string { return strconv.FormatFloat(value, 'f', 1, 64) + " min" }
+
+// sandboxNotRunningError suggests start only for a stopped sandbox: an ended
+// one cannot start again, and a pending one is already on its way.
+func (a *app) sandboxNotRunningError(status, id string) error {
+	label := statusLabel(status)
+	var message string
+	switch {
+	case status == "stopped":
+		message = a.text(fmt.Sprintf("The sandbox is stopped. Start it with `rzv sandboxes start %s`, and try again when it is running.", display(id)),
+			fmt.Sprintf("Le bac à sable est arrêté. Démarrez-le avec `rzv sandboxes start %s`, puis réessayez lorsqu’il fonctionne.", display(id)))
+	case sandboxEnded(status) || status == "deleting":
+		message = a.text(fmt.Sprintf("The sandbox is %s and cannot start again. Create a new one with `rzv sandboxes create`.", label),
+			fmt.Sprintf("Le bac à sable est à l’état %s et ne peut plus démarrer. Créez-en un nouveau avec `rzv sandboxes create`.", label))
+	case status == "pending" || status == "starting":
+		message = a.text(fmt.Sprintf("The sandbox is %s. Try again when it is running; `rzv sandboxes list` shows its status.", label),
+			fmt.Sprintf("Le bac à sable est à l’état %s. Réessayez lorsqu’il fonctionne; `rzv sandboxes list` affiche son état.", label))
+	default:
+		message = a.text(fmt.Sprintf("The sandbox is %s, not running. `rzv sandboxes list` shows its status.", label),
+			fmt.Sprintf("Le bac à sable est à l’état %s et ne fonctionne pas. `rzv sandboxes list` affiche son état.", label))
+	}
+	return newError("sandbox_not_running", exitFailure, "%s", message)
+}
 
 // diskState says whether a running sandbox's guest mounted its disk. Nil (not
 // running, or a server that does not report it) keeps the plain description.
@@ -631,7 +653,7 @@ func sandboxesTerminal(a *app, cmd *command) error {
 		return apiError(err, "")
 	}
 	if sandbox.Status != "running" {
-		return newError("sandbox_not_running", exitFailure, "The sandbox is %s. Start it with `rzv sandboxes start %s`, and try again when it is running.", statusLabel(sandbox.Status), display(id))
+		return a.sandboxNotRunningError(sandbox.Status, id)
 	}
 	socket, err := client.SandboxTerminal(a.ctx, workspace, id)
 	if err != nil {

@@ -255,3 +255,14 @@ func TestSSHProxyIgnoresAStaleWaitMarker(t *testing.T) {
 		t.Fatalf("err=%v issued=%d", err, f.issued)
 	}
 }
+
+// A refresh stays silent only for API failures, which the ProxyCommand hits
+// again; a local failure (here a certificate the state refuses) prints.
+func TestSSHRefreshPrintsLocalFailures(t *testing.T) {
+	f := newSSHFixture(t, func(net.Conn, *bufio.Reader) {})
+	f.wrongExpiry = true
+	var refreshErr bytes.Buffer
+	if code := Run(context.Background(), []string{"sandboxes", "ssh-config", sbxID, "--refresh"}, fixtureDeps(f, t.TempDir(), nil, &bytes.Buffer{}, &refreshErr)); code == 0 || !strings.HasPrefix(refreshErr.String(), "rzv: ") {
+		t.Fatalf("refresh = %d %q", code, refreshErr.String())
+	}
+}

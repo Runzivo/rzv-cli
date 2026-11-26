@@ -49,13 +49,17 @@ func TestSSHUnavailableFallbackAndGuidance(t *testing.T) {
 					{"sandboxes", "ssh", sbxID, "--stdio"},
 					{"sandboxes", "ssh-proxy", sbxID},
 					{"sandboxes", "ssh-config", sbxID},
-					{"sandboxes", "ssh-config", sbxID, "--refresh"},
 					{"sandboxes", "ssh", sbxID}, // noninteractive must not open a PTY
 				} {
 					got, out, stderr := h.run(args...)
 					if got != exitUnavailable || out != "" || !strings.Contains(stderr, "rzv sandboxes terminal") || !strings.Contains(stderr, "rzv sandboxes exec") {
 						t.Fatal(args, got, out, stderr)
 					}
+				}
+				// Match exec runs the refresh, then OpenSSH runs the ProxyCommand,
+				// which reports the failure: the refresh stays silent.
+				if got, out, stderr := h.run("sandboxes", "ssh-config", sbxID, "--refresh"); got != exitUnavailable || out != "" || stderr != "" {
+					t.Fatal("refresh", got, out, stderr)
 				}
 			})
 		}
@@ -207,6 +211,49 @@ func TestWorkspaceHelpExplainsAPIKeyIDs(t *testing.T) {
 			if (code != 0 && code != exitUsage) || !strings.Contains(out+stderr, want) {
 				t.Fatal(code, out, stderr)
 			}
+		}
+	}
+}
+
+// Core answers sandbox_ssh_unavailable for a sandbox with no host yet; rzv
+// reads the sandbox and reports its status instead of "SSH is not enabled".
+func TestSSHOnASandboxThatIsNotRunning(t *testing.T) {
+	for _, tc := range []struct{ status, want, not string }{
+		{"pending", "The sandbox is pending. Try again when it is running", "rzv sandboxes start"},
+		{"deleted", "cannot start again. Create a new one with `rzv sandboxes create`", "rzv sandboxes start"},
+		{"stopped", "Start it with `rzv sandboxes start " + sbxID + "`", "cannot start again"},
+	} {
+		h := selectedHarness(t)
+		h.json("POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/ssh-ticket", 503, `{"error":{"code":"sandbox_ssh_unavailable","reason":"host_poll_protocol_unavailable"}}`)
+		h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/ssh-host", 503, `{"error":{"code":"sandbox_ssh_unavailable"}}`)
+		h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, strings.Replace(sandboxJSON, `"status":"running"`, `"status":"`+tc.status+`"`, 1))
+		for _, args := range [][]string{{"sandboxes", "ssh", sbxID, "--stdio"}, {"sandboxes", "ssh-config", sbxID}} {
+			got, out, stderr := h.run(args...)
+			if got != exitFailure || out != "" || !strings.Contains(stderr, tc.want) || strings.Contains(stderr, tc.not) || strings.Contains(stderr, "not enabled") {
+				t.Fatal(tc.status, args, got, out, stderr)
+			}
+		}
+		terminal := &fakeTerminal{interactive: true, cols: 80, rows: 24}
+		if got, _, stderr := h.runWithTerminal(terminal, strings.NewReader(""), "sandboxes", "terminal", sbxID); got != exitFailure || !strings.Contains(stderr, tc.want) || strings.Contains(stderr, tc.not) {
+			t.Fatal(tc.status, "terminal", got, stderr)
+		}
+	}
+}
+
+func TestSSHNotRunningInFrench(t *testing.T) {
+	h := selectedHarness(t)
+	h.env["LC_MESSAGES"] = "fr_CA"
+	h.json("POST /v1/customer/tenants/t-1/sandboxes/"+sbxID+"/ssh-ticket", 503, `{"error":{"code":"sandbox_ssh_unavailable"}}`)
+	h.json("GET /v1/customer/tenants/t-1/sandboxes/"+sbxID, 200, strings.Replace(sandboxJSON, `"status":"running"`, `"status":"deleted"`, 1))
+	if got, _, stderr := h.run("sandboxes", "ssh", sbxID, "--stdio"); got != exitFailure || !strings.Contains(stderr, "ne peut plus démarrer. Créez-en un nouveau avec `rzv sandboxes create`.") {
+		t.Fatal(got, stderr)
+	}
+}
+
+func TestCreditsRoundToOneDecimal(t *testing.T) {
+	for in, want := range map[float64]string{5.066666666666666: "5.1 min", 20.5: "20.5 min", 0: "0.0 min"} {
+		if got := credits(in); got != want {
+			t.Fatalf("credits(%v) = %q, want %q", in, got, want)
 		}
 	}
 }

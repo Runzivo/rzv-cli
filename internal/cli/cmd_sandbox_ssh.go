@@ -200,7 +200,17 @@ func (a *app) prepareSSHFor(state *sshstate.State, client *api.Client, mode sshP
 		return nil, a.sshStartTimeoutError(false)
 	}
 	if err != nil {
-		return nil, a.sshAPIError(err)
+		failure := a.sshFailure(err, client, state.Binding.Workspace, state.Binding.Sandbox)
+		// A refresh runs from Match exec; OpenSSH then runs the ProxyCommand,
+		// which asks the API again and reports the same failure. Only API
+		// failures repeat there, so local errors still print here.
+		var apiErr *api.Error
+		if mode == sshPrepareRefresh && errors.As(err, &apiErr) {
+			quiet := *asError(failure)
+			quiet.Quiet = true
+			return nil, &quiet
+		}
+		return nil, failure
 	}
 	if err := state.SaveCertificate(ticket.Certificate, ticket.CertificateExpiresAt, a.Now()); err != nil {
 		return nil, err
@@ -306,7 +316,7 @@ func sandboxOpenSSH(a *app, cmd *command) error {
 		}
 		socket, err := client.SandboxSSH(a.ctx, state.Binding.Workspace, id, ticket)
 		if err != nil {
-			return a.sshAPIError(err)
+			return a.sshFailure(err, client, state.Binding.Workspace, id)
 		}
 		if a.Stdin == nil {
 			_ = socket.Abort()
@@ -583,7 +593,7 @@ func (a *app) sandboxSSHConfigText(cmd *command, id, workspace string, client *a
 	}
 	host, err := client.SandboxSSHHost(a.ctx, state.Binding.Workspace, id)
 	if err != nil {
-		return "", a.sshAPIError(err)
+		return "", a.sshFailure(err, client, state.Binding.Workspace, id)
 	}
 	if err := state.SaveHost(host.HostKeyAlias, host.HostCAPublicKey); err != nil {
 		return "", err
@@ -672,6 +682,20 @@ func (a *app) writeSSHConfigAtHome(home, id, config string) error {
 	}
 	_, err = fmt.Fprintln(a.Stdout, a.text("Updated SSH configuration for ", "Configuration SSH mise à jour pour ")+id+".rzv")
 	return err
+}
+
+// sshFailure maps an SSH API failure. Core answers sandbox_ssh_unavailable for
+// a sandbox that has no host yet (pending), so when SSH looks unavailable it
+// reads the sandbox: one that is not running gets that status instead.
+func (a *app) sshFailure(err error, client *api.Client, workspace, id string) error {
+	mapped := a.sshAPIError(err)
+	var cliErr *Error
+	if errors.As(mapped, &cliErr) && cliErr.Code == "sandbox_ssh_unavailable" {
+		if sandbox, getErr := client.SandboxGet(a.ctx, workspace, id); getErr == nil && sandbox.Status != "running" {
+			return a.sandboxNotRunningError(sandbox.Status, id)
+		}
+	}
+	return mapped
 }
 
 // SSH limits share API codes with PTY limits, but need transport-specific guidance.
