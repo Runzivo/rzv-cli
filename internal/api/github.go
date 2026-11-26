@@ -255,13 +255,18 @@ func (c *Client) CompleteInstallationLink(ctx context.Context, tenantID string, 
 }
 
 // RunnerProfile is one published runner size and whether this repository
-// can use it now. Label is the exact runs-on value.
+// can use it now. Label is the exact runs-on value. Character and Alias are
+// the profile's literary runner alias (Boxer, rzv-boxer): another accepted
+// runs-on spelling of Label. Both are nil when the service sends none or is
+// older than the fields.
 type RunnerProfile struct {
 	Label      string  `json:"label"`
 	VCPUCount  int64   `json:"vcpu_count"`
 	MemSizeMiB int64   `json:"mem_size_mib"`
 	Available  bool    `json:"available"`
 	Reason     *string `json:"reason"`
+	Character  *string `json:"character"`
+	Alias      *string `json:"alias"`
 }
 
 // RunnerProfiles is getCustomerRunnerProfiles' result.

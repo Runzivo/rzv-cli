@@ -490,7 +490,14 @@ func renderProfiles(id string, repoID int64, p *api.RunnerProfiles) string {
 			}
 			status = "blocked (" + display(reason) + ")"
 		}
-		lines = append(lines, fmt.Sprintf("- %s: %d vCPU, %d MiB, runs-on: %s", status, prof.VCPUCount, prof.MemSizeMiB, display(prof.Label)))
+		line := fmt.Sprintf("- %s: %d vCPU, %d MiB, runs-on: %s", status, prof.VCPUCount, prof.MemSizeMiB, display(prof.Label))
+		if prof.Alias != nil && *prof.Alias != "" {
+			line += ", alias: " + display(*prof.Alias)
+			if prof.Character != nil && *prof.Character != "" {
+				line += " (" + display(*prof.Character) + ")"
+			}
+		}
+		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
 }
